@@ -101,7 +101,7 @@ RECEIVER_NAMES: dict[int, str] = {
     0xF58A: "VXE 1K Dongle",
     0xF58D: "VXE 4K Dongle",
     0xF58E: "VXE 1K Dongle",
-    0xF505: "ATK 4K Dongle",
+    0xF505: "VGN/VXE 4K Dongle",
 }
 
 POLLING_CODES: tuple[tuple[int, int], ...] = (

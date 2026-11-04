@@ -35,6 +35,6 @@ body:
     id: version
     attributes:
       label: Compx Control version
-      placeholder: e.g. 0.1.1
+      placeholder: e.g. 0.1.2
     validations:
       required: true

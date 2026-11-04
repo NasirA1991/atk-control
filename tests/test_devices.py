@@ -61,6 +61,17 @@ class CapabilityTests(unittest.TestCase):
         self.assertEqual(caps.link_ceiling, 1000)
         self.assertEqual(caps.polling_rates, [125, 250, 500, 1000])
 
+    def test_vxe_4k_receiver(self) -> None:
+        receiver = devices.receiver_for(0xF505, "Compx VGN Dragonfly 4K Receiver")
+        self.assertIsNotNone(receiver)
+        assert receiver is not None
+        self.assertEqual(receiver.max_polling, 4000)
+        self.assertIn("4K", receiver.name)
+        model = devices.model_for(2, 8, 0x3554, 0xF505, "Compx VGN Dragonfly 4K Receiver")
+        assert model is not None
+        caps = devices.capabilities_for(model=model, receiver=receiver)
+        self.assertEqual(caps.polling_rates, [125, 250, 500, 1000, 2000, 4000])
+
     def test_lift_off_scale_only_for_ultra(self) -> None:
         model = devices.MODEL_BY_CIDMID[(2, 133)]
         caps = devices.capabilities_for(model=model, receiver=None)

@@ -73,8 +73,20 @@ Verified on a VXE R1 Pro (CID/MID `2,8`, PAW3395) through its VXE 1K receiver
 - sensor-rotation row is unprogrammed and the control is hidden;
 - firmware command `0x12` is likewise not forwarded by this receiver.
 
-The 4K receiver PID is mapped in the transport table but awaits a physical
-unit for verification.
+## VXE 4K receiver
+
+The same VXE R1 Pro was then tested through a VGN/VXE 4K receiver
+(`3554:f505`, USB revision 1.09, product string `Compx VGN Dragonfly 4K
+Receiver`). The mouse answered with CID/MID `2,8` once awake.
+
+All of the 1K tests were repeated over this receiver, and additionally:
+
+- 4K receiver ceiling was reported as 4000 Hz;
+- polling 1000 → 4000 → 2000 → 1000 Hz was written and read back;
+- all touched registers were restored byte-for-byte afterwards.
+
+The receiver reports the paired mouse online over command `0x03`; the mouse
+still has to be awake before its configuration channel answers.
 
 ## Safety
 

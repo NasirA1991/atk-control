@@ -19,10 +19,10 @@ mouse itself, so it keeps working when the app is closed.
 <sub>Screenshots are rendered by the built-in demo mode (`--demo`).</sub>
 
 > **Hardware status:** the **MAD R +** on its **8K dongle** and the **VXE R1
-> Pro** on its **1K receiver** have been verified on real hardware. Other MAD R
-> and VXE R1 variants share the configuration protocol but have not each been
-> individually tested. The 4K receiver path is implemented but still needs a
-> physical unit. A [read-only report](docs/DEVICE_REPORTS.md) is very welcome.
+> Pro** on both its **1K** and **4K** receivers have been verified on real
+> hardware. Other MAD R and VXE R1 variants share the configuration protocol
+> but have not each been individually tested. A
+> [read-only report](docs/DEVICE_REPORTS.md) is very welcome.
 
 ## Features
 
@@ -30,9 +30,9 @@ mouse itself, so it keeps working when the app is closed.
   *Hex gauge*, *Signal bars* and *Bolt*. Pick one under **Device → Tray icon** or
   from the tray menu. Charging state and link type live in the tooltip, with
   quick actions for polling, DPI, Motion Sync, ripple control and profiles.
-- **8K polling** — 125 Hz through 8000 Hz, limited intelligently by the actual
-  receiver. The app reads the link type and never offers a rate the transport
-  cannot carry.
+- **8K / 4K polling** — 125 Hz through 8000 Hz, limited intelligently by the
+  actual receiver. The app reads the link type and never offers a rate the
+  transport cannot carry.
 - **DPI** — separate X/Y resolution, up to eight stored stages, per-stage
   indicator colours, and one-click stage activation. The active stage is the
   one the mouse's DPI button cycles through.
@@ -87,7 +87,7 @@ Download `compx-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/compx-control/releases), then:
 
 ```bash
-flatpak install --user ./compx-control-0.1.1-x86_64.flatpak
+flatpak install --user ./compx-control-0.1.2-x86_64.flatpak
 flatpak run io.github.compxcontrol.CompxControl
 ```
 
@@ -97,8 +97,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x compx-control-0.1.1-x86_64.AppImage
-./compx-control-0.1.1-x86_64.AppImage
+chmod +x compx-control-0.1.2-x86_64.AppImage
+./compx-control-0.1.2-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -191,6 +191,7 @@ USB product id, because receivers are shared between models.
 | **MAD R +** | 8K dongle (`373b:1040`) | **Verified on hardware** — battery, polling to 8000 Hz, DPI stages and colours, Motion Sync, ripple, straight-line correction, LOD, debounce, sleep, performance mode, DPI LED, profiles, buttons (read-only) |
 | MAD R, MAD R MAJOR, MAD R MAJOR+ | cable / 8K dongle | Same protocol and capability family; not individually tested |
 | **VXE R1 Pro** | 1K receiver (`3554:f58a`) | **Verified on hardware** — read/write of polling (up to 1K), DPI stages and colours, Motion Sync, ripple, straight-line, LOD, debounce, sleep, performance mode and DPI LED |
+| **VXE R1 Pro** | 4K receiver (`3554:f505`) | **Verified on hardware** — same settings, with 2,000 and 4,000 Hz polling written and read back successfully |
 | VXE R1, VXE R1 Pro Max | cable / receiver | Model entries and receiver ceilings included; not individually tested |
 | Other COMPX mice | any | Detected read-only until a model entry is added |
 
@@ -198,8 +199,7 @@ When more than one receiver is connected, the **Device → Configuration devices
 card lets you switch between them.
 
 **Not yet exposed:** button remapping, macros, firmware updates and changing
-the number of DPI stages. Button assignments are shown read-only. The 4K
-receiver path is ready for hardware verification when a 4K dongle is available.
+the number of DPI stages. Button assignments are shown read-only.
 
 ### Add your mouse
 
