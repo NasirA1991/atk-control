@@ -11,7 +11,7 @@ from typing import Callable
 
 from . import devices, protocol
 from .controller import Controller
-from .protocol import DeviceNotFound, PermissionDenied, ProtocolError, discover
+from .protocol import DeviceInfo, DeviceNotFound, PermissionDenied, ProtocolError, discover
 from .state import Button, MouseState
 
 StateCallback = Callable[[MouseState, set[str]], None]
@@ -41,6 +41,8 @@ class DeviceWorker:
         self._pending: OrderedDict[str, tuple] = OrderedDict()
         self._force_full = False
         self._retry_now = False
+        self._preferred_path: str | None = None
+        self._available: list[DeviceInfo] = []
         self._state = MouseState()
         self._controller: Controller | None = None
         self._connected = False
@@ -103,6 +105,19 @@ class DeviceWorker:
         with self._lock:
             self._retry_now = True
 
+    def available_devices(self) -> list[DeviceInfo]:
+        """Configuration interfaces currently present (for a device picker)."""
+        try:
+            return discover()
+        except Exception:
+            return []
+
+    def select_device(self, path: str) -> None:
+        """Switch to another receiver or cable when more than one is present."""
+        with self._lock:
+            self._preferred_path = path
+            self._retry_now = True
+
     # -- callbacks --------------------------------------------------------
     def _emit_state(self, state: MouseState, changed: set[str] | None = None) -> None:
         try:
@@ -133,9 +148,19 @@ class DeviceWorker:
     # -- connection -------------------------------------------------------
     def _connect(self) -> bool:
         candidates = discover()
+        self._available = candidates
         if not candidates:
             self._emit_link(False, "No COMPX mouse or receiver found.")
             return False
+        with self._lock:
+            preferred = self._preferred_path
+        if preferred:
+            matching = [item for item in candidates if item.path == preferred]
+            if matching:
+                candidates = matching
+            else:
+                with self._lock:
+                    self._preferred_path = None
 
         errors: list[str] = []
         for info in candidates:
@@ -245,7 +270,14 @@ class DeviceWorker:
             with self._lock:
                 retry = self._retry_now
                 self._retry_now = False
-            if retry and self._controller is not None:
+            with self._lock:
+                preferred = self._preferred_path
+            if (
+                retry
+                and self._controller is not None
+                and preferred
+                and self._controller.path != preferred
+            ):
                 self._disconnect(None)
             if self._controller is None:
                 self._emit_link(False, self._last_link_error)
@@ -378,7 +410,7 @@ class DemoWorker:
 
     @property
     def device_path(self) -> str | None:
-        return None
+        return "/dev/hidraw-demo"
 
     @property
     def capabilities(self):
@@ -401,6 +433,19 @@ class DemoWorker:
 
     def refresh(self, full: bool = True) -> None:
         self.on_state(copy.deepcopy(self._state), set())
+
+    def available_devices(self) -> list[DeviceInfo]:
+        return [DeviceInfo(
+            path="/dev/hidraw-demo",
+            vendor_id=0x373B,
+            product_id=0x1040,
+            product_name="Compx MAD 8K DONGLE",
+            bcd_device="0215",
+            accessible=True,
+        )]
+
+    def select_device(self, path: str) -> None:
+        return None
 
     def submit(self, method: str, *args, key: str | None = None) -> None:
         state = self._state

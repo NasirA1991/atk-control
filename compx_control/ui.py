@@ -988,6 +988,14 @@ class MainWindow(Adw.ApplicationWindow):
     # ---------------------------------------------------------------- device
     def _build_device(self) -> Gtk.Widget:
         page, root = self._page("Device", "Identity, stored buttons and maintenance.")
+        self.devices_card, devices_body = self._card(
+            "Configuration devices",
+            "Choose which receiver or cable to control when more than one is connected.",
+        )
+        self.devices_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+        devices_body.append(self.devices_list)
+        root.append(self.devices_card)
+
         details, body = self._card("Hardware", "Read directly from the configuration channel.")
         self.device_values: dict[str, Gtk.Label] = {}
         for label in ("Model", "Sensor", "Connection", "Firmware", "USB", "CID / MID", "Receiver", "Device revision"):
@@ -1544,6 +1552,7 @@ class MainWindow(Adw.ApplicationWindow):
             f"{state.receiver_name} (0x{state.receiver_pid:04x})" if state.receiver_pid else "—"
         )
         self.device_values["Device revision"].set_text(state.usb_bcd or "—")
+        self._update_device_choices()
         self.profile_card.set_visible(state.profile is not None)
         for number, button in enumerate(self.profile_buttons, start=1):
             self._set_active(button, state.profile == number)
@@ -1568,6 +1577,38 @@ class MainWindow(Adw.ApplicationWindow):
                 action.set_halign(Gtk.Align.END)
                 row.append(action)
                 self.buttons_list.append(row)
+
+    def _update_device_choices(self) -> None:
+        if not hasattr(self.worker, "available_devices"):
+            self.devices_card.set_visible(False)
+            return
+        devices = self.worker.available_devices()
+        current = self.worker.device_path
+        self.devices_card.set_visible(bool(devices))
+        for child in list(self.devices_list):
+            self.devices_list.remove(child)
+        for info in devices:
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+            text.set_hexpand(True)
+            text.append(self._label(info.product_name, "row-title"))
+            kind = "receiver" if info.is_receiver else "mouse"
+            state_text = f"{info.vendor_id:04x}:{info.product_id:04x} · {kind}"
+            if not info.accessible:
+                state_text += " · no permission"
+            text.append(self._label(state_text, "row-sub"))
+            row.append(text)
+            if info.path == current:
+                badge = self._label("IN USE", "status-pill")
+                badge.set_valign(Gtk.Align.CENTER)
+                row.append(badge)
+            else:
+                button = Gtk.Button(label="Use")
+                button.add_css_class("pill")
+                button.set_sensitive(info.accessible)
+                button.connect("clicked", lambda _b, path=info.path: self.worker.select_device(path))
+                row.append(button)
+            self.devices_list.append(row)
 
     # ---------------------------------------------------------------- dialogs
     def _save_report(self) -> None:

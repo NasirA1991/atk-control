@@ -86,7 +86,10 @@ def _status(controller: Controller, as_json: bool) -> int:
         payload["dpi_max"] = caps.sensor.max_dpi
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
-    print(f"{state.brand} {state.model_name}  ({state.vendor_id:04x}:{state.product_id:04x})")
+    display = state.model_name
+    if state.brand and not display.lower().startswith(state.brand.lower()):
+        display = f"{state.brand} {display}"
+    print(f"{display}  ({state.vendor_id:04x}:{state.product_id:04x})")
     print(f"Link       : {state.link_label}")
     print(f"Battery    : {state.battery if state.battery is not None else '?'}%"
           + (" charging" if state.charging else ""))

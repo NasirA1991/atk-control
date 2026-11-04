@@ -47,6 +47,12 @@ class DemoWorkerTests(unittest.TestCase):
         self.worker.submit("profile", 3)
         self.assertEqual(self.worker.state.profile, 3)
 
+    def test_demo_device_picker(self) -> None:
+        devices = self.worker.available_devices()
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(self.worker.device_path, "/dev/hidraw-demo")
+        self.worker.select_device("/dev/hidraw-demo")
+
 
 if __name__ == "__main__":
     unittest.main()

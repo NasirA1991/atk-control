@@ -18,11 +18,11 @@ mouse itself, so it keeps working when the app is closed.
 
 <sub>Screenshots are rendered by the built-in demo mode (`--demo`).</sub>
 
-> **Hardware status:** the **MAD R +** on its **8K dongle** has been verified on
-> real hardware for the features below. The rest of the MAD R family and the
-> VXE R1 family share the same configuration protocol, but have not each been
-> individually tested yet. If you have one, a
-> [read-only report](docs/DEVICE_REPORTS.md) is very welcome.
+> **Hardware status:** the **MAD R +** on its **8K dongle** and the **VXE R1
+> Pro** on its **1K receiver** have been verified on real hardware. Other MAD R
+> and VXE R1 variants share the configuration protocol but have not each been
+> individually tested. The 4K receiver path is implemented but still needs a
+> physical unit. A [read-only report](docs/DEVICE_REPORTS.md) is very welcome.
 
 ## Features
 
@@ -87,7 +87,7 @@ Download `compx-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/compx-control/releases), then:
 
 ```bash
-flatpak install --user ./compx-control-0.1.0-x86_64.flatpak
+flatpak install --user ./compx-control-0.1.1-x86_64.flatpak
 flatpak run io.github.compxcontrol.CompxControl
 ```
 
@@ -97,8 +97,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x compx-control-0.1.0-x86_64.AppImage
-./compx-control-0.1.0-x86_64.AppImage
+chmod +x compx-control-0.1.1-x86_64.AppImage
+./compx-control-0.1.1-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -190,12 +190,16 @@ USB product id, because receivers are shared between models.
 |---|---|---|
 | **MAD R +** | 8K dongle (`373b:1040`) | **Verified on hardware** — battery, polling to 8000 Hz, DPI stages and colours, Motion Sync, ripple, straight-line correction, LOD, debounce, sleep, performance mode, DPI LED, profiles, buttons (read-only) |
 | MAD R, MAD R MAJOR, MAD R MAJOR+ | cable / 8K dongle | Same protocol and capability family; not individually tested |
-| VXE R1, R1 Pro, R1 Pro Max | cable / receiver | Model entries and receiver ceilings included; hardware verification pending |
+| **VXE R1 Pro** | 1K receiver (`3554:f58a`) | **Verified on hardware** — read/write of polling (up to 1K), DPI stages and colours, Motion Sync, ripple, straight-line, LOD, debounce, sleep, performance mode and DPI LED |
+| VXE R1, VXE R1 Pro Max | cable / receiver | Model entries and receiver ceilings included; not individually tested |
 | Other COMPX mice | any | Detected read-only until a model entry is added |
 
-**Not yet exposed in 0.1.0:** button remapping, macros, firmware updates and
-changing the number of DPI stages. Button assignments are shown read-only. The
-stock 4K receiver path will be added and tested when the hardware is available.
+When more than one receiver is connected, the **Device → Configuration devices**
+card lets you switch between them.
+
+**Not yet exposed:** button remapping, macros, firmware updates and changing
+the number of DPI stages. Button assignments are shown read-only. The 4K
+receiver path is ready for hardware verification when a 4K dongle is available.
 
 ### Add your mouse
 

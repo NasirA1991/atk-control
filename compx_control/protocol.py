@@ -159,7 +159,7 @@ def build_frame(cmd: int, body: bytes = b"") -> bytes:
 
 def build_read(addr: int, length: int) -> bytes:
     if not 1 <= length <= MAX_EEPROM_CHUNK:
-        raise ValueError("read length must be 1-8")
+        raise ValueError("read length must be 1-10")
     if not 0 <= addr <= 0xFFFF:
         raise ValueError("address out of range")
     return build_frame(
@@ -170,7 +170,7 @@ def build_read(addr: int, length: int) -> bytes:
 
 def build_write(addr: int, data: bytes) -> bytes:
     if not 1 <= len(data) <= MAX_EEPROM_CHUNK:
-        raise ValueError("write length must be 1-8")
+        raise ValueError("write length must be 1-10")
     if not 0 <= addr <= 0xFFFF:
         raise ValueError("address out of range")
     return build_frame(

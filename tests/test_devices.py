@@ -21,6 +21,18 @@ class ModelTests(unittest.TestCase):
         assert model is not None
         self.assertEqual(model.brand, "VXE")
 
+    def test_r1_pro_identity_on_1k_receiver(self) -> None:
+        model = devices.model_for(2, 8, 0x3554, 0xF58A, "Compx VXE NordicMouse 1K Dongle")
+        self.assertIsNotNone(model)
+        assert model is not None
+        self.assertEqual(model.name, "VXE R1 Pro")
+        receiver = devices.receiver_for(0xF58A, "Compx VXE NordicMouse 1K Dongle")
+        self.assertIsNotNone(receiver)
+        assert receiver is not None
+        caps = devices.capabilities_for(model=model, receiver=receiver)
+        self.assertEqual(caps.polling_rates, [125, 250, 500, 1000])
+        self.assertEqual(caps.link_ceiling, 1000)
+
     def test_unknown_falls_back_to_usb(self) -> None:
         self.assertIsNone(devices.model_for(None, None, 0x373B, 0x9999))
         caps = devices.capabilities_for(model=None, receiver=None,

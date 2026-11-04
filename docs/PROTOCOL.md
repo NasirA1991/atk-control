@@ -61,6 +61,21 @@ Verified on a MAD R + (CID/MID `2,54`, PAW3395) through the MAD 8K dongle
 The current firmware leaves the sensor-rotation row unprogrammed, so that
 control is hidden. Firmware command `0x12` is not forwarded by this dongle.
 
+Verified on a VXE R1 Pro (CID/MID `2,8`, PAW3395) through its VXE 1K receiver
+(`3554:f58a`, USB revision 1.09):
+
+- identity, battery, four DPI stages, stage colours, advanced settings,
+  sensor mode, lighting, profile and button reads;
+- reversible writes with read-back for polling (1000 → 500 → 1000 Hz), DPI,
+  active stage, stage colour, lift-off, debounce, Motion Sync, ripple,
+  straight-line, sleep, performance mode and DPI LED;
+- 1K receiver ceiling correctly limits the UI and CLI to 1000 Hz;
+- sensor-rotation row is unprogrammed and the control is hidden;
+- firmware command `0x12` is likewise not forwarded by this receiver.
+
+The 4K receiver PID is mapped in the transport table but awaits a physical
+unit for verification.
+
 ## Safety
 
 Only model-table entries can be written. Writes use local read-modify-write for

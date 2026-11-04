@@ -8,7 +8,7 @@ from pathlib import Path
 
 APP_ID = "io.github.compxcontrol.CompxControl"
 APP_NAME = "Compx Control"
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 REPO_URL = "https://github.com/NasirA1991/compx-control"
 HUB_URL = "https://hub.atk.pro/"
 
