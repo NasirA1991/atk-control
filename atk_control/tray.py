@@ -356,11 +356,21 @@ class Tray(dbus.service.Object):
         self._revision = 1
         self._status = "Passive"
 
-        # A unique name is important: a stale or older instance must not make
-        # the current tray silently fail to register.  StatusNotifier hosts
-        # identify the item by this bus name.
-        sni_name = f"org.kde.StatusNotifierItem-{os.getpid()}-1"
-        self.bus_name = dbus.service.BusName(sni_name, self.bus, do_not_queue=True)
+        # StatusNotifier hosts identify the item by this bus name.  Outside
+        # Flatpak a PID-suffixed name avoids stale-instance collisions.  Inside
+        # Flatpak the PID is always 2, so use the manifest-approved app name;
+        # fall back to an app-scoped suffix if an old instance owns it.
+        flatpak_id = os.environ.get("FLATPAK_ID")
+        if flatpak_id:
+            sni_name = f"{flatpak_id}.StatusNotifierItem"
+            try:
+                self.bus_name = dbus.service.BusName(sni_name, self.bus, do_not_queue=True)
+            except dbus.DBusException:
+                sni_name = f"{flatpak_id}.StatusNotifierItem.{os.urandom(4).hex()}"
+                self.bus_name = dbus.service.BusName(sni_name, self.bus, do_not_queue=True)
+        else:
+            sni_name = f"org.kde.StatusNotifierItem-{os.getpid()}-1"
+            self.bus_name = dbus.service.BusName(sni_name, self.bus, do_not_queue=True)
         dbus.service.Object.__init__(self, self.bus_name, "/StatusNotifierItem")
         self.menu = TrayMenu(self.bus_name, self)
 

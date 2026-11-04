@@ -81,6 +81,8 @@ class AtkApplication(Adw.Application):
                 self.tray = tray
                 self.hold()
                 self._held = True
+            else:
+                print("atk-control: tray watcher unavailable", file=sys.stderr)
         except Exception as exc:  # tray is optional
             print(f"atk-control: tray unavailable: {exc}", file=sys.stderr)
 

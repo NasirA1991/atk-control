@@ -13,6 +13,7 @@ finish-args:
   # StatusNotifierItem tray (KDE and AppIndicator hosts).
   - --talk-name=org.kde.StatusNotifierWatcher
   - --own-name=io.github.atkcontrol.AtkControl.StatusNotifierItem
+  - --own-name=io.github.atkcontrol.AtkControl.StatusNotifierItem.*
   - --talk-name=org.freedesktop.Notifications
 
 modules:

@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.4.2" date="2026-11-04">
+      <description>
+        <p>Fixes Flatpak tray registration after the unique-name hardening, while keeping the dynamic battery icon and standard menu path.</p>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-11-04">
       <description>
         <p>Fixes the tray icon to use the dynamic battery pixmap and a standard DBusMenu path with a unique item name; adds automatic switching to the other mouse when the selected one is unplugged or asleep.</p>
