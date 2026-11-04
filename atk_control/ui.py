@@ -426,6 +426,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._dpi_timers: dict[tuple[int, str], int] = {}
         self._tray_style = config.load().get("tray_icon_style", config.DEFAULT_TRAY_STYLE)
         self._button_action_keys = BUTTON_ACTION_ORDER + ("custom",)
+        self._last_state_signature: str | None = None
 
         self.set_default_size(1140, 900)
         self.set_size_request(860, 620)
@@ -1422,6 +1423,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.stack.set_sensitive(True)
             return
         self._state = None
+        self._last_state_signature = None
         self.stack.set_sensitive(False)
         self.notice_label.set_text(error or "Waiting for an ATK/VXE mouse…")
         self.notice.set_reveal_child(True)
@@ -1457,6 +1459,32 @@ class MainWindow(Adw.ApplicationWindow):
     def on_state(self, state: MouseState, changed: set[str]) -> None:
         self._state = state
         self._connected = True
+        # The worker re-emits the full state on every live poll.  Rebuilding
+        # every page when nothing changed is expensive (several percent CPU on
+        # an idle GTK window), so only redraw when the data actually differs.
+        # Compare only the fields the window actually renders.  Receiver
+        # liveness, RF id and voltage update every poll but do not affect the
+        # pages; treating them as changes causes a full relayout every 3 s.
+        signature = (
+            state.battery, state.charging, state.wired, state.read_only,
+            state.model_name, state.brand, state.sensor, state.firmware,
+            state.usb_bcd, state.cid, state.mid, state.receiver_name,
+            state.receiver_pid, state.dpi, state.dpi_y, tuple(state.stages),
+            state.active_stage, state.stage_count, state.polling_rate,
+            state.lod_code, state.lod_mm, state.debounce_ms, state.motion_sync,
+            state.sleep_seconds, state.ripple_control, state.straight_line,
+            state.angle_degrees, state.angle_enabled, state.performance_mode,
+            state.sensor_mode, state.long_range, state.led_mode,
+            state.led_brightness, state.led_speed, state.profile,
+            tuple((b.name, b.action, b.action_id) for b in state.buttons),
+            state.supports_angle, state.supports_performance_mode,
+            state.supports_sensor_max, state.supports_button_remap,
+            state.supports_long_range, state.supports_lighting,
+            state.supports_stage_colors,
+        )
+        if signature == self._last_state_signature:
+            return
+        self._last_state_signature = signature
         self.notice.set_reveal_child(bool(state.read_only))
         if state.read_only:
             self.notice_label.set_text(

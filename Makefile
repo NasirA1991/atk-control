@@ -24,10 +24,10 @@ uninstall:
 	./uninstall.sh
 
 appimage:
-	./packaging/appimage/build.sh 0.4.6 dist
+	./packaging/appimage/build.sh 0.4.7 dist
 
 flatpak:
-	./packaging/flatpak/build.sh 0.4.6 dist
+	./packaging/flatpak/build.sh 0.4.7 dist
 
 clean:
 	rm -rf dist build AppDir .flatpak-builder screenshots

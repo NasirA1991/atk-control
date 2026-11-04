@@ -127,7 +127,7 @@ Download `atk-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./atk-control-0.4.6-x86_64.flatpak
+flatpak install --user ./atk-control-0.4.7-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -137,8 +137,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.4.6-x86_64.AppImage
-./atk-control-0.4.6-x86_64.AppImage
+chmod +x atk-control-0.4.7-x86_64.AppImage
+./atk-control-0.4.7-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -160,6 +160,24 @@ A fully self-contained bundle is the Flatpak above. Every release also includes
 ```bash
 sha256sum -c SHA256SUMS
 ```
+
+## Performance
+
+ATK Control is native GTK4/Python, not Electron, and it creates the main window
+only when you open it. On the development machine, with a real receiver
+connected:
+
+| Mode | Idle CPU | RSS | PSS |
+|---|---|---|---|
+| Tray only, window never created | ~0.05–0.13% | ~76 MB | ~49 MB |
+| Window open, idle | ~0.07–0.13% | ~131 MB | ~78 MB |
+
+RSS counts shared GTK libraries; PSS is the fairer figure. The Flatpak shares
+its runtime with other GNOME apps, so its PSS is usually lower. Idle CPU stays
+low because the window only relayouts when a displayed value actually changes,
+the tray polls battery every 30 seconds when hidden, and a receiver-only online
+heartbeat runs every 5 seconds. Full refreshes happen every 30 seconds while
+visible and every 5 minutes while hidden.
 
 ## Safety and concurrency
 
