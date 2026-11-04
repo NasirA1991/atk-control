@@ -126,7 +126,7 @@ Download `atk-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./atk-control-0.4.3-x86_64.flatpak
+flatpak install --user ./atk-control-0.4.4-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -136,8 +136,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.4.3-x86_64.AppImage
-./atk-control-0.4.3-x86_64.AppImage
+chmod +x atk-control-0.4.4-x86_64.AppImage
+./atk-control-0.4.4-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's

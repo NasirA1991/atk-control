@@ -38,6 +38,7 @@ ID_OPEN = 9
 ID_REFRESH = 10
 ID_STYLE = 11
 ID_QUIT = 12
+ID_STRAIGHT = 13
 ID_POLLING_BASE = 30
 ID_DPI_BASE = 40
 ID_PROFILE_BASE = 60
@@ -330,6 +331,7 @@ class Tray(dbus.service.Object):
         on_dpi: Callable[[int], None],
         on_motion: Callable[[bool], None],
         on_ripple: Callable[[bool], None],
+        on_straight: Callable[[bool], None],
         on_profile: Callable[[int], None],
         on_style: Callable[[str], None],
         style: str = DEFAULT_TRAY_STYLE,
@@ -344,6 +346,7 @@ class Tray(dbus.service.Object):
         self.on_dpi = on_dpi
         self.on_motion = on_motion
         self.on_ripple = on_ripple
+        self.on_straight = on_straight
         self.on_profile = on_profile
         self.on_style = on_style
         self.style = style if style in STYLE_KEYS else DEFAULT_TRAY_STYLE
@@ -555,7 +558,8 @@ class Tray(dbus.service.Object):
             "children-display": "submenu",
         })
         dpi_children = []
-        for value in (400, 800, 1600, 3200, 6400):
+        values = sorted(set((400, 800, 1600, 3200, 6400, self._dpi())))
+        for value in values:
             dpi_children.append({
                 "id": ID_DPI_BASE + value,
                 "label": f"{value} DPI",
@@ -600,6 +604,13 @@ class Tray(dbus.service.Object):
             "enabled": connected and state is not None and state.ripple_control is not None,
             "toggle-type": "checkmark",
             "toggle-state": 1 if connected and state is not None and state.ripple_control else 0,
+        })
+        items.append({
+            "id": ID_STRAIGHT,
+            "label": "Angle snapping",
+            "enabled": connected and state is not None and state.straight_line is not None,
+            "toggle-type": "checkmark",
+            "toggle-state": 1 if connected and state is not None and state.straight_line else 0,
         })
         items.append({"id": ID_SEP2, "type": "separator"})
         items.append({"id": ID_OPEN, "label": "Open ATK Control", "enabled": True})
@@ -704,6 +715,8 @@ class Tray(dbus.service.Object):
             self.on_motion(not bool(self.state.motion_sync))
         elif item_id == ID_RIPPLE and self.state is not None:
             self.on_ripple(not bool(self.state.ripple_control))
+        elif item_id == ID_STRAIGHT and self.state is not None:
+            self.on_straight(not bool(self.state.straight_line))
         elif item_id - ID_POLLING_BASE in self.polling_rates:
             self.on_polling(item_id - ID_POLLING_BASE)
         elif item_id - ID_DPI_BASE in (400, 800, 1600, 3200, 6400):

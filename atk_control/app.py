@@ -73,6 +73,7 @@ class AtkApplication(Adw.Application):
                 on_dpi=self._tray_dpi,
                 on_motion=self._tray_motion,
                 on_ripple=self._tray_ripple,
+                on_straight=self._tray_straight,
                 on_profile=self._tray_profile,
                 on_style=self._tray_style,
                 style=config.load().get("tray_icon_style", config.DEFAULT_TRAY_STYLE),
@@ -228,6 +229,10 @@ class AtkApplication(Adw.Application):
     def _tray_ripple(self, enabled: bool) -> None:
         if self.worker is not None:
             self.worker.submit("ripple", enabled)
+
+    def _tray_straight(self, enabled: bool) -> None:
+        if self.worker is not None:
+            self.worker.submit("straight_line", enabled)
 
     def _tray_profile(self, profile: int) -> None:
         if self.worker is not None:
