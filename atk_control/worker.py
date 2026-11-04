@@ -20,6 +20,19 @@ LinkCallback = Callable[[bool, str | None], None]
 ToastCallback = Callable[[str], None]
 
 
+def _prioritise_candidates(candidates, preferred: str | None):
+    """Keep the selected device first, but never hide the other links.
+
+    If the selected mouse/receiver is unplugged or asleep, the worker must be
+    able to fall through to the other mouse and switch automatically.
+    """
+    if not preferred:
+        return list(candidates), preferred
+    first = [item for item in candidates if item.path == preferred]
+    rest = [item for item in candidates if item.path != preferred]
+    return first + rest, preferred
+
+
 class DeviceWorker:
     """Owns the hidraw session on a background thread."""
 
@@ -186,15 +199,13 @@ class DeviceWorker:
             return False
         with self._lock:
             preferred = self._preferred_path
-        if preferred:
-            matching = [item for item in candidates if item.path == preferred]
-            if matching:
-                candidates = matching
-            else:
-                with self._lock:
-                    self._preferred_path = None
+        candidates, preferred = _prioritise_candidates(candidates, preferred)
+        if preferred is not None and not any(item.path == preferred for item in candidates):
+            with self._lock:
+                self._preferred_path = None
 
         errors: list[str] = []
+        switched_from = preferred
         for info in candidates:
             controller = Controller(info)
             try:
@@ -226,8 +237,15 @@ class DeviceWorker:
             self._last_full = time.monotonic()
             with self._lock:
                 self._state = copy.deepcopy(state)
+                switched = switched_from is not None and info.path != switched_from
+                self._preferred_path = info.path
             self._emit_link(True, None)
             self._emit_state(state, set())
+            if switched:
+                self._toast(
+                    f"Switched automatically to {state.connected_name} "
+                    f"on {state.link_label}."
+                )
             return True
 
         self._emit_link(False, errors[0] if errors else "The mouse did not answer.")

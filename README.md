@@ -31,6 +31,8 @@ the 1K/4K/8K receiver are always shown as separate pieces of information.
   *Hex gauge*, *Signal bars* and *Reticle*. Pick one under **Device → Tray icon**
   or from the tray menu. Charging state and link type live in the tooltip, with
   quick actions for polling, DPI, Motion Sync, ripple control and profiles.
+  The icon itself uses a dynamic battery pixmap, so the percentage is visible
+  in the panel as well as the tooltip.
 - **8K / 4K polling** — 125 Hz through 8000 Hz, limited intelligently by the
   actual receiver. The app reads the link type and never offers a rate the
   transport cannot carry.
@@ -124,7 +126,7 @@ Download `atk-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./atk-control-0.4.0-x86_64.flatpak
+flatpak install --user ./atk-control-0.4.1-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -134,8 +136,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.4.0-x86_64.AppImage
-./atk-control-0.4.0-x86_64.AppImage
+chmod +x atk-control-0.4.1-x86_64.AppImage
+./atk-control-0.4.1-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -269,7 +271,9 @@ USB product id, because receivers are shared between models.
 
 The MAD R + is an 8K-receiver mouse; that is the configuration verified here.
 When more than one receiver is connected, the **Device → Configuration devices**
-card lets you switch between them.
+card lets you switch between them. If the selected mouse is unplugged or asleep,
+ATK Control tries the other detected mouse automatically and updates the tray
+and window to the one that answers.
 
 **Not yet exposed:** macro recording, complex keyboard-shortcut assignments,
 receiver pairing, factory reset, direction calibration and configuration

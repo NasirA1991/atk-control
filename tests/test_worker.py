@@ -5,13 +5,62 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from atk_control import devices
+from atk_control.protocol import DeviceInfo, ProtocolError
 from atk_control.state import MouseState
-from atk_control.worker import DeviceWorker, DemoWorker
+from atk_control.worker import DeviceWorker, DemoWorker, _prioritise_candidates
 
 
 class WorkerSafetyTests(unittest.TestCase):
+    def test_candidate_order_keeps_selected_first_but_keeps_others(self) -> None:
+        one = DeviceInfo("/dev/hidraw1", 0x373B, 0x1040, "MAD 8K", "0215", True)
+        two = DeviceInfo("/dev/hidraw2", 0x3554, 0xF505, "VXE 4K", "0109", True)
+        ordered, preferred = _prioritise_candidates([two, one], one.path)
+        self.assertEqual([item.path for item in ordered], [one.path, two.path])
+        self.assertEqual(preferred, one.path)
+        ordered, preferred = _prioritise_candidates([two, one], "/dev/missing")
+        self.assertEqual(len(ordered), 2)
+        self.assertEqual(preferred, "/dev/missing")
+
+    def test_auto_switches_when_preferred_device_does_not_answer(self) -> None:
+        one = DeviceInfo("/dev/hidraw1", 0x373B, 0x1040, "MAD 8K", "0215", True)
+        two = DeviceInfo("/dev/hidraw2", 0x3554, 0xF505, "VXE 4K", "0109", True)
+        asked = []
+        states = []
+        toasts = []
+
+        class FakeController:
+            def __init__(self, info):
+                self.info = info
+                self.path = info.path
+                self.model = None
+                self.receiver = None
+
+            def open(self):
+                asked.append(self.path)
+                if self.path == one.path:
+                    raise ProtocolError("the selected mouse is asleep")
+                return MouseState(model_name="VXE R1 Pro", battery=80,
+                                  receiver_name="VGN/VXE 4K Dongle", receiver_pid=0xF505)
+
+            def close(self):
+                pass
+
+        worker = DeviceWorker(
+            lambda state, changed: states.append(state),
+            lambda connected, error: None,
+            lambda message: toasts.append(message),
+        )
+        worker._preferred_path = one.path
+        with patch("atk_control.worker.discover", return_value=[one, two]),              patch("atk_control.worker.Controller", FakeController):
+            self.assertTrue(worker._connect())
+        self.assertEqual(asked, [one.path, two.path])
+        self.assertEqual(worker._preferred_path, two.path)
+        self.assertEqual(states[-1].model_name, "VXE R1 Pro")
+        self.assertTrue(any("Switched automatically" in message for message in toasts))
+
     def test_hidden_polling_is_slower(self) -> None:
         worker = DeviceWorker(lambda *_: None, lambda *_: None)
         hidden = worker._intervals()

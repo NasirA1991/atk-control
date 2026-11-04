@@ -267,6 +267,56 @@ def render_tray_icon(state: MouseState | None, connected: bool,
     return _RENDERERS.get(style, render_hex_icon)(state, connected)
 
 
+class TrayMenu(dbus.service.Object):
+    """DBusMenu at the conventional /MenuBar path.
+
+    Keeping the menu in a separate object is friendlier to hosts that do not
+    like the menu sharing the StatusNotifierItem object path.
+    """
+
+    def __init__(self, bus_name, tray: "Tray") -> None:
+        super().__init__(bus_name, "/MenuBar")
+        self.tray = tray
+
+    @dbus.service.method(MENU_IFACE, in_signature="iias", out_signature="(ia{sv}av)")
+    def GetLayout(self, parent_id, recursion_depth, property_names):
+        return self.tray.GetLayout(parent_id, recursion_depth, property_names)
+
+    @dbus.service.method(MENU_IFACE, in_signature="aias", out_signature="a(ia{sv})")
+    def GetGroupProperties(self, ids, property_names):
+        return self.tray.GetGroupProperties(ids, property_names)
+
+    @dbus.service.method(MENU_IFACE, in_signature="is", out_signature="v")
+    def GetProperty(self, item_id, name):
+        return self.tray.GetProperty(item_id, name)
+
+    @dbus.service.method(MENU_IFACE, in_signature="isvu", out_signature="")
+    def Event(self, item_id, event_id, data, timestamp):
+        return self.tray.Event(item_id, event_id, data, timestamp)
+
+    @dbus.service.method(MENU_IFACE, in_signature="a(isvu)", out_signature="")
+    def EventGroup(self, events):
+        return self.tray.EventGroup(events)
+
+    @dbus.service.method(MENU_IFACE, in_signature="i", out_signature="b")
+    def AboutToShow(self, item_id):
+        self.LayoutUpdated(self.tray._revision, 0)
+        return False
+
+    @dbus.service.method(MENU_IFACE, in_signature="ai", out_signature="aiai")
+    def AboutToShowGroup(self, ids):
+        self.LayoutUpdated(self.tray._revision, 0)
+        return (dbus.Array([], signature="i"), dbus.Array([], signature="i"))
+
+    @dbus.service.signal(MENU_IFACE, signature="ui")
+    def LayoutUpdated(self, revision, parent):
+        return None
+
+    @dbus.service.signal(MENU_IFACE, signature="a(ia{sv})a(ias)")
+    def ItemsPropertiesUpdated(self, updated, removed):
+        return None
+
+
 class Tray(dbus.service.Object):
     """Small SNI host with a native DBusMenu quick panel."""
 
@@ -306,14 +356,13 @@ class Tray(dbus.service.Object):
         self._revision = 1
         self._status = "Passive"
 
-        flatpak_id = os.environ.get("FLATPAK_ID")
-        sni_name = (
-            f"{flatpak_id}.StatusNotifierItem"
-            if flatpak_id
-            else f"org.kde.StatusNotifierItem-{os.getpid()}-1"
-        )
+        # A unique name is important: a stale or older instance must not make
+        # the current tray silently fail to register.  StatusNotifier hosts
+        # identify the item by this bus name.
+        sni_name = f"org.kde.StatusNotifierItem-{os.getpid()}-1"
         self.bus_name = dbus.service.BusName(sni_name, self.bus, do_not_queue=True)
         dbus.service.Object.__init__(self, self.bus_name, "/StatusNotifierItem")
+        self.menu = TrayMenu(self.bus_name, self)
 
     # -- lifecycle --------------------------------------------------------
     def start(self) -> bool:
@@ -355,7 +404,7 @@ class Tray(dbus.service.Object):
         self._emit("NewToolTip")
         self._emit("NewTitle")
         self.NewStatus(self._status)
-        self.LayoutUpdated(self._revision, 0)
+        self.menu.LayoutUpdated(self._revision, 0)
 
     def set_style(self, style: str) -> None:
         if style not in STYLE_KEYS or style == self.style:
@@ -364,7 +413,7 @@ class Tray(dbus.service.Object):
         self._icon = render_tray_icon(self.state, self.connected, style)
         self._revision += 1
         self._emit("NewIcon")
-        self.LayoutUpdated(self._revision, 0)
+        self.menu.LayoutUpdated(self._revision, 0)
 
     def _emit(self, signal: str) -> None:
         try:
@@ -425,7 +474,9 @@ class Tray(dbus.service.Object):
             "Id": dbus.String("atk-control"),
             "Title": dbus.String(self.app_name),
             "Status": dbus.String(self._status),
-            "IconName": dbus.String("atk-control"),
+            # Empty IconName makes hosts use the dynamic IconPixmap instead of
+            # the static application icon (which has no battery digits).
+            "IconName": dbus.String(""),
             "IconPixmap": pixmap,
             "OverlayIconName": dbus.String(""),
             "OverlayIconPixmap": dbus.Array([], signature="(iiay)"),
@@ -434,7 +485,7 @@ class Tray(dbus.service.Object):
             "AttentionMovieName": dbus.String(""),
             "ToolTip": tooltip,
             "ItemIsMenu": dbus.Boolean(True),
-            "Menu": dbus.ObjectPath("/StatusNotifierItem"),
+            "Menu": dbus.ObjectPath("/MenuBar"),
             "IconThemePath": dbus.String(""),
         }
         return dbus.Dictionary(values, signature="sv")
