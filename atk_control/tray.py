@@ -381,7 +381,7 @@ class Tray(dbus.service.Object):
     def _next_sni_name(self) -> str:
         self._sni_generation += 1
         if self._flatpak_id:
-            return f"{self._flatpak_id}.StatusNotifierItem.{self._sni_generation}"
+            return f"{self._flatpak_id}.StatusNotifierItem.g{self._sni_generation}"
         return f"org.kde.StatusNotifierItem-{os.getpid()}-{self._sni_generation}-1"
 
     def start(self) -> bool:

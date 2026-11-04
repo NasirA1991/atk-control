@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.5.1" date="2026-11-04">
+      <description>
+        <p>Fixes the Flatpak tray bus-name generation introduced by the no-mouse tray visibility change.</p>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-04">
       <description>
         <p>Removes the tray item entirely while no mouse is connected, and restores it automatically when a mouse comes back online.</p>

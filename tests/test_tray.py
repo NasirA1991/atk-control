@@ -42,6 +42,18 @@ class TrayIconTests(unittest.TestCase):
         idle = render_tray_icon(self.state, True, "hex")[0][2]
         self.assertNotEqual(charging, idle)
 
+    def test_generated_tray_bus_names_are_valid(self) -> None:
+        tray = object.__new__(Tray)
+        tray._sni_generation = 0
+        tray._flatpak_id = None
+        for _ in range(3):
+            name = Tray._next_sni_name(tray)
+            dbus.validate_bus_name(name, allow_well_known=True, allow_unique=False)
+        tray._flatpak_id = "io.github.atkcontrol.AtkControl"
+        for _ in range(3):
+            name = Tray._next_sni_name(tray)
+            dbus.validate_bus_name(name, allow_well_known=True, allow_unique=False)
+
     def test_dbusmenu_children_are_variants(self) -> None:
         tray = object.__new__(Tray)
         tray._revision = 7
