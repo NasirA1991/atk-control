@@ -285,9 +285,9 @@ USB product id, because receivers are shared between models.
 
 | Model | Link | Status |
 |---|---|---|
-| **MAD R +** | 8K dongle (`373b:1040`) | **Verified on hardware** — battery, polling to 8000 Hz, DPI stages and colours, Motion Sync, ripple, straight-line correction, LOD, debounce, sleep, sensor mode, DPI LED, profiles and button reads; button remap and MAX are enabled from ATK HUB protocol evidence |
+| **MAD R +** | 8K dongle (`373b:1040`) | **Verified on hardware** — battery, polling to 8000 Hz, DPI stages and colours, Motion Sync, ripple, straight-line correction, LOD, debounce, sleep, sensor mode, DPI LED, profiles and button reads; button remap and MAX are enabled from ATK HUB protocol evidence; DPI and profile commits survive power cycles |
 | MAD R, MAD R MAJOR, MAD R MAJOR+ | cable / 8K dongle | Same protocol and capability family; not individually tested |
-| **VXE R1 Pro** | 1K / 4K receiver (`3554:f58a` / `3554:f505`) | **Verified on hardware** — polling up to 4K, DPI stages/colours and add/remove, Motion Sync, ripple, straight-line, LOD, debounce, sleep, sensor modes including MAX, DPI LED, button remapping and firmware reporting |
+| **VXE R1 Pro** | 1K / 4K receiver (`3554:f58a` / `3554:f505`) | **Verified on hardware** — polling up to 4K, DPI stages/colours and add/remove, Motion Sync, ripple, straight-line, LOD, debounce, sleep, sensor modes including MAX, DPI LED, button remapping, firmware reporting and settings that survive power cycles |
 | VXE R1, VXE R1 Pro Max | cable / receiver | Model entries and receiver ceilings included; not individually tested |
 | Other ATK/VXE mice | any | Detected read-only until a model entry is added |
 

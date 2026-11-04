@@ -119,3 +119,18 @@ Validated against the VXE R1 Pro over the 4K receiver on 2026-11-04:
   macro/shortcut records are preserved.
 - the DPI stage count was increased from four to five and reduced back to four;
   the final raw snapshot was restored. Stage count lives in the system row.
+
+## Onboard profile commit
+
+The COMPX EEPROM writes update the active working profile. They are visible to
+immediate read-back but are not necessarily in flash. The firmware flushes the
+working profile when the active profile changes.
+
+ATK Control therefore commits after a write batch by switching to another
+profile and back, preserving the original active profile. Verified on both
+tested mice:
+
+- VXE R1 Pro, profile 1, stage 1: 1200 DPI survived a full power cycle.
+- MAD R +, profile 1, stage 2: 1200 DPI survived a full power cycle.
+
+The test values were restored to the original 1600 DPI afterward.
