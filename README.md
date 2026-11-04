@@ -25,6 +25,12 @@ the 1K/4K/8K receiver are always shown as separate pieces of information.
 > each been individually tested. [Request support for your mouse](#missing-your-mouse)
 > and it can be added.
 
+**Jump to:** [Install](#install) · [Supported devices](#supported-devices) · [Features](#features) · [Usage](#usage) · [Permissions](#permissions) · [Support](#missing-your-mouse)
+
+> **Quick install:** Arch/CachyOS users can run `paru -S atk-control`. On other
+> distributions, download the latest Flatpak or AppImage from
+> [Releases](https://github.com/NasirA1991/atk-control/releases).
+
 ## Features
 
 - **Tray icon with live battery** — three deliberately different designs:
@@ -62,6 +68,7 @@ the 1K/4K/8K receiver are always shown as separate pieces of information.
   Raw support bytes are opt-in, and a per-device lock prevents the GUI and CLI
   from fighting over one hidraw stream.
 
+![Buttons](docs/screenshots/buttons.png)
 ![Performance](docs/screenshots/performance.png)
 ![DPI](docs/screenshots/dpi.png)
 ![Lighting](docs/screenshots/lighting.png)
@@ -72,29 +79,6 @@ the 1K/4K/8K receiver are always shown as separate pieces of information.
 
 The angular hexagon and transparent bar/reticle designs are intentionally unlike
 the tray icons used by other mouse utilities.
-
-## Missing your mouse?
-
-ATK Control is built to grow across the ATK/VXE family. If your mouse is not
-listed, or a receiver is not recognised, send a **read-only device report**:
-
-1. Open **Device → Missing your ATK/VXE mouse? → Save support report**.
-2. Review the generated `.md` file.
-3. Attach it to a [mouse support request](https://github.com/NasirA1991/atk-control/issues/new?template=device-report.yml).
-
-From a terminal this is:
-
-```bash
-atkctl support
-```
-
-The report includes the device identity and every setting ATK Control can read.
-It never includes the full RF identifier, USB serial number or host name, and
-nothing is uploaded automatically. Raw register bytes are **opt-in**: enable
-*Include raw registers* in the save dialog, or run `atkctl support --raw`, only
-when maintainers ask for them. [More about device reports](docs/DEVICE_REPORTS.md).
-
-![Device and support report](docs/screenshots/device.png)
 
 ## Install
 
@@ -124,10 +108,11 @@ old package name as replaced.
 ### Flatpak
 
 Download `atk-control-<version>-x86_64.flatpak` from the
-[Releases page](https://github.com/NasirA1991/atk-control/releases), then:
+[Releases page](https://github.com/NasirA1991/atk-control/releases), replacing
+`<version>` with the latest version, then:
 
 ```bash
-flatpak install --user ./atk-control-0.4.9-x86_64.flatpak
+flatpak install --user ./atk-control-<version>-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -137,8 +122,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.4.9-x86_64.AppImage
-./atk-control-0.4.9-x86_64.AppImage
+chmod +x atk-control-<version>-x86_64.AppImage
+./atk-control-<version>-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -161,11 +146,24 @@ A fully self-contained bundle is the Flatpak above. Every release also includes
 sha256sum -c SHA256SUMS
 ```
 
+### From source
+
+```bash
+git clone https://github.com/NasirA1991/atk-control.git
+cd atk-control
+./install.sh
+```
+
+This installs the launchers, desktop entry, icons and udev rule. The same
+GTK4/PyGObject dependencies listed for the AppImage are required.
+
 ## Performance
 
-ATK Control is native GTK4/Python, not Electron, and it creates the main window
-only when you open it. On the development machine, with a real receiver
-connected:
+Native GTK4/Python, not Electron. The main window is created only when opened;
+tray-only operation is designed to leave a wireless mouse alone.
+
+<details>
+<summary>Idle usage measurements</summary>
 
 | Mode | Idle CPU | RSS | PSS |
 |---|---|---|---|
@@ -173,33 +171,31 @@ connected:
 | Window open, idle | ~0.07–0.13% | ~131 MB | ~78 MB |
 
 RSS counts shared GTK libraries; PSS is the fairer figure. The Flatpak shares
-its runtime with other GNOME apps, so its PSS is usually lower. Idle CPU stays
-low because the window only relayouts when a displayed value actually changes,
-the tray polls battery every 30 seconds when hidden, and a receiver-only online
-heartbeat runs every 5 seconds. Full refreshes happen every 30 seconds while
-visible and every 5 minutes while hidden.
+its runtime with other GNOME apps, so its PSS is usually lower. The window only
+relayouts when a displayed value actually changes; hidden battery polling is
+every 30 seconds, full refresh every 5 minutes, and the receiver liveness ping
+every 5 seconds.
+</details>
 
 ## Safety and concurrency
 
-- Every write is read back and rejected values are re-read so the UI reverts to
-  the confirmed state. The app then commits the active onboard profile so the
-  change survives the mouse being powered off.
-- Only one ATK Control GUI/CLI process may control a given hidraw node at a
-  time. A per-device lock makes the second process fail cleanly instead of
-  racing replies.
-- Adding a DPI stage reads the shared colour row before writing and preserves
-  the neighbouring stage's bytes. If that read fails, the operation aborts
-  before writing anything.
+Writes are verified by reading them back, then committed to the active onboard
+profile so they survive a power cycle. A per-device lock prevents the GUI and
+CLI from racing; failed writes and partial button resets are recovered as far
+as the protocol allows. Button remapping and Competitive MAX are enabled only
+for individually verified models.
+
+<details>
+<summary>Implementation details</summary>
+
+- Rejected values are re-read so the UI reverts to the confirmed state.
+- Adding a DPI stage preflights the shared colour row and preserves the
+  neighbouring stage's bytes.
 - A failed button reset attempts to restore the original mappings and reports
   exactly what happened.
-- Hidden-tray polling backs off to 30-second battery checks and 5-minute full
-  refreshes so a wireless mouse is not kept busy all day. A receiver-only
-  online heartbeat every 5 seconds detects a mouse being switched off without
-  reading its battery or settings.
 - Preferences are type-checked and written atomically; a corrupted JSON file
   cannot crash startup.
-- Button remapping and Competitive MAX are gated to individually verified
-  models. Other models stay read-only for those features.
+</details>
 
 ## Permissions
 
@@ -298,6 +294,29 @@ off or asleep, ATK Control detects the offline receiver and tries the other
 detected mouse automatically, updating the tray and window to the one that
 answers.
 
+## Missing your mouse?
+
+ATK Control is built to grow across the ATK/VXE family. If your mouse is not
+listed, or a receiver is not recognised, send a **read-only device report**:
+
+1. Open **Device → Missing your ATK/VXE mouse? → Save support report**.
+2. Review the generated `.md` file.
+3. Attach it to a [mouse support request](https://github.com/NasirA1991/atk-control/issues/new?template=device-report.yml).
+
+From a terminal this is:
+
+```bash
+atkctl support
+```
+
+The report includes the device identity and every setting ATK Control can read.
+It never includes the full RF identifier, USB serial number or host name, and
+nothing is uploaded automatically. Raw register bytes are **opt-in**: enable
+*Include raw registers* in the save dialog, or run `atkctl support --raw`, only
+when maintainers ask for them. [More about device reports](docs/DEVICE_REPORTS.md).
+
+![Device and support report](docs/screenshots/device.png)
+
 **Not yet exposed:** macro recording, complex keyboard-shortcut assignments,
 receiver pairing, factory reset, direction calibration and configuration
 import/export. Those remain in ATK HUB. Existing macro or shortcut button
@@ -330,3 +349,5 @@ before attaching it to a public issue.
 MIT. See [LICENSE](LICENSE).
 
 ATK Control is an independent project and is not affiliated with ATK or VXE.
+It is developed with AI assistance; hardware writes are verified on real
+devices where the supported-device table says so.
