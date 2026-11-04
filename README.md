@@ -12,7 +12,8 @@ background service.
 
 ATK Control talks directly to the mouse over its vendor HID collection. The
 tray icon stays visible with live battery, and every setting is written to the
-mouse itself, so it keeps working when the app is closed.
+mouse itself, so it keeps working when the app is closed. The mouse name and
+the 1K/4K/8K receiver are always shown as separate pieces of information.
 
 ![Overview](docs/screenshots/overview.png)
 
@@ -118,7 +119,7 @@ Download `atk-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./atk-control-0.3.0-x86_64.flatpak
+flatpak install --user ./atk-control-0.3.1-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -128,8 +129,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.3.0-x86_64.AppImage
-./atk-control-0.3.0-x86_64.AppImage
+chmod +x atk-control-0.3.1-x86_64.AppImage
+./atk-control-0.3.1-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's

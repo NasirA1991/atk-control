@@ -362,13 +362,20 @@ class Controller:
         system = self._read_with_retries(ADDR_SYSTEM, 10)
         polling, count, active = self._decode_system(system)
         stages = self._read_stages(count)
+        if self.model is not None:
+            model_name = self.model.name
+        elif self.info.is_receiver:
+            # The USB product is the receiver, not the paired mouse.
+            model_name = "Unknown ATK/VXE mouse"
+        else:
+            model_name = devices.fallback_name(self.info.product_name)
         state = MouseState(
             vendor_id=self.info.vendor_id,
             product_id=self.info.product_id,
             usb_name=self.info.product_name,
             cid=cid,
             mid=mid,
-            model_name=self.model.name if self.model else devices.fallback_name(self.info.product_name),
+            model_name=model_name,
             brand=self.model.brand if self.model else ("VXE" if "vxe" in self.info.product_name.lower() else "ATK"),
             sensor=self.model.sensor if self.model else "Unknown sensor",
             firmware=firmware,

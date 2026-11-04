@@ -36,8 +36,18 @@ def _open(path: str | None = None) -> Controller:
             continue
         except (ProtocolError, OSError) as exc:
             receiver = devices.receiver_for(info.product_id, info.product_name)
-            display = receiver.name if receiver else info.product_name
-            errors.append(f"{display}: {exc}")
+            if info.is_receiver:
+                link = receiver.name if receiver else info.product_name
+                detail = str(exc)
+                if "paired mouse" in detail.lower():
+                    errors.append(
+                        f"Receiver {link} is connected, but the paired mouse is asleep "
+                        "or out of range. Move the mouse to wake it."
+                    )
+                else:
+                    errors.append(f"Receiver {link}: {detail}")
+            else:
+                errors.append(f"{info.product_name}: {exc}")
             continue
         return controller
     if errors:
@@ -91,7 +101,9 @@ def _status(controller: Controller, as_json: bool) -> int:
     display = state.model_name
     if state.brand and not display.lower().startswith(state.brand.lower()):
         display = f"{state.brand} {display}"
-    print(f"{display}  ({state.vendor_id:04x}:{state.product_id:04x})")
+    print(f"Mouse      : {display}")
+    usb_kind = "receiver" if state.via_receiver else "cable"
+    print(f"USB        : {state.vendor_id:04x}:{state.product_id:04x} ({usb_kind})")
     print(f"Link       : {state.link_label}")
     print(f"Battery    : {state.battery if state.battery is not None else '?'}%"
           + (" charging" if state.charging else ""))

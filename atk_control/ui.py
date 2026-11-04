@@ -180,6 +180,13 @@ window {
     border-color: #ff6b3d;
     color: #1b0d08;
 }
+.header-device {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    opacity: 0.65;
+    margin-left: 6px;
+}
 .status-pill {
     border-radius: 999px;
     padding: 3px 10px;
@@ -422,6 +429,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.set_default_size(1140, 900)
         self.set_size_request(860, 620)
+        self.set_title("ATK Control")
         self._install_css()
         self._build_actions()
         self._build_ui()
@@ -512,6 +520,10 @@ class MainWindow(Adw.ApplicationWindow):
         header_title.append(BrandMark(24))
         header_title.append(self._label("ATK CONTROL", "brand-sub"))
         header.set_title_widget(header_title)
+
+        self.header_model = self._label("NO MOUSE", "header-device")
+        self.header_model.set_valign(Gtk.Align.CENTER)
+        header.pack_start(self.header_model)
 
         self.header_status = self._label("OFFLINE", "status-pill offline")
         self.header_status.set_valign(Gtk.Align.CENTER)
@@ -685,6 +697,7 @@ class MainWindow(Adw.ApplicationWindow):
         left.append(value_row)
         self.battery_rail = BatteryRail()
         left.append(self.battery_rail)
+        left.append(self._label("MOUSE", "eyebrow"))
         self.hero_model = self._label("No mouse connected", "hero-model")
         self.hero_sub = self._label("Waiting for a receiver", "hero-sub", wrap=True)
         left.append(self.hero_model)
@@ -1390,6 +1403,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.stack.set_sensitive(False)
         self.notice_label.set_text(error or "Waiting for an ATK/VXE mouse…")
         self.notice.set_reveal_child(True)
+        self.header_model.set_text("NO MOUSE")
+        self.set_title("ATK Control")
         self.header_status.set_text("OFFLINE")
         self.header_status.remove_css_class("charging")
         self.header_status.add_css_class("offline")
@@ -1445,6 +1460,8 @@ class MainWindow(Adw.ApplicationWindow):
         if not state.wired:
             ceiling = caps.link_ceiling
             label = "8K LINK" if ceiling >= 8000 else ("4K LINK" if ceiling >= 4000 else "1K LINK")
+        self.header_model.set_text(state.connected_name.upper())
+        self.set_title(f"ATK Control — {state.connected_name}")
         self.header_status.set_text(label)
         self.header_status.remove_css_class("offline")
         if state.charging:
@@ -1704,12 +1721,12 @@ class MainWindow(Adw.ApplicationWindow):
         )
         self.device_values["Device revision"].set_text(state.usb_bcd or "—")
         self.firmware_value.set_text(state.firmware or "Not reported")
-        self._update_device_choices()
+        self._update_device_choices(state)
         self.profile_card.set_visible(state.profile is not None)
         for number, button in enumerate(self.profile_buttons, start=1):
             self._set_active(button, state.profile == number)
 
-    def _update_device_choices(self) -> None:
+    def _update_device_choices(self, state: MouseState | None = None) -> None:
         if not hasattr(self.worker, "available_devices"):
             self.devices_card.set_visible(False)
             return
@@ -1727,6 +1744,8 @@ class MainWindow(Adw.ApplicationWindow):
             text.append(self._label(title, "row-title"))
             kind = "receiver" if info.is_receiver else "mouse"
             state_text = f"{info.vendor_id:04x}:{info.product_id:04x} · {kind}"
+            if info.path == current and state is not None and state.model_name:
+                state_text += f" · mouse: {state.model_name}"
             if not info.accessible:
                 state_text += " · no permission"
             text.append(self._label(state_text, "row-sub"))

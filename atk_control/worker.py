@@ -182,8 +182,18 @@ class DeviceWorker:
                 continue
             except (ProtocolError, OSError) as exc:
                 receiver = devices.receiver_for(info.product_id, info.product_name)
-                display = receiver.name if receiver else info.product_name
-                errors.append(f"{display}: {exc}")
+                if info.is_receiver:
+                    link = receiver.name if receiver else info.product_name
+                    detail = str(exc)
+                    if "paired mouse" in detail.lower():
+                        errors.append(
+                            f"Receiver {link} is connected, but the paired mouse is asleep "
+                            "or out of range. Move the mouse to wake it."
+                        )
+                    else:
+                        errors.append(f"Receiver {link}: {detail}")
+                else:
+                    errors.append(f"{info.product_name}: {exc}")
                 continue
             self._controller = controller
             self._query_misses = 0

@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.3.1" date="2026-11-04">
+      <description>
+        <p>Shows the paired mouse name separately from the 1K/4K/8K receiver throughout the app and in the window title; clarifies receiver-sleep messages.</p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-11-04">
       <description>
         <p>Adds button remapping, sensor sampling modes, add/remove DPI stages, live firmware reporting, correct 1/2 mm lift-off handling and a firmware link to ATK HUB.</p>
