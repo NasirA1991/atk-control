@@ -53,8 +53,9 @@ distributions can download the latest Flatpak or AppImage from
   or from the tray menu. Charging state and link type live in the tooltip, with
   quick actions for polling, DPI, Motion Sync, ripple control and profiles.
   The icon itself uses a dynamic battery pixmap, so the percentage is visible
-  in the panel as well as the tooltip. Left click opens the window; right
-  click opens the quick menu; middle click refreshes.
+  in the panel as well as the tooltip. The item is removed while no mouse is
+  connected and restored automatically when a mouse comes back. Left click
+  opens the window; right click opens the quick menu; middle click refreshes.
 - **8K / 4K polling** — 125 Hz through 8000 Hz, limited intelligently by the
   actual receiver. The app reads the link type and never offers a rate the
   transport cannot carry.

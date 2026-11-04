@@ -7,6 +7,7 @@ They are intentionally unlike the tray icon of RAWM Control.
 
 from __future__ import annotations
 
+import gc
 import math
 import os
 from typing import Callable
@@ -358,27 +359,44 @@ class Tray(dbus.service.Object):
         self._icon = render_tray_icon(None, False, self.style)
         self._revision = 1
         self._status = "Passive"
+        self.visible = False
+        self._sni_generation = 0
+        self._flatpak_id = os.environ.get("FLATPAK_ID")
 
         # StatusNotifier hosts identify the item by this bus name.  Outside
         # Flatpak a PID-suffixed name avoids stale-instance collisions.  Inside
         # Flatpak the PID is always 2, so use the manifest-approved app name;
         # fall back to an app-scoped suffix if an old instance owns it.
-        flatpak_id = os.environ.get("FLATPAK_ID")
-        if flatpak_id:
-            sni_name = f"{flatpak_id}.StatusNotifierItem"
-            try:
-                self.bus_name = dbus.service.BusName(sni_name, self.bus, do_not_queue=True)
-            except dbus.DBusException:
-                sni_name = f"{flatpak_id}.StatusNotifierItem.{os.urandom(4).hex()}"
-                self.bus_name = dbus.service.BusName(sni_name, self.bus, do_not_queue=True)
-        else:
-            sni_name = f"org.kde.StatusNotifierItem-{os.getpid()}-1"
+        sni_name = self._next_sni_name()
+        try:
             self.bus_name = dbus.service.BusName(sni_name, self.bus, do_not_queue=True)
+        except dbus.DBusException:
+            sni_name = self._next_sni_name()
+            self.bus_name = dbus.service.BusName(sni_name, self.bus, do_not_queue=True)
+        self._sni_name = sni_name
         dbus.service.Object.__init__(self, self.bus_name, "/StatusNotifierItem")
         self.menu = TrayMenu(self.bus_name, self)
 
     # -- lifecycle --------------------------------------------------------
+    def _next_sni_name(self) -> str:
+        self._sni_generation += 1
+        if self._flatpak_id:
+            return f"{self._flatpak_id}.StatusNotifierItem.{self._sni_generation}"
+        return f"org.kde.StatusNotifierItem-{os.getpid()}-{self._sni_generation}-1"
+
     def start(self) -> bool:
+        """Register the tray item with StatusNotifierWatcher."""
+        if self.visible and self.bus_name is not None:
+            return True
+        if self.bus_name is None:
+            sni_name = self._next_sni_name()
+            try:
+                self.bus_name = dbus.service.BusName(
+                    sni_name, self.bus, do_not_queue=True
+                )
+            except dbus.DBusException:
+                return False
+            self._sni_name = sni_name
         try:
             watcher = self.bus.get_object(WATCHER, WATCHER_PATH)
             watcher.RegisterStatusNotifierItem(
@@ -386,7 +404,30 @@ class Tray(dbus.service.Object):
             )
         except dbus.DBusException:
             return False
+        self.visible = True
         return True
+
+    def stop(self) -> None:
+        """Remove the item from the panel without stopping the worker."""
+        self.visible = False
+        old = self.bus_name
+        self.bus_name = None
+        if old is not None:
+            name = old.get_name()
+            try:
+                self.bus.release_name(name)
+            except dbus.DBusException:
+                pass
+            del old
+            # BusName releases its name when finalized.  Force the old cached
+            # object out before a later start() re-requests the same name.
+            gc.collect()
+
+    def set_visible(self, visible: bool) -> bool:
+        if visible:
+            return self.start()
+        self.stop()
+        return False
 
     def update(self, state: MouseState | None, connected: bool,
                message: str | None = None) -> None:

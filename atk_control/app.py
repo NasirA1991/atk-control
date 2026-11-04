@@ -78,12 +78,18 @@ class AtkApplication(Adw.Application):
                 on_style=self._tray_style,
                 style=config.load().get("tray_icon_style", config.DEFAULT_TRAY_STYLE),
             )
-            if tray.start():
-                self.tray = tray
-                self.hold()
-                self._held = True
+            self.tray = tray
+            self.hold()
+            self._held = True
+            if self._latest_link[0]:
+                if tray.start():
+                    tray.update(self._latest_state, True)
+                else:
+                    print("atk-control: tray watcher unavailable", file=sys.stderr)
             else:
-                print("atk-control: tray watcher unavailable", file=sys.stderr)
+                # No mouse yet: keep the worker waiting, but do not register a
+                # tray item until there is something relevant to show.
+                tray.stop()
         except Exception as exc:  # tray is optional
             print(f"atk-control: tray unavailable: {exc}", file=sys.stderr)
 
@@ -150,9 +156,14 @@ class AtkApplication(Adw.Application):
         return self.window
 
     def _on_close_request(self, _window) -> bool:
-        if self.tray is not None and not self._quitting:
+        if self.tray is not None and self.tray.visible and not self._quitting:
             self.window.set_visible(False)
             return True
+        # With no tray item there is nowhere to hide to; closing the window
+        # exits rather than leaving an invisible process behind.
+        if self._held:
+            self.release()
+            self._held = False
         return False
 
     def _on_window_visibility(self, window, _param) -> None:
@@ -175,6 +186,8 @@ class AtkApplication(Adw.Application):
         if self.window is not None:
             self.window.on_state(state, changed)
         if self.tray is not None:
+            if not self.tray.visible:
+                self.tray.start()
             self.tray.update(state, True)
         if (
             state.battery is not None
@@ -201,7 +214,13 @@ class AtkApplication(Adw.Application):
         if self.window is not None:
             self.window.on_link(connected, error)
         if self.tray is not None:
-            self.tray.update(self._latest_state if connected else None, connected, error)
+            if connected:
+                if not self.tray.visible:
+                    self.tray.start()
+                self.tray.update(self._latest_state, True)
+            else:
+                self.tray.update(None, False, error)
+                self.tray.stop()
         return False
 
     def _apply_toast(self, message: str) -> bool:
