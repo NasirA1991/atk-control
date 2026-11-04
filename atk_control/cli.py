@@ -20,6 +20,31 @@ def _state_dict(state: MouseState) -> dict:
     return data
 
 
+class _PersistingController:
+    """Delegate to Controller and flush onboard storage after each write."""
+
+    WRITE_METHODS = {
+        "set_polling", "set_stage_dpi", "set_active_stage", "set_stage_color",
+        "set_lift_off_code", "set_debounce", "set_motion_sync", "set_sleep",
+        "set_ripple", "set_straight_line", "set_angle", "set_performance_mode",
+        "set_sensor_mode", "set_button_action", "reset_buttons", "add_stage",
+        "remove_last_stage", "set_long_range", "set_led_mode",
+    }
+
+    def __init__(self, inner: Controller) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name):
+        value = getattr(self._inner, name)
+        if name in self.WRITE_METHODS:
+            def persist(*args, **kwargs):
+                result = value(*args, **kwargs)
+                self._inner.commit_settings()
+                return result
+            return persist
+        return value
+
+
 def _open(path: str | None = None) -> Controller:
     candidates = discover()
     if path:
@@ -49,7 +74,7 @@ def _open(path: str | None = None) -> Controller:
             else:
                 errors.append(f"{info.product_name}: {exc}")
             continue
-        return controller
+        return _PersistingController(controller)  # type: ignore[return-value]
     if errors:
         raise ProtocolError(errors[0])
     raise DeviceNotFound("No ATK/VXE mouse or receiver found. Check the udev rule.")

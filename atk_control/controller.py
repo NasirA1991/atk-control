@@ -878,6 +878,28 @@ class Controller:
         self.state.profile = profile
         return profile
 
+    def commit_settings(self) -> None:
+        """Commit the active profile to the mouse's onboard storage.
+
+        The protocol exposes profile configuration as a working copy; the
+        vendor firmware only flushes it when the active profile changes.
+        Switching to another profile and back preserves the active profile
+        while forcing that flush.  Without this, changes survive until the
+        mouse is powered off and then revert to the last saved profile.
+        """
+        current = self.state.profile or self._read_profile()
+        self._require(current is not None, "The mouse did not report its active profile")
+        self._require(self.caps.profiles, "This mouse does not expose onboard profiles")
+        other = 2 if current == 1 else 1
+        self.transport.set_profile(other - 1)
+        time.sleep(0.18)
+        self.transport.set_profile(current - 1)
+        time.sleep(0.22)
+        confirmed = self._read_profile()
+        self._require(confirmed == current,
+                      "The mouse did not return to its profile after saving")
+        self.state.profile = current
+
     def set_long_range(self, enabled: bool) -> bool:
         self._require(self.caps.long_range, "Long-range mode is not supported")
         self.transport.set_long_range(enabled)

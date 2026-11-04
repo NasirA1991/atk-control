@@ -283,12 +283,15 @@ class DeviceWorker:
         with self._lock:
             pending = list(self._pending.values())
             self._pending.clear()
+        wrote = False
         for method, args in pending:
             operation = OPERATIONS.get(method)
             if operation is None:
                 continue
             try:
                 operation(controller, *args)
+                if method != "profile":
+                    wrote = True
                 # A profile switch changes the whole stored configuration.
                 full_refresh = method in ("profile", "add_stage", "remove_stage")
                 state = controller.read_full() if full_refresh else controller.state
@@ -310,6 +313,18 @@ class DeviceWorker:
                 self._toast(str(exc))
             except Exception as exc:  # keep the HID loop alive
                 self._toast(f"Could not apply setting: {exc}")
+        if wrote:
+            try:
+                controller.commit_settings()
+                state = controller.read_full()
+                self._last_full = time.monotonic()
+                with self._lock:
+                    self._state = copy.deepcopy(state)
+                self._emit_state(state, set())
+            except (ProtocolError, ValueError) as exc:
+                self._toast(f"Setting applied but not saved to onboard memory: {exc}")
+            except Exception as exc:
+                self._toast(f"Setting applied but could not be saved: {exc}")
 
     def _write_support_report(self, path: str, include_raw: bool = False) -> None:
         controller = self._controller

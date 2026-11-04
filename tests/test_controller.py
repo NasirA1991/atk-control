@@ -212,6 +212,12 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(self.ctl.remove_last_stage(), 4)
         self.assertEqual(self.ctl.state.stage_count, 4)
 
+    def test_commit_settings_round_trips_profile(self) -> None:
+        self.ctl.state.profile = 1
+        self.ctl.commit_settings()
+        self.assertEqual(self.ctl.state.profile, 1)
+        self.assertEqual(self.ctl.transport.profile, 0)
+
     def test_lighting_and_profile(self) -> None:
         mode, brightness, speed = self.ctl.set_led_mode(2, 2, 2)
         self.assertEqual((mode, brightness, speed), (2, 2, 2))

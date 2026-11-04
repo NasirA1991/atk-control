@@ -127,7 +127,7 @@ Download `atk-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./atk-control-0.4.7-x86_64.flatpak
+flatpak install --user ./atk-control-0.4.8-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -137,8 +137,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.4.7-x86_64.AppImage
-./atk-control-0.4.7-x86_64.AppImage
+chmod +x atk-control-0.4.8-x86_64.AppImage
+./atk-control-0.4.8-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -182,7 +182,8 @@ visible and every 5 minutes while hidden.
 ## Safety and concurrency
 
 - Every write is read back and rejected values are re-read so the UI reverts to
-  the confirmed state.
+  the confirmed state. The app then commits the active onboard profile so the
+  change survives the mouse being powered off.
 - Only one ATK Control GUI/CLI process may control a given hidraw node at a
   time. A per-device lock makes the second process fail cleanly instead of
   racing replies.
