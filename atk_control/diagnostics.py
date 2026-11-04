@@ -150,18 +150,28 @@ def report_text(state: MouseState, device_path: str | None = None,
         for button in state.buttons:
             lines.append(f"- {button.name}: {button.action}  (`{button.raw}`)")
         lines.append("")
-    if raw_registers is not None:
-        lines.append("## Raw configuration registers")
-        lines.append("")
+    lines.append("## Raw configuration registers")
+    lines.append("")
+    if raw_registers is None:
+        lines.append(
+            "Omitted by default. Enable **Include raw registers** before saving, "
+            "or pass `--raw`, if the maintainers ask for raw bytes. Raw bytes are "
+            "undocumented device data and should be reviewed before sharing."
+        )
+    else:
         lines.append("Read-only dump of the vendor register window used by the app.")
-        lines.append("It contains setting bytes, not the RF identifier or a serial number.")
+        lines.append(
+            "These are undocumented device bytes; review them before attaching "
+            "the report to a public issue."
+        )
         lines.append("")
         lines.extend(_raw_lines(raw_registers))
-        lines.append("")
+    lines.append("")
     lines.append("## Privacy")
     lines.append("")
     lines.append("This report is generated locally. The full RF identifier, host name,")
-    lines.append("USB serial number and user file paths are not included. Review it")
+    lines.append("USB serial number and user file paths are not included. Raw registers")
+    lines.append("are opt-in and are omitted from the default report. Review the report")
     lines.append("before attaching it to a public issue.")
     lines.append("")
     lines.append(f"Support request: {config.SUPPORT_URL}")

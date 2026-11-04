@@ -21,7 +21,13 @@ directory and prints the support-request URL. You can choose another location:
 atkctl support -o ~/atk-r1-report.md
 ```
 
-`atkctl report` prints the same content to the terminal instead.
+`atkctl report` prints the same content to the terminal instead. If a
+maintainer asks for raw bytes, add `--raw` (and review the result):
+
+```bash
+atkctl support --raw
+atkctl report --raw
+```
 
 ## 2. What is in it?
 
@@ -30,9 +36,11 @@ atkctl support -o ~/atk-r1-report.md
 - model, sensor, USB IDs, device revision, firmware and CID/MID;
 - battery and link telemetry;
 - every setting ATK Control can read;
-- the read-only button map;
-- a raw dump of the configuration register window used by the app — this is the
-  most useful part for adding a new model.
+- the read-only button map.
+
+Raw register bytes are omitted by default. They are the most useful part when
+adding a new model, but they are undocumented device data, so they are opt-in.
+Enable **Include raw registers** in the app or pass `--raw` when asked.
 
 It is generated locally and is **never uploaded automatically**.
 
@@ -40,7 +48,8 @@ It is generated locally and is **never uploaded automatically**.
 
 - the full RF identifier (only the first byte remains);
 - USB serial numbers;
-- your host name and user file paths.
+- your host name and user file paths;
+- raw register bytes, unless you explicitly opt in.
 
 The report does include the USB product string and HID node names, which are
 useful for identification. Please still open the file and give it a quick look

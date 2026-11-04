@@ -50,6 +50,8 @@ class Model:
     dpi_lighting: bool = True
     stage_colors: bool = True
     performance_mode: bool = False
+    sensor_max: bool = False
+    button_remap: bool = False
     long_range: bool = False
     bottom_button: bool = True
     usb_ids: tuple[tuple[int, int], ...] = ()
@@ -66,14 +68,15 @@ MODELS: tuple[Model, ...] = (
           usb_ids=((0x373B, 0x103E),)),
     Model(2, 49, "MAD R", "ATK", "PAW3395", 8000, bottom_button=False,
           usb_ids=((0x373B, 0x103F),)),
-    Model(2, 54, "MAD R +", "ATK", "PAW3395", 8000, bottom_button=False,
-          usb_ids=((0x373B, 0x104B),)),
+    Model(2, 54, "MAD R +", "ATK", "PAW3395", 8000, sensor_max=True,
+          button_remap=True, bottom_button=False, usb_ids=((0x373B, 0x104B),)),
     Model(2, 55, "MAD R MAJOR+", "ATK", "PAW3950", 8000, bottom_button=False,
           usb_ids=((0x373B, 0x104C),)),
     Model(2, 133, "MAD R", "ATK", "PAW3950Ultra", 8000, bottom_button=False,
           usb_ids=((0x373B, 0x132B),)),
     Model(2, 7, "VXE R1 Pro", "VXE", "PAW3395", 8000),
-    Model(2, 8, "VXE R1 Pro", "VXE", "PAW3395", 8000),
+    Model(2, 8, "VXE R1 Pro", "VXE", "PAW3395", 8000, sensor_max=True,
+          button_remap=True),
     Model(2, 11, "VXE R1", "VXE", "PAW3395", 8000),
     Model(2, 12, "VXE R1", "VXE", "PAW3395", 8000),
     Model(2, 27, "VXE R1 Pro Max", "VXE", "PAW3395", 8000,
@@ -158,6 +161,8 @@ class Capabilities:
     stage_colors: bool
     angle: bool
     performance_mode: bool
+    sensor_max: bool
+    button_remap: bool
     long_range: bool
     profiles: bool
     bottom_button: bool
@@ -223,6 +228,8 @@ def capabilities_for(
         stage_colors=model.stage_colors if model else True,
         angle=model.angle_supported if model else True,
         performance_mode=model.performance_mode if model else False,
+        sensor_max=model.sensor_max if model else False,
+        button_remap=model.button_remap if model else False,
         long_range=model.long_range if model else False,
         profiles=True,
         bottom_button=model.bottom_button if model else True,

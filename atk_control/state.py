@@ -75,6 +75,8 @@ class MouseState:
     # Support flags discovered while reading
     supports_angle: bool = False
     supports_performance_mode: bool = False
+    supports_sensor_max: bool = False
+    supports_button_remap: bool = False
     supports_long_range: bool = False
     supports_lighting: bool = False
     supports_stage_colors: bool = False

@@ -42,9 +42,11 @@ class DeviceWorker:
         self._pending: OrderedDict[str, tuple] = OrderedDict()
         self._force_full = False
         self._retry_now = False
+        self._rescan_devices = False
         self._preferred_path: str | None = None
         self._available: list[DeviceInfo] = []
         self._report_path: str | None = None
+        self._report_include_raw = False
         self._state = MouseState()
         self._controller: Controller | None = None
         self._connected = False
@@ -54,6 +56,7 @@ class DeviceWorker:
         self._last_full = 0.0
         self._query_misses = 0
         self._warned_permission = False
+        self._foreground = False
 
     # -- public API -------------------------------------------------------
     def start(self) -> None:
@@ -101,6 +104,24 @@ class DeviceWorker:
     def refresh(self, full: bool = True) -> None:
         with self._lock:
             self._force_full = True
+            self._rescan_devices = True
+
+    def set_foreground(self, foreground: bool) -> None:
+        """Use faster battery polling while the window is visible."""
+        with self._lock:
+            changed = bool(foreground) != self._foreground
+            self._foreground = bool(foreground)
+            if changed and foreground:
+                self._force_full = True
+
+    def _intervals(self) -> tuple[float, float]:
+        with self._lock:
+            foreground = self._foreground
+        if foreground:
+            return self.live_seconds, self.full_seconds
+        # A tray-only utility should not keep a wireless mouse awake with
+        # three-second traffic.  Battery is enough every 30 seconds.
+        return max(30.0, self.live_seconds * 10.0), max(300.0, self.full_seconds * 10.0)
 
     def retry(self) -> None:
         """Ask the worker to re-scan immediately."""
@@ -108,11 +129,13 @@ class DeviceWorker:
             self._retry_now = True
 
     def available_devices(self) -> list[DeviceInfo]:
-        """Configuration interfaces currently present (for a device picker)."""
-        try:
-            return discover()
-        except Exception:
-            return []
+        """Cached configuration interfaces, refreshed on connect/retry.
+
+        This is deliberately a cache: the GTK thread must not run udev/sysfs
+        discovery on every state update.
+        """
+        with self._lock:
+            return list(self._available)
 
     def select_device(self, path: str) -> None:
         """Switch to another receiver or cable when more than one is present."""
@@ -120,10 +143,11 @@ class DeviceWorker:
             self._preferred_path = path
             self._retry_now = True
 
-    def save_support_report(self, path: str) -> None:
-        """Queue a complete, read-only support report on the worker thread."""
+    def save_support_report(self, path: str, include_raw: bool = False) -> None:
+        """Queue a read-only support report on the worker thread."""
         with self._lock:
             self._report_path = path
+            self._report_include_raw = bool(include_raw)
 
     # -- callbacks --------------------------------------------------------
     def _emit_state(self, state: MouseState, changed: set[str] | None = None) -> None:
@@ -155,7 +179,8 @@ class DeviceWorker:
     # -- connection -------------------------------------------------------
     def _connect(self) -> bool:
         candidates = discover()
-        self._available = candidates
+        with self._lock:
+            self._available = candidates
         if not candidates:
             self._emit_link(False, "No ATK/VXE mouse or receiver found.")
             return False
@@ -262,7 +287,7 @@ class DeviceWorker:
             except Exception as exc:  # keep the HID loop alive
                 self._toast(f"Could not apply setting: {exc}")
 
-    def _write_support_report(self, path: str) -> None:
+    def _write_support_report(self, path: str, include_raw: bool = False) -> None:
         controller = self._controller
         if controller is None:
             self._toast("Connect a mouse before saving a support report.")
@@ -272,7 +297,7 @@ class DeviceWorker:
                 state = controller.read_full()
             except ProtocolError:
                 state = controller.state
-            raw = controller.collect_raw_registers()
+            raw = controller.collect_raw_registers() if include_raw else None
             target = Path(path).expanduser()
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(
@@ -293,8 +318,9 @@ class DeviceWorker:
             self._disconnect("Mouse disconnected.")
             return
         now = time.monotonic()
+        _live_interval, full_interval = self._intervals()
         try:
-            if force_full or now - self._last_full >= self.full_seconds:
+            if force_full or now - self._last_full >= full_interval:
                 state = controller.read_full()
                 self._last_full = now
             else:
@@ -341,17 +367,30 @@ class DeviceWorker:
                 continue
             with self._lock:
                 report_path = self._report_path
+                include_raw = self._report_include_raw
                 self._report_path = None
+                self._report_include_raw = False
             if report_path:
-                self._write_support_report(report_path)
+                self._write_support_report(report_path, include_raw)
             with self._lock:
                 force = self._force_full
                 self._force_full = False
+                rescan = self._rescan_devices
+                self._rescan_devices = False
                 has_pending = bool(self._pending)
+            if rescan:
+                try:
+                    discovered = discover()
+                except Exception:
+                    discovered = []
+                with self._lock:
+                    self._available = discovered
             if has_pending:
                 self._apply_pending()
-            elif force or time.monotonic() - self._last_emit >= self.live_seconds:
-                self._poll(force_full=force)
+            else:
+                live_interval, _full_interval = self._intervals()
+                if force or time.monotonic() - self._last_emit >= live_interval:
+                    self._poll(force_full=force)
             self._stop.wait(0.04)
         self._disconnect(None)
 
@@ -459,6 +498,8 @@ class DemoWorker:
             ],
             supports_angle=True,
             supports_performance_mode=True,
+            supports_sensor_max=True,
+            supports_button_remap=True,
             supports_lighting=True,
             supports_stage_colors=True,
         )
@@ -510,7 +551,10 @@ class DemoWorker:
     def select_device(self, path: str) -> None:
         return None
 
-    def save_support_report(self, path: str) -> None:
+    def set_foreground(self, foreground: bool) -> None:
+        return None
+
+    def save_support_report(self, path: str, include_raw: bool = False) -> None:
         target = Path(path).expanduser()
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(

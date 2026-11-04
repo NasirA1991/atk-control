@@ -21,6 +21,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .locking import DeviceLock, LockBusy
+
 REPORT_ID = 0x08
 PAYLOAD_SIZE = 16
 WIRE_SIZE = 17
@@ -134,6 +136,10 @@ class DeviceNotFound(ProtocolError):
 
 
 class PermissionDenied(ProtocolError):
+    pass
+
+
+class DeviceBusy(ProtocolError):
     pass
 
 
@@ -424,20 +430,30 @@ class CompxTransport:
         self.fd = -1
         self.last_error: str | None = None
         self._bcd = ""
+        self._device_lock: DeviceLock | None = None
 
     def open(self) -> None:
         if self.fd >= 0:
             return
+        if self._device_lock is None:
+            self._device_lock = DeviceLock(self.path)
+        try:
+            self._device_lock.acquire()
+        except LockBusy as exc:
+            raise DeviceBusy(str(exc)) from exc
         try:
             self.fd = os.open(self.path, os.O_RDWR | os.O_NONBLOCK)
         except PermissionError as exc:
+            self._device_lock.release()
             raise PermissionDenied(
-                f"No permission for {self.path}. Install the COMPX udev rule "
-                "(71-atk-control.rules) or run the app as root."
+                f"No permission for {self.path}. Install the ATK Control udev rule "
+                "(71-atk-control.rules) and reconnect the device."
             ) from exc
         except FileNotFoundError as exc:
+            self._device_lock.release()
             raise DeviceNotFound(f"{self.path} disappeared") from exc
         except OSError as exc:
+            self._device_lock.release()
             raise ProtocolError(f"could not open {self.path}: {exc}") from exc
 
     def close(self) -> None:
@@ -447,6 +463,9 @@ class CompxTransport:
             except OSError:
                 pass
             self.fd = -1
+        if self._device_lock is not None:
+            self._device_lock.release()
+            self._device_lock = None
 
     @property
     def is_open(self) -> bool:

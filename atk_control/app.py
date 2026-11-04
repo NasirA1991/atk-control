@@ -152,6 +152,10 @@ class AtkApplication(Adw.Application):
             return True
         return False
 
+    def _on_window_visibility(self, window, _param) -> None:
+        if self.worker is not None:
+            self.worker.set_foreground(bool(window.get_visible()))
+
     # -- thread dispatch ---------------------------------------------------
     def _state_from_thread(self, state, changed) -> None:
         GLib.idle_add(self._apply_state, state, changed)
@@ -230,7 +234,8 @@ class AtkApplication(Adw.Application):
     def _tray_style(self, style: str) -> None:
         preferences = config.load()
         preferences["tray_icon_style"] = style
-        config.save(preferences)
+        if not config.save(preferences):
+            self._toast_from_thread("Could not save the tray style preference.")
         if self.tray is not None:
             self.tray.set_style(style)
         if self.window is not None:

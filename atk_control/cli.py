@@ -130,7 +130,6 @@ def _sensor_mode_label(mode: int) -> str:
         0: "Basic",
         1: "Competitive",
         2: "Competitive MAX",
-        3: "Competitive MAX 13K",
     }.get(mode, f"mode {mode}")
 
 
@@ -187,7 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("value", type=_parse_onoff)
 
     p = sub.add_parser("sensor-mode", help="set sensor sampling mode")
-    p.add_argument("mode", choices=["basic", "competitive", "max", "max13k", "0", "1", "2", "3"])
+    p.add_argument("mode", choices=["basic", "competitive", "max", "0", "1", "2"])
 
     p = sub.add_parser("button", help="remap a physical button (1-6)")
     p.add_argument("index", type=int, help="button number from `atkctl status --json`/UI")
@@ -224,9 +223,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("report", help="write a read-only support report")
     p.add_argument("-o", "--output", help="output path (default: stdout)")
+    p.add_argument("--raw", action="store_true", help="include raw register bytes (opt-in)")
 
     p = sub.add_parser("support", help="save a support report and show the issue URL")
     p.add_argument("-o", "--output", help="output path (default: current directory)")
+    p.add_argument("--raw", action="store_true", help="include raw register bytes (opt-in)")
 
     sub.add_parser("version", help="print the version")
     return parser
@@ -280,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "performance":
             return _set_and_print("Performance mode", _onoff(controller.set_performance_mode(args.value)))
         if args.command == "sensor-mode":
-            values = {"basic": 0, "competitive": 1, "max": 2, "max13k": 3}
+            values = {"basic": 0, "competitive": 1, "max": 2}
             mode = int(args.mode) if args.mode.isdigit() else values[args.mode]
             return _set_and_print("Sensor mode", _sensor_mode_label(controller.set_sensor_mode(mode)))
         if args.command == "button":
@@ -314,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
             return _set_and_print("DPI LED", f"mode {result[0]}, brightness {result[1]}, speed {result[2]}")
         if args.command in ("report", "support"):
             state = controller.read_full()
-            raw = controller.collect_raw_registers()
+            raw = controller.collect_raw_registers() if getattr(args, "raw", False) else None
             text = diagnostics.report_text(
                 state, controller.path, controller.caps, raw_registers=raw
             )
@@ -349,17 +350,17 @@ def main(argv: list[str] | None = None) -> int:
 
 def _set_lod(controller: Controller, value: str) -> int:
     text = value.lower()
+    choices = controller.caps.lift_off_choices
     if text in ("low", "medium", "high"):
-        mm = {"low": 0.7, "medium": 1.0, "high": 1.7}[text]
+        mm = {"low": choices[0][1], "medium": 1.0, "high": choices[-1][1]}[text]
     else:
         try:
             mm = float(text)
         except ValueError:
-            raise ProtocolError("lift-off must be low, medium, high or millimetres") from None
-    choices = controller.caps.lift_off_choices
-    code = min(choices, key=lambda item: abs(item[1] - mm))[0]
+            raise ProtocolError("lift-off must be a distance in millimetres, for example 1 or 2") from None
+    code, actual = min(choices, key=lambda item: abs(item[1] - mm))
     controller.set_lift_off_code(code)
-    return _set_and_print("Lift-off", f"{(code + 6) / 10:.1f} mm")
+    return _set_and_print("Lift-off", f"{actual:g} mm")
 
 
 if __name__ == "__main__":

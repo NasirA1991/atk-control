@@ -72,6 +72,16 @@ class CapabilityTests(unittest.TestCase):
         caps = devices.capabilities_for(model=model, receiver=receiver)
         self.assertEqual(caps.polling_rates, [125, 250, 500, 1000, 2000, 4000])
 
+    def test_new_write_capabilities_are_gated_per_model(self) -> None:
+        mad = devices.MODEL_BY_CIDMID[(2, 54)]
+        r1 = devices.MODEL_BY_CIDMID[(2, 8)]
+        plain_r1 = devices.MODEL_BY_CIDMID[(2, 11)]
+        for model in (mad, r1):
+            self.assertTrue(model.button_remap)
+            self.assertTrue(model.sensor_max)
+        self.assertFalse(plain_r1.button_remap)
+        self.assertFalse(plain_r1.sensor_max)
+
     def test_lift_off_choices(self) -> None:
         mad_r = devices.capabilities_for(model=devices.MODEL_BY_CIDMID[(2, 49)], receiver=None)
         self.assertEqual(mad_r.lift_off_choices, [(1, 1.0), (2, 2.0)])

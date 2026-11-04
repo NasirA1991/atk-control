@@ -61,7 +61,7 @@ class FakeTransport:
         return {"percent": 76, "charging": False, "millivolts": 3980}
 
     def read_identity(self):
-        return 2, 49
+        return 2, 54
 
     def read_firmware(self, attempts=1):
         return "1.24"
@@ -74,6 +74,28 @@ class FakeTransport:
 
     def receiver_online(self):
         return {"online": True, "status": 1, "rf_id": "A4 19 7C"}
+
+
+class _UnverifiedIdentity(FakeTransport):
+    def read_identity(self):
+        return 2, 49
+
+
+class _ButtonFailure(FakeTransport):
+    fail_writes = False
+
+    def write_eeprom(self, addr: int, data: bytes) -> None:
+        if self.fail_writes and addr >= 0x0060 and addr < 0x0078:
+            self.fail_writes = False
+            raise protocol.ProtocolError("simulated button write failure")
+        super().write_eeprom(addr, data)
+
+
+class _ColorReadFailure(FakeTransport):
+    def read_eeprom(self, addr: int, length: int) -> bytes:
+        if addr == 0x003C:
+            raise protocol.ProtocolError("colour group unavailable")
+        return super().read_eeprom(addr, length)
 
 
 class ControllerTests(unittest.TestCase):
@@ -92,10 +114,10 @@ class ControllerTests(unittest.TestCase):
 
     def test_full_read(self) -> None:
         state = self.state
-        self.assertEqual(state.model_name, "MAD R")
+        self.assertEqual(state.model_name, "MAD R +")
         self.assertEqual(state.sensor, "PAW3395")
         self.assertEqual(state.firmware, "1.24")
-        self.assertEqual(state.identity, "2, 49")
+        self.assertEqual(state.identity, "2, 54")
         self.assertTrue(state.via_receiver)
         self.assertEqual(state.receiver_name, "MAD 8K Dongle")
         self.assertEqual(state.battery, 76)
@@ -139,6 +161,30 @@ class ControllerTests(unittest.TestCase):
         self.assertFalse(self.ctl.set_ripple(False))
         self.assertEqual(self.ctl.set_angle(-15, True), (-15, True))
 
+    def test_unverified_model_rejects_button_and_max_writes(self) -> None:
+        ctl = controller.Controller(self.ctl.info)
+        ctl.transport = _UnverifiedIdentity()
+        ctl.read_full()
+        self.assertFalse(ctl.state.supports_button_remap)
+        self.assertFalse(ctl.state.supports_sensor_max)
+        with self.assertRaises(protocol.ProtocolError):
+            ctl.set_button_action(4, "back")
+        with self.assertRaises(protocol.ProtocolError):
+            ctl.set_sensor_mode(2)
+        self.assertEqual(ctl.set_sensor_mode(1), 1)
+
+    def test_button_reset_restores_original_on_partial_failure(self) -> None:
+        fake = _ButtonFailure()
+        self.ctl.transport = fake
+        original = [fake.read_eeprom(0x0060 + i * 4, 4) for i in range(5)]
+        fake.fail_writes = True
+        with self.assertRaises(protocol.ProtocolError):
+            self.ctl.reset_buttons()
+        self.assertEqual(
+            [fake.read_eeprom(0x0060 + i * 4, 4) for i in range(5)], original
+        )
+        self.assertEqual(self.ctl.state.buttons[0].action_id, "left")
+
     def test_sensor_mode_and_buttons(self) -> None:
         self.assertEqual(self.ctl.set_sensor_mode(2), 2)
         self.assertEqual(self.ctl.state.sensor_mode, 2)
@@ -148,10 +194,21 @@ class ControllerTests(unittest.TestCase):
         self.ctl.reset_buttons()
         self.assertEqual(self.ctl.state.buttons[4].action_id, "forward")
 
+    def test_stage_count_aborts_before_writes_when_colour_group_is_unreadable(self) -> None:
+        self.ctl.transport = _ColorReadFailure()
+        before = bytes(self.ctl.transport.mem)
+        with self.assertRaises(protocol.ProtocolError):
+            self.ctl.add_stage()
+        self.assertEqual(self.ctl.transport.writes, [])
+        self.assertEqual(bytes(self.ctl.transport.mem), before)
+
     def test_stage_count(self) -> None:
+        group = 0x002C + (4 // 2) * 8
+        put(self.fake.mem, group + 4, b"\x11\x22\x33\x00")
         self.assertEqual(self.ctl.add_stage(), 5)
         self.assertEqual(self.ctl.state.stage_count, 5)
         self.assertEqual(self.ctl.state.stages[-1], (3200, 3200))
+        self.assertEqual(self.fake.read_eeprom(group + 4, 4), b"\x11\x22\x33\x00")
         self.assertEqual(self.ctl.remove_last_stage(), 4)
         self.assertEqual(self.ctl.state.stage_count, 4)
 

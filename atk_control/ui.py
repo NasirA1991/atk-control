@@ -797,10 +797,18 @@ class MainWindow(Adw.ApplicationWindow):
             row.append(dropdown)
             body.append(row)
             self.button_rows.append({"row": row, "dropdown": dropdown, "title": title})
+        self.button_readonly_note = self._label(
+            "Button remapping has not been verified for this exact model and firmware. "
+            "Assignments are shown read-only. Use ATK HUB to change them.",
+            "row-sub", wrap=True,
+        )
+        self.button_readonly_note.set_visible(False)
+        body.append(self.button_readonly_note)
         reset = Gtk.Button(label="Restore default assignments")
         reset.add_css_class("pill")
         reset.set_halign(Gtk.Align.START)
         reset.connect("clicked", lambda *_: self._confirm_button_reset())
+        self.reset_buttons_button = reset
         body.append(reset)
         root.append(card)
 
@@ -832,8 +840,9 @@ class MainWindow(Adw.ApplicationWindow):
     def _confirm_button_reset(self) -> None:
         dialog = Adw.AlertDialog(
             heading="Restore default button assignments?",
-            body="Left, right, middle, back, forward and bottom return to their factory actions. "
-                 "Macro assignments are not changed unless they sit on one of those buttons.",
+            body="Left, right, middle, back, forward and bottom return to their standard mouse "
+                 "actions. Any macro or keyboard shortcut currently assigned to those six buttons "
+                 "will be overwritten.",
         )
         dialog.add_response("cancel", "Cancel")
         dialog.add_response("reset", "Restore defaults")
@@ -850,11 +859,15 @@ class MainWindow(Adw.ApplicationWindow):
             self.worker.submit("buttons_reset", key="buttons_reset")
 
     def _update_buttons(self, state: MouseState) -> None:
+        editable = bool(state.supports_button_remap and not state.read_only)
+        self.button_readonly_note.set_visible(not editable)
+        self.reset_buttons_button.set_sensitive(editable)
         for index, widgets in enumerate(self.button_rows):
             if index >= len(state.buttons):
                 widgets["row"].set_visible(False)
                 continue
             widgets["row"].set_visible(True)
+            widgets["dropdown"].set_sensitive(editable)
             button = state.buttons[index]
             widgets["title"].set_text(button.name)
             action_id = button.action_id
@@ -951,6 +964,9 @@ class MainWindow(Adw.ApplicationWindow):
         )
         self.lod_buttons_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         lod_body.append(self.lod_buttons_box)
+        self.lod_note = self._label("", "row-sub", wrap=True)
+        self.lod_note.set_visible(False)
+        lod_body.append(self.lod_note)
         root.append(self.lod_card)
 
         timing, timing_body = self._card("Timing & power", "Stored on the mouse and kept across power cycles.")
@@ -1131,14 +1147,20 @@ class MainWindow(Adw.ApplicationWindow):
         )
         support_text = self._label(
             "Save the report, review it, then attach it to the GitHub support "
-            "request. The file contains device IDs, settings and raw configuration "
-            "bytes — never the full RF identifier, USB serial or your host name.",
+            "request. By default it contains device IDs and settings but no raw "
+            "registers, full RF identifier, USB serial or host name. Raw bytes are "
+            "opt-in and only needed when maintainers ask for them.",
             "row-sub", wrap=True,
         )
         support_text.set_max_width_chars(78)
         support_text.set_hexpand(True)
         support_body.append(support_text)
         support_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.include_raw_report = Gtk.CheckButton(
+            label="Include raw register bytes (opt-in; review before sharing)"
+        )
+        self.include_raw_report.set_active(False)
+        support_body.append(self.include_raw_report)
         save_support = Gtk.Button(label="Save support report")
         save_support.add_css_class("pill")
         save_support.connect("clicked", lambda *_: self._save_report())
@@ -1553,6 +1575,7 @@ class MainWindow(Adw.ApplicationWindow):
         if state.supports_performance_mode:
             current_mode = state.sensor_mode if state.sensor_mode is not None else 0
             for mode, button in self.sensor_mode_buttons.items():
+                button.set_visible(mode < 2 or bool(state.supports_sensor_max))
                 self._set_active(button, mode == current_mode)
             self.sensor_mode_desc.set_text(
                 self.sensor_mode_descriptions.get(current_mode, "Sensor mode reported by the mouse.")
@@ -1576,6 +1599,13 @@ class MainWindow(Adw.ApplicationWindow):
                 button.add_css_class("active")
             button.connect("clicked", lambda _b, value=code: self._set_lod(value))
             self.lod_buttons_box.append(button)
+        known_codes = [code for code, _mm in caps.lift_off_choices]
+        self.lod_note.set_visible(state.lod_code is not None and state.lod_code not in known_codes)
+        if state.lod_code is not None and state.lod_code not in known_codes:
+            self.lod_note.set_text(
+                f"This firmware reports lift-off code {state.lod_code}, which is not in the "
+                "verified 1 mm / 2 mm map. Choose a verified value to migrate it."
+            )
 
         # ComboRow-like DropDowns.  The current value is added to the list by
         # capabilities_for so it can always be represented.
@@ -1787,7 +1817,10 @@ class MainWindow(Adw.ApplicationWindow):
             return
         try:
             if hasattr(self.worker, "save_support_report"):
-                self.worker.save_support_report(gfile.get_path())
+                self.worker.save_support_report(
+                    gfile.get_path(),
+                    include_raw=bool(self.include_raw_report.get_active()),
+                )
                 self.toast("Generating support report…")
             else:
                 path = diagnostics.write_report(

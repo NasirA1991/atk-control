@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+import tempfile
 from pathlib import Path
 
 APP_ID = "io.github.atkcontrol.AtkControl"
 APP_NAME = "ATK Control"
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 REPO_URL = "https://github.com/NasirA1991/atk-control"
 ISSUES_URL = f"{REPO_URL}/issues"
 SUPPORT_URL = f"{ISSUES_URL}/new?template=device-report.yml"
@@ -39,26 +41,93 @@ def config_path() -> Path:
     return config_dir() / "config.json"
 
 
-def load() -> dict:
+def _valid_bool(value, default: bool) -> bool:
+    return value if isinstance(value, bool) else default
+
+
+def _valid_seconds(value, default: float, minimum: float, maximum: float) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    number = float(value)
+    if not math.isfinite(number) or number < minimum:
+        return default
+    return min(number, maximum)
+
+
+def sanitize(stored: object) -> dict:
+    """Return only known, correctly typed preferences.
+
+    A hand-edited or partially written config must never crash startup or
+    smuggle arbitrary values into the refresh loop.
+    """
     data = dict(DEFAULTS)
-    try:
-        stored = json.loads(config_path().read_text(encoding="utf-8"))
-        if isinstance(stored, dict):
-            data.update(stored)
-    except (OSError, ValueError):
-        pass
-    valid_styles = {key for key, _label in TRAY_STYLES}
-    if data.get("tray_icon_style") not in valid_styles:
-        data["tray_icon_style"] = DEFAULT_TRAY_STYLE
+    if not isinstance(stored, dict):
+        return data
+    data["start_hidden"] = _valid_bool(stored.get("start_hidden"), DEFAULTS["start_hidden"])
+    data["low_battery_notifications"] = _valid_bool(
+        stored.get("low_battery_notifications"), DEFAULTS["low_battery_notifications"]
+    )
+    style = stored.get("tray_icon_style")
+    if isinstance(style, str) and style in {key for key, _label in TRAY_STYLES}:
+        data["tray_icon_style"] = style
+    data["live_refresh_seconds"] = _valid_seconds(
+        stored.get("live_refresh_seconds"), DEFAULTS["live_refresh_seconds"], 2.0, 120.0
+    )
+    data["full_refresh_seconds"] = _valid_seconds(
+        stored.get("full_refresh_seconds"), DEFAULTS["full_refresh_seconds"], 10.0, 1800.0
+    )
+    if data["full_refresh_seconds"] < data["live_refresh_seconds"]:
+        data["full_refresh_seconds"] = data["live_refresh_seconds"] * 5
     return data
 
 
-def save(data: dict) -> None:
+def load() -> dict:
     try:
-        config_dir().mkdir(parents=True, exist_ok=True)
-        config_path().write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        stored = json.loads(config_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return dict(DEFAULTS)
+    return sanitize(stored)
+
+
+def save(data: dict) -> bool:
+    """Atomically persist only validated preference keys.
+
+    Returns False when the preferences could not be written. Callers must not
+    claim a preference was saved when this returns False.
+    """
+    payload = sanitize(data)
+    target = config_path()
+    temporary: str | None = None
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(
+            prefix=".config-", suffix=".json", dir=target.parent, text=True
+        )
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, target)
+        temporary = None
+        try:
+            directory_fd = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except OSError:
+            pass
+        return True
     except OSError:
-        pass
+        return False
+    finally:
+        if temporary is not None:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
 
 
 def autostart_path() -> Path:

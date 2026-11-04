@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to release (for example v0.3.1)'
+        description: 'Existing tag to release (for example v0.4.0)'
         required: true
 
 permissions:
@@ -93,8 +93,12 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: List release files
-        run: ls -lh dist
+      - name: List release files and generate checksums
+        run: |
+          ls -lh dist
+          cd dist
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:

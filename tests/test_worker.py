@@ -11,6 +11,17 @@ from atk_control.state import MouseState
 from atk_control.worker import DeviceWorker, DemoWorker
 
 
+class WorkerSafetyTests(unittest.TestCase):
+    def test_hidden_polling_is_slower(self) -> None:
+        worker = DeviceWorker(lambda *_: None, lambda *_: None)
+        hidden = worker._intervals()
+        worker.set_foreground(True)
+        visible = worker._intervals()
+        self.assertGreaterEqual(hidden[0], 30.0)
+        self.assertGreaterEqual(hidden[1], 300.0)
+        self.assertEqual(visible, (3.0, 30.0))
+
+
 class DemoWorkerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.states = []
@@ -87,12 +98,36 @@ class SupportReportPathTest(unittest.TestCase):
         worker._controller = FakeController()
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / "report.md"
-            worker._write_support_report(str(target))
+            worker._write_support_report(str(target), include_raw=True)
             self.assertTrue(target.exists())
             text = target.read_text()
             self.assertIn("Raw configuration registers", text)
             self.assertIn("01 54 02 53", text)
             self.assertIn("Support request:", text)
+
+    def test_default_support_report_omits_raw_bytes(self) -> None:
+        mouse_state = MouseState(model_name="MAD R +", brand="ATK", sensor="PAW3395")
+        capabilities = devices.default_capabilities()
+
+        class FakeController:
+            path = "/dev/hidraw-test"
+            state = mouse_state
+            caps = capabilities
+
+            def read_full(self):
+                return mouse_state
+
+            def collect_raw_registers(self):
+                return {0x0000: bytes.fromhex("01 54 02 53 01 54 00 55 00 55")}
+
+        worker = DeviceWorker(lambda *_: None, lambda *_: None)
+        worker._controller = FakeController()
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "report.md"
+            worker._write_support_report(str(target))
+            text = target.read_text()
+            self.assertIn("Omitted by default", text)
+            self.assertNotIn("01 54 02 53", text)
 
 
 if __name__ == "__main__":

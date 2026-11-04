@@ -56,6 +56,8 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertIn("Support request:", text)
         self.assertIn("ATK Control", text)
         self.assertNotIn(socket.gethostname(), text)
+        self.assertIn("Omitted by default", text)
+        self.assertNotIn("0x0000", text)
 
     def test_default_filename(self) -> None:
         self.assertRegex(diagnostics.default_filename(), r"^atk-control-report-\d{8}-\d{4}\.md$")

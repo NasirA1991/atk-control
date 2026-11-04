@@ -38,7 +38,8 @@ the 1K/4K/8K receiver are always shown as separate pieces of information.
   indicator colours, add/remove stages, and one-click stage activation. The
   active stage is the one the mouse's DPI button cycles through.
 - **Sensor sampling modes** — Basic, Competitive and Competitive MAX, with the
-  same trade-off descriptions as ATK HUB.
+  same trade-off descriptions as ATK HUB. MAX is enabled only for models where
+  it has been verified.
 - **Sensor control** — Motion Sync, ripple control, straight-line correction,
   lift-off distance, debounce, sleep timer and sensor rotation (on firmware
   that exposes it).
@@ -46,14 +47,17 @@ the 1K/4K/8K receiver are always shown as separate pieces of information.
 - **Onboard profiles** — switch between the four configuration banks stored in
   the mouse.
 - **Button remapping** — assign standard mouse and DPI actions to the left,
-  right, middle, back, forward and bottom buttons, with a restore-defaults
-  action. Existing macro/shortcut assignments are preserved and shown as
-  *Custom / unsupported*.
+  right, middle, back, forward and bottom buttons, with a recoverable
+  restore-defaults action. Remapping is enabled only for verified models;
+  elsewhere the button map is read-only. Existing macro/shortcut assignments
+  are preserved individually but are explicitly overwritten by a full reset.
 - **Firmware awareness** — shows the firmware the mouse is actually running and
   links to ATK HUB for updates. ATK Control never flashes firmware itself.
 - **CLI** (`atkctl`) for scripts, keybinds and status bars. Setters read the
   value back and fail loudly if the mouse kept something else.
 - **Offline and private** — no telemetry, no cloud account, no vendor service.
+  Raw support bytes are opt-in, and a per-device lock prevents the GUI and CLI
+  from fighting over one hidraw stream.
 
 ![Performance](docs/screenshots/performance.png)
 ![DPI](docs/screenshots/dpi.png)
@@ -81,10 +85,11 @@ From a terminal this is:
 atkctl support
 ```
 
-The report includes the device identity, every setting ATK Control can read and
-a raw dump of the configuration registers. It never includes the full RF
-identifier, USB serial number or host name, and nothing is uploaded
-automatically. [More about device reports](docs/DEVICE_REPORTS.md).
+The report includes the device identity and every setting ATK Control can read.
+It never includes the full RF identifier, USB serial number or host name, and
+nothing is uploaded automatically. Raw register bytes are **opt-in**: enable
+*Include raw registers* in the save dialog, or run `atkctl support --raw`, only
+when maintainers ask for them. [More about device reports](docs/DEVICE_REPORTS.md).
 
 ![Device and support report](docs/screenshots/device.png)
 
@@ -119,7 +124,7 @@ Download `atk-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./atk-control-0.3.1-x86_64.flatpak
+flatpak install --user ./atk-control-0.4.0-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -129,8 +134,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.3.1-x86_64.AppImage
-./atk-control-0.3.1-x86_64.AppImage
+chmod +x atk-control-0.4.0-x86_64.AppImage
+./atk-control-0.4.0-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -146,7 +151,31 @@ sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 python3-cairo python3-db
 sudo dnf install python3-gobject gtk4 libadwaita python3-cairo python3-dbus hicolor-icon-theme
 ```
 
-A fully self-contained bundle is the Flatpak above.
+A fully self-contained bundle is the Flatpak above. Every release also includes
+`SHA256SUMS`; verify a download with:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+## Safety and concurrency
+
+- Every write is read back and rejected values are re-read so the UI reverts to
+  the confirmed state.
+- Only one ATK Control GUI/CLI process may control a given hidraw node at a
+  time. A per-device lock makes the second process fail cleanly instead of
+  racing replies.
+- Adding a DPI stage reads the shared colour row before writing and preserves
+  the neighbouring stage's bytes. If that read fails, the operation aborts
+  before writing anything.
+- A failed button reset attempts to restore the original mappings and reports
+  exactly what happened.
+- Hidden-tray polling backs off to 30-second battery checks and 5-minute full
+  refreshes so a wireless mouse is not kept busy all day.
+- Preferences are type-checked and written atomically; a corrupted JSON file
+  cannot crash startup.
+- Button remapping and Competitive MAX are gated to individually verified
+  models. Other models stay read-only for those features.
 
 ## Permissions
 
@@ -165,6 +194,12 @@ sudo udevadm trigger --subsystem-match=hidraw
 
 Then unplug and reconnect the mouse or receiver. The rule grants access to the
 ATK (`373b`) and VXE (`3554`) HID devices.
+
+The rule and the Flatpak's `--device=all` permission are deliberately broad:
+Linux exposes the vendor HID collection as a generic `/dev/hidrawN` node, and
+the app validates the collection at the descriptor level before using it. The
+Flatpak has no network permission and no privileged helper. Do not run the GUI
+as root; the udev rule is the supported permission path.
 
 ## Usage
 
@@ -209,7 +244,8 @@ atkctl scan
 ```
 
 Every setter reads the device back and exits non-zero if the mouse did not
-confirm the change.
+confirm the change. The GUI and CLI share a per-device lock, so quit the GUI
+(or its tray process) before using `atkctl` on the same mouse.
 
 ### Tray on GNOME
 
@@ -225,9 +261,9 @@ USB product id, because receivers are shared between models.
 
 | Model | Link | Status |
 |---|---|---|
-| **MAD R +** | 8K dongle (`373b:1040`) | **Verified on hardware** — battery, polling to 8000 Hz, DPI stages and colours, Motion Sync, ripple, straight-line correction, LOD, debounce, sleep, sensor mode, DPI LED, profiles and button reads |
+| **MAD R +** | 8K dongle (`373b:1040`) | **Verified on hardware** — battery, polling to 8000 Hz, DPI stages and colours, Motion Sync, ripple, straight-line correction, LOD, debounce, sleep, sensor mode, DPI LED, profiles and button reads; button remap and MAX are enabled from ATK HUB protocol evidence |
 | MAD R, MAD R MAJOR, MAD R MAJOR+ | cable / 8K dongle | Same protocol and capability family; not individually tested |
-| **VXE R1 Pro** | 1K / 4K receiver (`3554:f58a` / `3554:f505`) | **Verified on hardware** — polling up to 4K, DPI stages/colours and add/remove, Motion Sync, ripple, straight-line, LOD, debounce, sleep, all sensor sampling modes, DPI LED, button remapping and firmware reporting |
+| **VXE R1 Pro** | 1K / 4K receiver (`3554:f58a` / `3554:f505`) | **Verified on hardware** — polling up to 4K, DPI stages/colours and add/remove, Motion Sync, ripple, straight-line, LOD, debounce, sleep, sensor modes including MAX, DPI LED, button remapping and firmware reporting |
 | VXE R1, VXE R1 Pro Max | cable / receiver | Model entries and receiver ceilings included; not individually tested |
 | Other ATK/VXE mice | any | Detected read-only until a model entry is added |
 
@@ -236,17 +272,21 @@ When more than one receiver is connected, the **Device → Configuration devices
 card lets you switch between them.
 
 **Not yet exposed:** macro recording, complex keyboard-shortcut assignments,
-receiver pairing and factory reset. Those remain in ATK HUB. Existing macro or
-shortcut button assignments are preserved and shown as *Custom / unsupported*.
+receiver pairing, factory reset, direction calibration and configuration
+import/export. Those remain in ATK HUB. Existing macro or shortcut button
+assignments are preserved and shown as *Custom / unsupported* unless you
+explicitly reset all button mappings.
 
 ## Firmware
 
-ATK Control reads the installed firmware version once the mouse is awake. It
-does **not** flash firmware itself. Use **Device → Firmware → Firmware updates
-in ATK HUB** for that; your settings stay on the mouse.
+ATK Control reads the firmware version when the mouse is awake and the receiver
+forwards the query. It does **not** flash firmware itself. Use **Device →
+Firmware → Firmware updates in ATK HUB** for that; your settings stay on the
+mouse.
 
-If the version is briefly unavailable after wake, move the mouse or refresh.
-Some receivers take a moment to forward the version query.
+Firmware reporting is best-effort: if the version is briefly unavailable after
+wake, move the mouse or refresh. Some receivers take a moment to forward the
+query, and some combinations may not report it at all.
 
 ## Privacy
 
@@ -254,8 +294,9 @@ ATK Control has no network code. It does not phone home, does not upload
 device data, and does not require an account. Settings are stored on the mouse;
 window preferences are a small JSON file in `~/.config/atk-control/`.
 
-Support reports are only created when you ask for one. Review them before
-attaching one to a public issue.
+Support reports are only created when you ask for one. Raw register bytes are
+omitted unless you opt in, and the app never uploads anything. Review the file
+before attaching it to a public issue.
 
 ## License
 

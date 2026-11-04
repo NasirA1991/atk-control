@@ -391,6 +391,8 @@ class Controller:
             active_stage=active,
             stage_count=count,
             polling_rate=polling,
+            supports_sensor_max=bool(self.model and self.model.sensor_max),
+            supports_button_remap=bool(self.model and self.model.button_remap),
         )
 
         try:
@@ -665,7 +667,12 @@ class Controller:
 
     def set_sensor_mode(self, mode: int) -> int:
         self._require(self.state.supports_performance_mode, "Sensor sampling mode is not exposed")
-        self._require(mode in (0, 1, 2, 3), "Sensor mode must be Basic, Competitive, MAX or MAX 13K")
+        self._require(mode in (0, 1, 2), "Sensor mode must be Basic, Competitive or Competitive MAX")
+        if mode >= 2:
+            self._require(
+                self.state.supports_sensor_max,
+                "Competitive MAX has not been verified for this model; use ATK HUB for it",
+            )
         row = bytearray(self.transport.read_eeprom(ADDR_SENSOR_MODE, 6))
         row[4:6] = pack_pair(mode)
         self.transport.write_eeprom(ADDR_SENSOR_MODE, bytes(row))
@@ -681,6 +688,10 @@ class Controller:
         return mode != 0
 
     def set_button_action(self, index: int, action: str) -> str:
+        self._require(
+            self.state.supports_button_remap,
+            "Button remapping has not been verified for this model",
+        )
         self._require(0 <= index < len(BUTTON_NAMES), "Button index out of range")
         self._require(action in BUTTON_ACTIONS, "Unsupported button action")
         if index == 5 and self.model is not None and not self.model.bottom_button:
@@ -705,13 +716,52 @@ class Controller:
         return label
 
     def reset_buttons(self) -> None:
+        self._require(
+            self.state.supports_button_remap,
+            "Button remapping has not been verified for this model",
+        )
         self._require(bool(self.state.buttons), "Button assignments are not readable on this mouse")
-        for index, action in enumerate(DEFAULT_BUTTON_ACTIONS):
-            if index == 5 and self.model is not None and not self.model.bottom_button:
-                continue
-            if index >= len(self.state.buttons):
-                continue
-            self.set_button_action(index, action)
+        indices = list(range(len(self.state.buttons)))
+        snapshot = []
+        for index in indices:
+            address = 0x0060 + index * 4
+            snapshot.append((address, self.transport.read_eeprom(address, 4)))
+        applied = 0
+        try:
+            for index, action in enumerate(DEFAULT_BUTTON_ACTIONS):
+                if index not in indices:
+                    continue
+                key_class, value1, value2, _label = BUTTON_ACTIONS[action]
+                packed = pack_button_record(key_class, value1, value2)
+                address = 0x0060 + index * 4
+                self.transport.write_eeprom(address, packed)
+                applied += 1
+                time.sleep(0.03)
+                if self.transport.read_eeprom(address, 4) != packed:
+                    raise ProtocolError(f"The mouse did not retain the default for button {index + 1}")
+        except (ProtocolError, OSError) as exc:
+            restored = True
+            for address, raw in snapshot:
+                try:
+                    self.transport.write_eeprom(address, raw)
+                    time.sleep(0.02)
+                    if self.transport.read_eeprom(address, 4) != raw:
+                        restored = False
+                except (ProtocolError, OSError):
+                    restored = False
+            self.state.buttons = self._read_buttons(
+                self.model.bottom_button if self.model else True
+            )
+            suffix = (
+                "original mappings restored"
+                if restored else "recovery was incomplete — review the button assignments"
+            )
+            raise ProtocolError(
+                f"Button reset stopped after {applied} change(s); {suffix}. ({exc})"
+            ) from exc
+        self.state.buttons = self._read_buttons(
+            self.model.bottom_button if self.model else True
+        )
 
     def add_stage(self) -> int:
         self._require(self.state.stage_count < 8, "This mouse already has eight DPI stages")
@@ -721,23 +771,35 @@ class Controller:
         family = self.caps.sensor.family
         packed = pack_dpi_stage(last_stage[0], last_stage[1], family)
         address = ADDR_DPI_BASE + new_index * 4
+        color = self.state.stage_colors[-1] if self.state.stage_colors else "#ffffff"
+        packed_color = pack_rgb(color) if self.caps.stage_colors else None
+
+        # Preflight every shared read before the first write.  In particular,
+        # a failed colour-group read must never be replaced by zero bytes: the
+        # other four bytes belong to a neighbouring stage.
+        system = bytearray(self.transport.read_eeprom(ADDR_SYSTEM, 10))
+        group_address = None
+        group = None
+        if packed_color is not None and self.caps.stage_colors:
+            group_address = ADDR_STAGE_COLOR_BASE + (new_index // 2) * 8
+            group = bytearray(self.transport.read_eeprom(group_address, 8))
+
         self.transport.write_eeprom(address, packed)
         time.sleep(0.03)
         confirmed = unpack_dpi_stage(self.transport.read_eeprom(address, 4), family)
         self._require(confirmed == last_stage, "The mouse did not accept the new DPI stage")
-        color = self.state.stage_colors[-1] if self.state.stage_colors else "#ffffff"
-        if self.caps.stage_colors:
-            packed_color = pack_rgb(color)
-            if packed_color is not None:
-                group_address = ADDR_STAGE_COLOR_BASE + (new_index // 2) * 8
-                try:
-                    group = bytearray(self.transport.read_eeprom(group_address, 8))
-                except ProtocolError:
-                    group = bytearray(8)
-                group[(new_index % 2) * 4:(new_index % 2) * 4 + 4] = packed_color
-                self.transport.write_eeprom(group_address, bytes(group))
-                time.sleep(0.03)
-        system = bytearray(self.transport.read_eeprom(ADDR_SYSTEM, 10))
+
+        if group is not None and group_address is not None and packed_color is not None:
+            slot = (new_index % 2) * 4
+            group[slot:slot + 4] = packed_color
+            self.transport.write_eeprom(group_address, bytes(group))
+            time.sleep(0.03)
+            confirmed_group = self.transport.read_eeprom(group_address, 8)
+            self._require(
+                confirmed_group[slot:slot + 4] == packed_color,
+                "The mouse did not retain the new stage colour",
+            )
+
         system[2:4] = pack_pair(new_index + 1)
         self.transport.write_eeprom(ADDR_SYSTEM, bytes(system[:6]))
         time.sleep(0.05)

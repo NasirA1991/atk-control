@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.4.0" date="2026-11-04">
+      <description>
+        <p>Safety and trust release: opt-in raw support reports, per-device process locking, recoverable button reset, verified-model gating for remapping and MAX sensor mode, shared-row-safe DPI stage addition, atomic preferences, adaptive tray polling and release checksums.</p>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-11-04">
       <description>
         <p>Shows the paired mouse name separately from the 1K/4K/8K receiver throughout the app and in the window title; clarifies receiver-sleep messages.</p>
