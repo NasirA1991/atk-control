@@ -15,6 +15,13 @@ tray icon stays visible with live battery, and every setting is written to the
 mouse itself, so it keeps working when the app is closed. The mouse name and
 the 1K/4K/8K receiver are always shown as separate pieces of information.
 
+**Contents:** [Features](#features) · [Install](#install) · [Usage](#usage) · [Supported devices](#supported-devices) · [Troubleshooting](#troubleshooting) · [Permissions](#permissions) · [Support](#missing-your-mouse)
+
+> **Quick install:** Arch/CachyOS users can run `paru -S atk-control`. On other
+> distributions, download the latest Flatpak or AppImage from
+> [Releases](https://github.com/NasirA1991/atk-control/releases), or see the
+> [full installation instructions](#install).
+
 ![Overview](docs/screenshots/overview.png)
 
 <sub>Screenshots are rendered by the built-in demo mode (`--demo`).</sub>
@@ -24,12 +31,6 @@ the 1K/4K/8K receiver are always shown as separate pieces of information.
 > hardware. Other ATK/VXE models share the configuration protocol but have not
 > each been individually tested. [Request support for your mouse](#missing-your-mouse)
 > and it can be added.
-
-**Jump to:** [Install](#install) · [Supported devices](#supported-devices) · [Features](#features) · [Usage](#usage) · [Permissions](#permissions) · [Support](#missing-your-mouse)
-
-> **Quick install:** Arch/CachyOS users can run `paru -S atk-control`. On other
-> distributions, download the latest Flatpak or AppImage from
-> [Releases](https://github.com/NasirA1991/atk-control/releases).
 
 ## Features
 
@@ -272,6 +273,37 @@ confirm the change. The GUI and CLI share a per-device lock, so quit the GUI
 GNOME needs an AppIndicator/StatusNotifier extension, for example
 *AppIndicator and KStatusNotifierItem Support*. KDE Plasma, XFCE, sway/waybar
 and other StatusNotifier hosts work out of the box.
+
+## Troubleshooting
+
+### “No permission for /dev/hidraw…” 
+Install the udev rule under [Permissions](#permissions), then unplug and
+reconnect the receiver. The AUR package installs it automatically.
+
+### The mouse is not detected, or the app says it is asleep
+Move the mouse to wake it. The receiver must also be connected. If two mice are
+connected, the app switches to the other one when the selected mouse goes
+offline.
+
+### The tray icon is missing or has no menu
+GNOME needs a StatusNotifier/AppIndicator extension. On KDE/XFCE, left click
+opens the window, right click opens the quick menu, and middle click refreshes.
+If an older ATK Control process is still running, quit it completely and
+relaunch. The **Signal bars** style is intentionally text-free; choose
+**Hex gauge** or **Reticle** to see the percentage in the icon.
+
+### “Device is already controlled by another ATK Control process”
+Only one GUI/CLI process may own a hidraw node. Quit the other window or tray
+process before running `atkctl` on the same mouse.
+
+### Settings went back to defaults after powering the mouse off
+Use **0.4.8 or newer**. ATK Control commits the active onboard profile after
+each change; older builds did not. If the latest build still loses a setting,
+save a support report from the Device page.
+
+### The firmware version is blank
+Not every receiver forwards the query. Wake the mouse and refresh; if it still
+does not appear, use ATK HUB for firmware information and updates.
 
 ## Supported devices
 
