@@ -1,0 +1,133 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (for example v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha256: ${{ steps.package.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Check tag matches VERSION
+        id: version
+        env:
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          VERSION="${REF_NAME#v}"
+          CODE_VERSION=$(python3 -c "from compx_control.config import VERSION; print(VERSION)")
+          if [ "$VERSION" != "$CODE_VERSION" ]; then
+            echo "Tag $REF_NAME does not match VERSION=$CODE_VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build source tarball
+        id: package
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="compx-control-${VERSION}/" \
+            -o "dist/compx-control-${VERSION}.tar.gz" HEAD
+          SHA=$(sha256sum "dist/compx-control-${VERSION}.tar.gz" | cut -d' ' -f1)
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: source
+          path: dist/compx-control-*.tar.gz
+
+  appimage:
+    needs: source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - name: Build AppImage
+        run: ./packaging/appimage/build.sh "${{ needs.source.outputs.version }}" dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: appimage
+          path: dist/*.AppImage
+
+  flatpak:
+    needs: source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - name: Install Flatpak tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y --noninteractive flathub org.gnome.Platform//50 org.gnome.Sdk//50
+      - name: Build Flatpak bundle
+        run: ./packaging/flatpak/build.sh "${{ needs.source.outputs.version }}" dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flatpak
+          path: dist/*.flatpak
+
+  release:
+    needs: [source, appimage, flatpak]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: List release files
+        run: ls -lh dist
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: dist/*
+          generate_release_notes: true
+
+  aur:
+    needs: [release, source]
+    if: vars.AUR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - name: Render stable PKGBUILD
+        env:
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.source.outputs.version }}
+          SHA256: ${{ needs.source.outputs.sha256 }}
+        run: |
+          sed -e "s|@REPO@|${REPO}|g" \
+              -e "s|@VERSION@|${VERSION}|g" \
+              -e "s|@SHA256@|${SHA256}|g" \
+              packaging/aur/compx-control/PKGBUILD.in \
+              > packaging/aur/compx-control/PKGBUILD
+      - name: Publish compx-control
+        uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
+        with:
+          pkgname: compx-control
+          pkgbuild: packaging/aur/compx-control/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "compx-control ${{ needs.source.outputs.version }}"
+          ssh_keyscan_types: ed25519,rsa,ecdsa

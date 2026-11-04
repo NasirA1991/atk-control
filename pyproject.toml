@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "compx-control"
+version = "0.1.0"
+description = "Native Linux configuration for COMPX-based gaming mice (MAD R, VXE R1 and relatives)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Compx Control contributors" }]
+keywords = ["mouse", "gaming", "hid", "gtk4", "libadwaita", "compx", "madr", "vxe"]
+classifiers = [
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+]
+# GTK4, libadwaita, PyGObject, pycairo and dbus-python come from the distro.
+dependencies = []
+
+[project.scripts]
+compx-control = "compx_control.app:main"
+compxctl = "compx_control.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/NasirA1991/compx-control"
+Repository = "https://github.com/NasirA1991/compx-control"
+Issues = "https://github.com/NasirA1991/compx-control/issues"
+Documentation = "https://github.com/NasirA1991/compx-control#readme"
+
+[tool.setuptools]
+packages = ["compx_control"]

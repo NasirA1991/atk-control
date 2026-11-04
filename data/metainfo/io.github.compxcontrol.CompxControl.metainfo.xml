@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.compxcontrol.CompxControl</id>
+  <name>Compx Control</name>
+  <summary>Native configuration for COMPX-based gaming mice</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.compxcontrol">
+    <name>Compx Control contributors</name>
+  </developer>
+  <description>
+    <p>
+      Compx Control is a native Linux companion for COMPX-based gaming mice such
+      as the MAD R family and VXE R1. It talks to the mouse directly through its
+      vendor HID collection, so no browser tab, Windows virtual machine or vendor
+      service is required.
+    </p>
+    <p>
+      Configure the polling rate, up to eight DPI stages with per-stage colours,
+      lift-off distance, debounce, sleep timer, Motion Sync, ripple control,
+      sensor rotation, straight-line correction and the DPI indicator LED. The
+      battery percentage can live in the system tray with three distinctive icon
+      styles, and a small CLI makes the same settings scriptable.
+    </p>
+    <p>
+      Settings are stored on the mouse itself. The app works offline and sends no
+      telemetry.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.compxcontrol.CompxControl.desktop</launchable>
+  <provides>
+    <binary>compx-control</binary>
+    <binary>compxctl</binary>
+  </provides>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The overview, with live battery and quick controls</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/compx-control/main/docs/screenshots/overview.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Polling rate, sensor processing and sensor rotation</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/compx-control/main/docs/screenshots/performance.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>DPI stages with independent X/Y resolution and colours</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/compx-control/main/docs/screenshots/dpi.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>DPI indicator LED controls</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/compx-control/main/docs/screenshots/lighting.png</image>
+    </screenshot>
+  </screenshots>
+  <url type="homepage">https://github.com/NasirA1991/compx-control</url>
+  <url type="bugtracker">https://github.com/NasirA1991/compx-control/issues</url>
+  <url type="help">https://github.com/NasirA1991/compx-control#readme</url>
+  <categories>
+    <category>Settings</category>
+    <category>HardwareSettings</category>
+  </categories>
+  <keywords>
+    <keyword>mouse</keyword>
+    <keyword>gaming</keyword>
+    <keyword>DPI</keyword>
+    <keyword>polling</keyword>
+    <keyword>battery</keyword>
+    <keyword>MAD R</keyword>
+    <keyword>VXE R1</keyword>
+    <keyword>ATK</keyword>
+    <keyword>COMPX</keyword>
+  </keywords>
+  <content_rating type="oars-1.1"/>
+  <branding>
+    <color type="primary" scheme_preference="dark">#ff6b3d</color>
+  </branding>
+  <releases>
+    <release version="0.1.0" date="2026-11-04">
+      <description>
+        <p>First release with MAD R family support, 8K receiver support, tray integration and CLI.</p>
+      </description>
+    </release>
+  </releases>
+</component>

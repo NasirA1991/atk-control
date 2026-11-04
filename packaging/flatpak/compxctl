@@ -1,0 +1,2 @@
+#!/bin/sh
+exec python3 -c 'import sys; sys.path.insert(0, "/app/share/compx-control"); from compx_control.cli import main; sys.exit(main())' "$@"

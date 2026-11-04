@@ -1,0 +1,40 @@
+name: Device support report
+description: Share a read-only report for another COMPX-based mouse
+title: "[Device] "
+labels: ["device-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping! Generate the report locally with
+        **Device → Save report** or `compxctl report`, review it, then attach
+        it below. Nothing is uploaded automatically.
+  - type: input
+    id: model
+    attributes:
+      label: Mouse model
+      placeholder: e.g. MAD R, VXE R1 Pro Max
+    validations:
+      required: true
+  - type: input
+    id: ids
+    attributes:
+      label: USB IDs and link
+      description: From `compxctl scan` or `lsusb`.
+      placeholder: e.g. 373b:1040 (8K dongle)
+    validations:
+      required: true
+  - type: textarea
+    id: symptoms
+    attributes:
+      label: What works and what does not?
+      placeholder: Settings, polling, battery, buttons, tray…
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Compx Control version
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true

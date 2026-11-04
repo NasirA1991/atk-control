@@ -1,0 +1,5 @@
+#!/bin/sh
+# Compx Control AppImage: application code only.  The host provides Python 3,
+# PyGObject, GTK4, libadwaita, pycairo and dbus-python.  Use the Flatpak for a
+# fully self-contained build.
+exec python3 "$APPDIR/usr/share/compx-control/launcher.py" "$@"

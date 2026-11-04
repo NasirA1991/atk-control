@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-dbus python3-cairo appstream desktop-file-utils
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Byte-compile
+        run: python3 -m compileall -q compx_control
+      - name: Validate AppStream metadata
+        run: appstreamcli validate --no-net data/metainfo/io.github.compxcontrol.CompxControl.metainfo.xml
+      - name: Validate desktop entry
+        run: desktop-file-validate data/applications/io.github.compxcontrol.CompxControl.desktop
+
+  ui-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install GTK stack
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 python3-cairo python3-dbus xvfb dbus-x11
+      - name: Start demo UI
+        run: |
+          set +e
+          timeout 8 dbus-run-session -- xvfb-run -a -s '-screen 0 1200x1000x24' \
+            env GSK_RENDERER=cairo python3 -m compx_control --demo --no-tray
+          code=$?
+          if [ "$code" -ne 124 ]; then
+            echo "UI exited unexpectedly with $code" >&2
+            exit 1
+          fi
