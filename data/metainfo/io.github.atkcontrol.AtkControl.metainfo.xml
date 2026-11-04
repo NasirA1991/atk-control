@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.4.6" date="2026-11-04">
+      <description>
+        <p>Left click now opens the main window, right click opens the tray quick menu, and middle click refreshes.</p>
+      </description>
+    </release>
     <release version="0.4.5" date="2026-11-04">
       <description>
         <p>Fixes the tray context menu's DBusMenu revision and recursive layout encoding, and adds a five-second receiver-only heartbeat so a powered-off mouse is detected without waiting for the hidden-window battery poll.</p>

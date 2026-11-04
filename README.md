@@ -32,7 +32,8 @@ the 1K/4K/8K receiver are always shown as separate pieces of information.
   or from the tray menu. Charging state and link type live in the tooltip, with
   quick actions for polling, DPI, Motion Sync, ripple control and profiles.
   The icon itself uses a dynamic battery pixmap, so the percentage is visible
-  in the panel as well as the tooltip.
+  in the panel as well as the tooltip. Left click opens the window; right
+  click opens the quick menu; middle click refreshes.
 - **8K / 4K polling** — 125 Hz through 8000 Hz, limited intelligently by the
   actual receiver. The app reads the link type and never offers a rate the
   transport cannot carry.
@@ -126,7 +127,7 @@ Download `atk-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./atk-control-0.4.5-x86_64.flatpak
+flatpak install --user ./atk-control-0.4.6-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -136,8 +137,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.4.5-x86_64.AppImage
-./atk-control-0.4.5-x86_64.AppImage
+chmod +x atk-control-0.4.6-x86_64.AppImage
+./atk-control-0.4.6-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's

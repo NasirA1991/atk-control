@@ -497,7 +497,8 @@ class Tray(dbus.service.Object):
             "AttentionIconPixmap": dbus.Array([], signature="(iiay)"),
             "AttentionMovieName": dbus.String(""),
             "ToolTip": tooltip,
-            "ItemIsMenu": dbus.Boolean(True),
+            # Left click activates the window; right click opens the DBus menu.
+            "ItemIsMenu": dbus.Boolean(False),
             "Menu": dbus.ObjectPath("/MenuBar"),
             "IconThemePath": dbus.String(""),
         }
