@@ -1,26 +1,40 @@
 # ATK Control
 
-[![CI](https://github.com/NasirA1991/atk-control/actions/workflows/ci.yml/badge.svg)](https://github.com/NasirA1991/atk-control/actions/workflows/ci.yml)
-[![Release](https://github.com/NasirA1991/atk-control/actions/workflows/release.yml/badge.svg)](https://github.com/NasirA1991/atk-control/actions/workflows/release.yml)
-[![AUR](https://img.shields.io/aur/version/atk-control?label=AUR)](https://aur.archlinux.org/packages/atk-control)
-[![AUR git](https://img.shields.io/aur/version/atk-control-git?label=AUR%20git)](https://aur.archlinux.org/packages/atk-control-git)
-[![License](https://img.shields.io/github/license/NasirA1991/atk-control)](LICENSE)
+<p align="center">
+  <img src="data/icons/hicolor/scalable/apps/atk-control.svg" width="112" alt="ATK Control icon">
+</p>
 
-Native **GTK4 / libadwaita** control centre for **ATK / VXE gaming mice** —
-MAD R, VXE R1 and their family — with no browser tab, Windows VM or vendor
-background service.
+<p align="center">
+  <strong>A native GTK4 control centre for ATK/VXE gaming mice.</strong><br>
+  Polling, DPI, buttons, lighting, profiles and a live battery tray — without a
+  browser tab, Windows VM or vendor service.
+</p>
 
-ATK Control talks directly to the mouse over its vendor HID collection. The
-tray icon stays visible with live battery, and every setting is written to the
-mouse itself, so it keeps working when the app is closed. The mouse name and
-the 1K/4K/8K receiver are always shown as separate pieces of information.
+<p align="center">
+  <a href="https://github.com/NasirA1991/atk-control/actions/workflows/ci.yml"><img src="https://github.com/NasirA1991/atk-control/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/NasirA1991/atk-control/actions/workflows/release.yml"><img src="https://github.com/NasirA1991/atk-control/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <a href="https://aur.archlinux.org/packages/atk-control"><img src="https://img.shields.io/aur/version/atk-control?label=AUR" alt="AUR"></a>
+  <a href="https://aur.archlinux.org/packages/atk-control-git"><img src="https://img.shields.io/aur/version/atk-control-git?label=AUR%20git" alt="AUR git"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/NasirA1991/atk-control" alt="License"></a>
+</p>
 
-**Contents:** [Features](#features) · [Install](#install) · [Usage](#usage) · [Supported devices](#supported-devices) · [Troubleshooting](#troubleshooting) · [Permissions](#permissions) · [Support](#missing-your-mouse)
+## Quick install
 
-> **Quick install:** Arch/CachyOS users can run `paru -S atk-control`. On other
-> distributions, download the latest Flatpak or AppImage from
-> [Releases](https://github.com/NasirA1991/atk-control/releases), or see the
-> [full installation instructions](#install).
+### Arch, CachyOS or EndeavourOS
+
+Use whichever AUR helper you normally use:
+
+```bash
+paru -S atk-control     # paru
+yay -S atk-control      # yay
+```
+
+For the latest main branch, install `atk-control-git` instead. Other
+distributions can download the latest Flatpak or AppImage from
+[Releases](https://github.com/NasirA1991/atk-control/releases), or read the
+[full installation instructions](#install).
+
+**On this page:** [Features](#features) · [Supported devices](#supported-devices) · [Installation](#install) · [CLI](#cli) · [Troubleshooting](#troubleshooting) · [Permissions](#permissions) · [Support](#missing-your-mouse)
 
 ![Overview](docs/screenshots/overview.png)
 
@@ -96,8 +110,10 @@ release.
 ### Arch / CachyOS (AUR)
 
 ```bash
-paru -S atk-control-git     # latest main, rebuilt on updates
-paru -S atk-control         # latest tagged release
+# Use your normal AUR helper; for example:
+paru -S atk-control        # paru, latest tagged release
+yay -S atk-control         # yay
+paru -S atk-control-git    # latest main, rebuilt on updates
 ```
 
 Both are published: [atk-control](https://aur.archlinux.org/packages/atk-control)
