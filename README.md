@@ -34,16 +34,22 @@ mouse itself, so it keeps working when the app is closed.
   actual receiver. The app reads the link type and never offers a rate the
   transport cannot carry.
 - **DPI** — separate X/Y resolution, up to eight stored stages, per-stage
-  indicator colours, and one-click stage activation. The active stage is the
-  one the mouse's DPI button cycles through.
+  indicator colours, add/remove stages, and one-click stage activation. The
+  active stage is the one the mouse's DPI button cycles through.
+- **Sensor sampling modes** — Basic, Competitive and Competitive MAX, with the
+  same trade-off descriptions as ATK HUB.
 - **Sensor control** — Motion Sync, ripple control, straight-line correction,
-  competitive performance mode, lift-off distance, debounce, sleep timer and
-  sensor rotation (on firmware that exposes it).
+  lift-off distance, debounce, sleep timer and sensor rotation (on firmware
+  that exposes it).
 - **DPI indicator LED** — off, steady or breathing, with brightness and speed.
 - **Onboard profiles** — switch between the four configuration banks stored in
   the mouse.
-- **Button overview** — read-only view of what each physical button currently
-  does.
+- **Button remapping** — assign standard mouse and DPI actions to the left,
+  right, middle, back, forward and bottom buttons, with a restore-defaults
+  action. Existing macro/shortcut assignments are preserved and shown as
+  *Custom / unsupported*.
+- **Firmware awareness** — shows the firmware the mouse is actually running and
+  links to ATK HUB for updates. ATK Control never flashes firmware itself.
 - **CLI** (`atkctl`) for scripts, keybinds and status bars. Setters read the
   value back and fail loudly if the mouse kept something else.
 - **Offline and private** — no telemetry, no cloud account, no vendor service.
@@ -112,7 +118,7 @@ Download `atk-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./atk-control-0.2.0-x86_64.flatpak
+flatpak install --user ./atk-control-0.3.0-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -122,8 +128,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.2.0-x86_64.AppImage
-./atk-control-0.2.0-x86_64.AppImage
+chmod +x atk-control-0.3.0-x86_64.AppImage
+./atk-control-0.3.0-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -185,10 +191,14 @@ atkctl stage 2
 atkctl motion-sync on
 atkctl ripple on
 atkctl straight-line off
-atkctl lod 0.7
+atkctl lod 1
 atkctl debounce 2
 atkctl sleep 300
-atkctl performance on
+atkctl sensor-mode competitive
+atkctl button 5 back
+atkctl buttons-reset
+atkctl add-stage
+atkctl remove-stage
 atkctl profile 2
 atkctl light steady --brightness high --speed slow
 atkctl support                # save a sanitized support report
@@ -214,10 +224,9 @@ USB product id, because receivers are shared between models.
 
 | Model | Link | Status |
 |---|---|---|
-| **MAD R +** | 8K dongle (`373b:1040`) | **Verified on hardware** — battery, polling to 8000 Hz, DPI stages and colours, Motion Sync, ripple, straight-line correction, LOD, debounce, sleep, performance mode, DPI LED, profiles, buttons (read-only) |
+| **MAD R +** | 8K dongle (`373b:1040`) | **Verified on hardware** — battery, polling to 8000 Hz, DPI stages and colours, Motion Sync, ripple, straight-line correction, LOD, debounce, sleep, sensor mode, DPI LED, profiles and button reads |
 | MAD R, MAD R MAJOR, MAD R MAJOR+ | cable / 8K dongle | Same protocol and capability family; not individually tested |
-| **VXE R1 Pro** | 1K receiver (`3554:f58a`) | **Verified on hardware** — read/write of polling (up to 1K), DPI stages and colours, Motion Sync, ripple, straight-line, LOD, debounce, sleep, performance mode and DPI LED |
-| **VXE R1 Pro** | 4K receiver (`3554:f505`) | **Verified on hardware** — same settings, with 2,000 and 4,000 Hz polling written and read back successfully |
+| **VXE R1 Pro** | 1K / 4K receiver (`3554:f58a` / `3554:f505`) | **Verified on hardware** — polling up to 4K, DPI stages/colours and add/remove, Motion Sync, ripple, straight-line, LOD, debounce, sleep, all sensor sampling modes, DPI LED, button remapping and firmware reporting |
 | VXE R1, VXE R1 Pro Max | cable / receiver | Model entries and receiver ceilings included; not individually tested |
 | Other ATK/VXE mice | any | Detected read-only until a model entry is added |
 
@@ -225,14 +234,18 @@ The MAD R + is an 8K-receiver mouse; that is the configuration verified here.
 When more than one receiver is connected, the **Device → Configuration devices**
 card lets you switch between them.
 
-**Not yet exposed:** button remapping, macros, firmware updates and changing
-the number of DPI stages. Button assignments are shown read-only.
+**Not yet exposed:** macro recording, complex keyboard-shortcut assignments,
+receiver pairing and factory reset. Those remain in ATK HUB. Existing macro or
+shortcut button assignments are preserved and shown as *Custom / unsupported*.
 
-## Why does firmware show "not reported by receiver"?
+## Firmware
 
-Some receivers, including the MAD 8K dongle, do not forward the mouse firmware
-version command. The app shows this honestly instead of inventing a version.
-Over a direct USB cable the firmware can usually be read.
+ATK Control reads the installed firmware version once the mouse is awake. It
+does **not** flash firmware itself. Use **Device → Firmware → Firmware updates
+in ATK HUB** for that; your settings stay on the mouse.
+
+If the version is briefly unavailable after wake, move the mouse or refresh.
+Some receivers take a moment to forward the version query.
 
 ## Privacy
 

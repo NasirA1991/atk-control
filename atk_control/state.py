@@ -10,6 +10,7 @@ class Button:
     name: str
     action: str
     raw: str = ""
+    action_id: str = ""
 
 
 @dataclass
@@ -58,6 +59,7 @@ class MouseState:
     angle_enabled: bool | None = None
     angle_degrees: int | None = None
     performance_mode: bool | None = None
+    sensor_mode: int | None = None
     long_range: bool | None = None
 
     # Lighting

@@ -8,7 +8,7 @@ import json
 import sys
 
 from . import config, devices, diagnostics, protocol
-from .controller import Controller
+from .controller import BUTTON_ACTION_ORDER, Controller
 from .protocol import DeviceNotFound, PermissionDenied, ProtocolError, discover
 from .state import MouseState
 
@@ -105,10 +105,21 @@ def _status(controller: Controller, as_json: bool) -> int:
     print(f"Polling    : {state.polling_rate} Hz")
     print(f"Motion sync: {_onoff(state.motion_sync)}")
     print(f"Ripple     : {_onoff(state.ripple_control)}")
+    if state.sensor_mode is not None:
+        print(f"Sensor mode: {_sensor_mode_label(state.sensor_mode)}")
     print(f"Lift-off   : {state.lod_mm:.1f} mm" if state.lod_mm is not None else "Lift-off   : unknown")
     print(f"Debounce   : {state.debounce_ms} ms" if state.debounce_ms is not None else "Debounce   : unknown")
     print(f"Sleep      : {state.sleep_seconds} s" if state.sleep_seconds else "Sleep      : unknown")
     return 0
+
+
+def _sensor_mode_label(mode: int) -> str:
+    return {
+        0: "Basic",
+        1: "Competitive",
+        2: "Competitive MAX",
+        3: "Competitive MAX 13K",
+    }.get(mode, f"mode {mode}")
 
 
 def _onoff(value: bool | None) -> str:
@@ -163,10 +174,22 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("performance", help="toggle competitive performance mode")
     p.add_argument("value", type=_parse_onoff)
 
+    p = sub.add_parser("sensor-mode", help="set sensor sampling mode")
+    p.add_argument("mode", choices=["basic", "competitive", "max", "max13k", "0", "1", "2", "3"])
+
+    p = sub.add_parser("button", help="remap a physical button (1-6)")
+    p.add_argument("index", type=int, help="button number from `atkctl status --json`/UI")
+    p.add_argument("action", choices=list(BUTTON_ACTION_ORDER))
+
+    sub.add_parser("buttons-reset", help="restore default mouse button assignments")
+
+    sub.add_parser("add-stage", help="add a DPI stage (copies the last stage)")
+    sub.add_parser("remove-stage", help="remove the last DPI stage")
+
     p = sub.add_parser("long-range", help="toggle long-range mode")
     p.add_argument("value", type=_parse_onoff)
 
-    p = sub.add_parser("lod", help="set lift-off distance (low/medium/high or millimetres)")
+    p = sub.add_parser("lod", help="set lift-off distance in millimetres (1 or 2)")
     p.add_argument("value")
 
     p = sub.add_parser("debounce", help="set button debounce in milliseconds")
@@ -244,6 +267,20 @@ def main(argv: list[str] | None = None) -> int:
             return _set_and_print("Straight-line correction", _onoff(controller.set_straight_line(args.value)))
         if args.command == "performance":
             return _set_and_print("Performance mode", _onoff(controller.set_performance_mode(args.value)))
+        if args.command == "sensor-mode":
+            values = {"basic": 0, "competitive": 1, "max": 2, "max13k": 3}
+            mode = int(args.mode) if args.mode.isdigit() else values[args.mode]
+            return _set_and_print("Sensor mode", _sensor_mode_label(controller.set_sensor_mode(mode)))
+        if args.command == "button":
+            label = controller.set_button_action(args.index - 1, args.action)
+            return _set_and_print("Button", label)
+        if args.command == "buttons-reset":
+            controller.reset_buttons()
+            return _set_and_print("Buttons", "factory mapping restored")
+        if args.command == "add-stage":
+            return _set_and_print("DPI stages", controller.add_stage())
+        if args.command == "remove-stage":
+            return _set_and_print("DPI stages", controller.remove_last_stage())
         if args.command == "long-range":
             return _set_and_print("Long range", _onoff(controller.set_long_range(args.value)))
         if args.command == "lod":

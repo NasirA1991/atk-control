@@ -198,13 +198,12 @@ def capabilities_for(
     polling = [hz for _code, hz in POLLING_CODES if hz <= ceiling]
     polling = _with_current(polling, active_polling)
 
-    # PAW3950 Ultra exposes a continuous 0.7-1.7 mm lift-off scale in the
-    # vendor UI; other sensors use Low/Medium/High.
-    scale = sensor.name in ("PAW3950Ultra",)
-    if scale:
-        choices = [(code, (code + 6) / 10) for code in range(1, 12)]
-    else:
-        choices = [(1, 0.7), (4, 1.0), (11, 1.7)]
+    # The vendor UI exposes 1 mm / 2 mm for the current ATK/VXE mice; PAW3950
+    # and PAW3950DM additionally expose a 0.7 mm option (code 3).
+    choices = [(1, 1.0), (2, 2.0)]
+    if sensor.name in ("PAW3950", "PAW3950DM"):
+        choices.insert(0, (3, 0.7))
+    scale = False
 
     name = model.name if model else fallback_name(usb_name)
     brand = model.brand if model else ("VXE" if "vxe" in usb_name.lower() else "ATK")

@@ -17,10 +17,12 @@
     </p>
     <p>
       Configure the polling rate, up to eight DPI stages with per-stage colours,
-      lift-off distance, debounce, sleep timer, Motion Sync, ripple control,
-      sensor rotation, straight-line correction and the DPI indicator LED. The
-      battery percentage can live in the system tray with three distinctive icon
-      styles, and a small CLI makes the same settings scriptable.
+      sensor sampling modes, lift-off distance, debounce, sleep timer, Motion
+      Sync, ripple control, sensor rotation, straight-line correction and the DPI
+      indicator LED. Standard mouse/DPI actions can be remapped per button, and
+      the installed firmware version is shown with a link to ATK HUB for updates.
+      The battery percentage can live in the system tray with three distinctive
+      icon styles, and a small CLI makes the same settings scriptable.
     </p>
     <p>
       Settings are stored on the mouse itself. The app works offline and sends no
@@ -50,6 +52,10 @@
       <image>https://raw.githubusercontent.com/NasirA1991/atk-control/main/docs/screenshots/lighting.png</image>
     </screenshot>
     <screenshot>
+      <caption>Button remapping with restore defaults</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/atk-control/main/docs/screenshots/buttons.png</image>
+    </screenshot>
+    <screenshot>
       <caption>Device details and a one-click support report</caption>
       <image>https://raw.githubusercontent.com/NasirA1991/atk-control/main/docs/screenshots/device.png</image>
     </screenshot>
@@ -77,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.3.0" date="2026-11-04">
+      <description>
+        <p>Adds button remapping, sensor sampling modes, add/remove DPI stages, live firmware reporting, correct 1/2 mm lift-off handling and a firmware link to ATK HUB.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-11-04">
       <description>
         <p>Rebranded as ATK Control, added the Reticle tray icon and a first-class device support report flow for ATK/VXE mice.</p>

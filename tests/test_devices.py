@@ -72,13 +72,12 @@ class CapabilityTests(unittest.TestCase):
         caps = devices.capabilities_for(model=model, receiver=receiver)
         self.assertEqual(caps.polling_rates, [125, 250, 500, 1000, 2000, 4000])
 
-    def test_lift_off_scale_only_for_ultra(self) -> None:
-        model = devices.MODEL_BY_CIDMID[(2, 133)]
-        caps = devices.capabilities_for(model=model, receiver=None)
-        self.assertTrue(caps.lift_off_scale)
-        self.assertEqual(len(caps.lift_off_choices), 11)
-        other = devices.capabilities_for(model=devices.MODEL_BY_CIDMID[(2, 49)], receiver=None)
-        self.assertFalse(other.lift_off_scale)
+    def test_lift_off_choices(self) -> None:
+        mad_r = devices.capabilities_for(model=devices.MODEL_BY_CIDMID[(2, 49)], receiver=None)
+        self.assertEqual(mad_r.lift_off_choices, [(1, 1.0), (2, 2.0)])
+        self.assertFalse(mad_r.lift_off_scale)
+        paw3950 = devices.capabilities_for(model=devices.MODEL_BY_CIDMID[(2, 47)], receiver=None)
+        self.assertEqual(paw3950.lift_off_choices, [(3, 0.7), (1, 1.0), (2, 2.0)])
 
     def test_receiver_ceiling_known(self) -> None:
         for pid, ceiling in ((0x1040, 8000), (0x11A9, 4000), (0xF58E, 1000)):

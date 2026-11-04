@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import devices, diagnostics, protocol
-from .controller import Controller
+from .controller import BUTTON_ACTIONS, DEFAULT_BUTTON_ACTIONS, Controller
 from .protocol import DeviceInfo, DeviceNotFound, PermissionDenied, ProtocolError, discover
 from .state import Button, MouseState
 
@@ -231,13 +231,23 @@ class DeviceWorker:
             try:
                 operation(controller, *args)
                 # A profile switch changes the whole stored configuration.
-                state = controller.read_full() if method == "profile" else controller.state
-                if method == "profile":
+                full_refresh = method in ("profile", "add_stage", "remove_stage")
+                state = controller.read_full() if full_refresh else controller.state
+                if full_refresh:
                     self._last_full = time.monotonic()
                 with self._lock:
                     self._state = copy.deepcopy(state)
                 self._emit_state(state, set())
             except (ProtocolError, ValueError) as exc:
+                # Re-read the confirmed state so a rejected write cannot leave
+                # the UI showing an optimistic value that the mouse rejected.
+                try:
+                    state = controller.read_full()
+                    with self._lock:
+                        self._state = copy.deepcopy(state)
+                    self._emit_state(state, set())
+                except Exception:
+                    pass
                 self._toast(str(exc))
             except Exception as exc:  # keep the HID loop alive
                 self._toast(f"Could not apply setting: {exc}")
@@ -361,6 +371,11 @@ OPERATIONS = {
     "straight_line": lambda c, enabled: c.set_straight_line(bool(enabled)),
     "angle": _set_angle,
     "performance": lambda c, enabled: c.set_performance_mode(bool(enabled)),
+    "sensor_mode": lambda c, mode: c.set_sensor_mode(int(mode)),
+    "button": lambda c, index, action: c.set_button_action(int(index), str(action)),
+    "buttons_reset": lambda c: c.reset_buttons(),
+    "add_stage": lambda c: c.add_stage(),
+    "remove_stage": lambda c: c.remove_last_stage(),
     "long_range": lambda c, enabled: c.set_long_range(bool(enabled)),
     "led": _set_led,
     "profile": lambda c, profile: c.set_profile(int(profile)),
@@ -408,7 +423,7 @@ class DemoWorker:
             stage_count=4,
             stage_colors=["#4cd7d0", "#8ee36b", "#ff8a4c", "#ffd166"],
             polling_rate=8000,
-            lod_code=4,
+            lod_code=1,
             lod_mm=1.0,
             debounce_ms=2,
             motion_sync=True,
@@ -418,6 +433,7 @@ class DemoWorker:
             angle_enabled=False,
             angle_degrees=0,
             performance_mode=True,
+            sensor_mode=1,
             long_range=False,
             led_mode=1,
             led_brightness=1,
@@ -425,11 +441,11 @@ class DemoWorker:
             profile=2,
             profile_count=4,
             buttons=[
-                Button("Left", "Left click"),
-                Button("Right", "Right click"),
-                Button("Middle", "Middle click"),
-                Button("Back", "Back"),
-                Button("Forward", "Forward"),
+                Button("Left", "Left click", action_id="left"),
+                Button("Right", "Right click", action_id="right"),
+                Button("Middle", "Middle click", action_id="middle"),
+                Button("Back", "Back", action_id="back"),
+                Button("Forward", "Forward", action_id="forward"),
             ],
             supports_angle=True,
             supports_performance_mode=True,
@@ -514,7 +530,7 @@ class DemoWorker:
                 state.stage_colors[index] = color
             elif method == "lift_off":
                 state.lod_code = int(args[0])
-                state.lod_mm = (state.lod_code + 6) / 10
+                state.lod_mm = {1: 1.0, 2: 2.0, 3: 0.7}.get(state.lod_code)
             elif method == "debounce":
                 state.debounce_ms = int(args[0])
             elif method == "motion_sync":
@@ -529,7 +545,50 @@ class DemoWorker:
                 state.angle_degrees = int(args[0])
                 state.angle_enabled = bool(args[1])
             elif method == "performance":
+                state.sensor_mode = 1 if bool(args[0]) else 0
                 state.performance_mode = bool(args[0])
+            elif method == "sensor_mode":
+                state.sensor_mode = int(args[0])
+                state.performance_mode = state.sensor_mode != 0
+            elif method == "button":
+                index, action = int(args[0]), str(args[1])
+                spec = BUTTON_ACTIONS.get(action)
+                if spec is None or not (0 <= index < len(state.buttons)):
+                    return
+                button = state.buttons[index]
+                state.buttons[index] = type(button)(
+                    name=button.name,
+                    action=spec[3],
+                    raw="",
+                    action_id=action,
+                )
+            elif method == "buttons_reset":
+                for index, action in enumerate(DEFAULT_BUTTON_ACTIONS):
+                    if index >= len(state.buttons):
+                        break
+                    button = state.buttons[index]
+                    spec = BUTTON_ACTIONS[action]
+                    state.buttons[index] = type(button)(
+                        name=button.name,
+                        action=spec[3],
+                        raw="",
+                        action_id=action,
+                    )
+            elif method == "add_stage":
+                if state.stage_count < 8:
+                    nx, ny = state.stages[-1] if state.stages else (800, 800)
+                    state.stages.append((nx, ny))
+                    state.stage_colors.append(
+                        state.stage_colors[-1] if state.stage_colors else "#ffffff"
+                    )
+                    state.stage_count += 1
+            elif method == "remove_stage":
+                if state.stage_count > 1:
+                    state.stage_count -= 1
+                    state.stages = state.stages[:state.stage_count]
+                    state.stage_colors = state.stage_colors[:state.stage_count]
+                    state.active_stage = min(state.active_stage, state.stage_count - 1)
+                    state.dpi, state.dpi_y = state.stages[state.active_stage]
             elif method == "led":
                 state.led_mode, state.led_brightness, state.led_speed = map(int, args[:3])
             elif method == "profile":

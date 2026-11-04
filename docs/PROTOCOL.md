@@ -59,7 +59,8 @@ Verified on a MAD R + (CID/MID `2,54`, PAW3395) through the MAD 8K dongle
 - receiver online telemetry.
 
 The current firmware leaves the sensor-rotation row unprogrammed, so that
-control is hidden. Firmware command `0x12` is not forwarded by this dongle.
+control is hidden. Firmware command `0x12` works after the wireless mouse has
+answered CID/MID and is awake.
 
 Verified on a VXE R1 Pro (CID/MID `2,8`, PAW3395) through its VXE 1K receiver
 (`3554:f58a`, USB revision 1.09):
@@ -71,7 +72,7 @@ Verified on a VXE R1 Pro (CID/MID `2,8`, PAW3395) through its VXE 1K receiver
   straight-line, sleep, performance mode and DPI LED;
 - 1K receiver ceiling correctly limits the UI and CLI to 1000 Hz;
 - sensor-rotation row is unprogrammed and the control is hidden;
-- firmware command `0x12` is likewise not forwarded by this receiver.
+- firmware command `0x12` returns the mouse firmware once awake.
 
 ## VXE 4K receiver
 
@@ -99,3 +100,22 @@ back. Unknown models remain read-only.
 Protocol facts were recovered from the public ATK HUB WebHID driver and
 corroborated with readback on physical hardware. ATK Control is independent
 and not affiliated with ATK or VXE.
+
+## Additional ATK HUB parity work
+
+Validated against the VXE R1 Pro over the 4K receiver on 2026-11-04:
+
+- firmware command `0x12` succeeds **after** the mouse has answered CID/MID;
+  the tested unit reported `1.20`. The earlier read failure happened because the
+  query was sent before the sleeping mouse was awake.
+- lift-off codes follow the vendor UI: `1` = 1 mm, `2` = 2 mm, `3` = 0.7 mm
+  (0.7 mm is only offered on PAW3950/PAW3950DM). The prior 1/4/11 mapping was
+  wrong for this family.
+- sensor sampling modes in register `0x00b5` are `0` Basic, `1` Competitive,
+  `2` Competitive MAX and `3` Competitive MAX 13K. Mode `2` was written,
+  verified and restored to `1`.
+- the six button records at `0x0060` were written and read back. Forward was
+  remapped to Back, then restored. Standard mouse and DPI actions are supported;
+  macro/shortcut records are preserved.
+- the DPI stage count was increased from four to five and reduced back to four;
+  the final raw snapshot was restored. Stage count lives in the system row.

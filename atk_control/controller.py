@@ -53,6 +53,35 @@ MOUSE_ACTION_LABELS = {
 }
 DPI_ACTION_LABELS = {0x01: "DPI cycle", 0x02: "DPI up", 0x03: "DPI down"}
 
+# Button actions that are shared across the ATK/VXE mouse family.  These are
+# the safe, well-understood assignments; macro/shortcut classes are read-only.
+BUTTON_ACTIONS: dict[str, tuple[int, int, int, str]] = {
+    "left": (0x01, 0x01, 0x00, "Left click"),
+    "right": (0x01, 0x02, 0x00, "Right click"),
+    "middle": (0x01, 0x04, 0x00, "Middle click"),
+    "back": (0x01, 0x08, 0x00, "Back"),
+    "forward": (0x01, 0x10, 0x00, "Forward"),
+    "dpi_cycle": (0x02, 0x01, 0x00, "DPI cycle"),
+    "dpi_up": (0x02, 0x02, 0x00, "DPI up"),
+    "dpi_down": (0x02, 0x03, 0x00, "DPI down"),
+    "disabled": (0x00, 0x00, 0x00, "Disabled"),
+}
+BUTTON_ACTION_ORDER = (
+    "left", "right", "middle", "back", "forward",
+    "dpi_cycle", "dpi_up", "dpi_down", "disabled",
+)
+DEFAULT_BUTTON_ACTIONS = (
+    "left", "right", "middle", "back", "forward", "dpi_cycle",
+)
+LOD_MM_BY_CODE = {1: 1.0, 2: 2.0, 3: 0.7}
+
+
+def button_action_key(key_class: int, value1: int, value2: int) -> str:
+    for key, (cls, v1, v2, _label) in BUTTON_ACTIONS.items():
+        if (cls, v1, v2) == (key_class, value1, value2):
+            return key
+    return ""
+
 
 def decode_button_action(key_class: int, value1: int, value2: int) -> str:
     if key_class == 0x00:
@@ -63,6 +92,18 @@ def decode_button_action(key_class: int, value1: int, value2: int) -> str:
         return DPI_ACTION_LABELS.get(value1, "DPI control")
     label = BUTTON_CLASS_LABELS.get(key_class, f"Action 0x{key_class:02x}")
     return f"{label} (0x{value1:02x}, 0x{value2:02x})"
+
+
+def pack_button_record(key_class: int, value1: int, value2: int) -> bytes:
+    total = (key_class + value1 + value2) & 0xFF
+    return bytes((key_class & 0xFF, value1 & 0xFF, value2 & 0xFF,
+                  (0x55 - total) & 0xFF))
+
+
+def lod_mm(code: int | None) -> float | None:
+    if code is None:
+        return None
+    return LOD_MM_BY_CODE.get(code)
 
 
 class Controller:
@@ -126,14 +167,6 @@ class Controller:
         raise last
 
     def _identify(self) -> tuple[int | None, int | None, str]:
-        firmware = ""
-        # The 8K receiver does not forward command 0x12; do not spend a long
-        # timeout on it before identifying the mouse.
-        if not self.info.is_receiver:
-            try:
-                firmware = self.transport.read_firmware(attempts=1)
-            except ProtocolError:
-                pass
         cid = mid = None
         last: Exception | None = None
         for _ in range(3):
@@ -149,6 +182,14 @@ class Controller:
                 "Turn the mouse on or move it, then retry."
             )
             raise ProtocolError(sleep_hint) from last
+        firmware = ""
+        # Query the firmware only after the mouse has answered the identity
+        # command.  Both the 8K and 4K receivers return 0x12 once awake.
+        if cid is not None:
+            try:
+                firmware = self.transport.read_firmware(attempts=2)
+            except ProtocolError:
+                pass
         return cid, mid, firmware
 
     def _decode_system(self, system: bytes) -> tuple[int, int, int]:
@@ -231,14 +272,14 @@ class Controller:
             return None, None
         return signed, bool(enabled)
 
-    def _read_sensor_mode(self) -> bool | None:
+    def _read_sensor_mode(self) -> int | None:
         raw = self._read_optional(ADDR_SENSOR_MODE, 6)
         if raw is None or len(raw) < 6:
             return None
         if raw[2] != 0x06 or raw[3] != 0x4F:
             return None
         mode = decode_pair(raw[4], raw[5])
-        return bool(mode) if mode in (0, 1) else None
+        return mode if mode in (0, 1, 2, 3) else None
 
     def _read_lighting(self) -> tuple[int | None, int | None, int | None]:
         raw = self._read_optional(ADDR_DPI_LIGHT, 8)
@@ -291,6 +332,7 @@ class Controller:
                         name=BUTTON_NAMES[index],
                         action=decode_button_action(key_class, value1, value2),
                         raw=" ".join(f"{byte:02x}" for byte in record),
+                        action_id=button_action_key(key_class, value1, value2),
                     )
                 )
         return buttons
@@ -364,7 +406,7 @@ class Controller:
             code = decode_pair(lift[0], lift[1])
             if code is not None:
                 state.lod_code = code
-                state.lod_mm = (code + 6) / 10
+                state.lod_mm = lod_mm(code)
 
         angle, angle_enabled = self._read_angle()
         if angle is not None:
@@ -372,9 +414,10 @@ class Controller:
             state.angle_enabled = angle_enabled
             state.supports_angle = True
 
-        performance = self._read_sensor_mode()
-        if performance is not None:
-            state.performance_mode = performance
+        sensor_mode = self._read_sensor_mode()
+        if sensor_mode is not None:
+            state.sensor_mode = sensor_mode
+            state.performance_mode = sensor_mode != 0
             state.supports_performance_mode = True
 
         led_mode, led_brightness, led_speed = self._read_lighting()
@@ -555,7 +598,7 @@ class Controller:
         actual = decode_pair(raw[0], raw[1])
         self._require(actual == code, "The mouse did not retain the lift-off setting")
         self.state.lod_code = code
-        self.state.lod_mm = (code + 6) / 10
+        self.state.lod_mm = lod_mm(code)
         return code
 
     def _write_advanced_pair(self, offset: int, value: int, label: str) -> int:
@@ -613,16 +656,114 @@ class Controller:
         self.state.angle_enabled = enabled
         return degrees, enabled
 
-    def set_performance_mode(self, enabled: bool) -> bool:
-        self._require(self.state.supports_performance_mode, "Performance mode is not exposed")
+    def set_sensor_mode(self, mode: int) -> int:
+        self._require(self.state.supports_performance_mode, "Sensor sampling mode is not exposed")
+        self._require(mode in (0, 1, 2, 3), "Sensor mode must be Basic, Competitive, MAX or MAX 13K")
         row = bytearray(self.transport.read_eeprom(ADDR_SENSOR_MODE, 6))
-        row[4:6] = pack_pair(1 if enabled else 0)
+        row[4:6] = pack_pair(mode)
         self.transport.write_eeprom(ADDR_SENSOR_MODE, bytes(row))
         time.sleep(0.04)
         confirmed = self._read_sensor_mode()
-        self._require(confirmed == enabled, "The mouse did not retain the performance mode")
-        self.state.performance_mode = enabled
-        return enabled
+        self._require(confirmed == mode, "The mouse did not retain the sensor sampling mode")
+        self.state.sensor_mode = mode
+        self.state.performance_mode = mode != 0
+        return mode
+
+    def set_performance_mode(self, enabled: bool) -> bool:
+        mode = self.set_sensor_mode(1 if enabled else 0)
+        return mode != 0
+
+    def set_button_action(self, index: int, action: str) -> str:
+        self._require(0 <= index < len(BUTTON_NAMES), "Button index out of range")
+        self._require(action in BUTTON_ACTIONS, "Unsupported button action")
+        if index == 5 and self.model is not None and not self.model.bottom_button:
+            raise ProtocolError("This mouse has no bottom button")
+        if not self.state.buttons:
+            raise ProtocolError("Button assignments are not readable on this mouse")
+        key_class, value1, value2, label = BUTTON_ACTIONS[action]
+        address = 0x0060 + index * 4
+        packed = pack_button_record(key_class, value1, value2)
+        self.transport.write_eeprom(address, packed)
+        time.sleep(0.04)
+        confirmed = self.transport.read_eeprom(address, 4)
+        self._require(confirmed == packed, "The mouse did not retain the button assignment")
+        updated = list(self.state.buttons)
+        if index < len(updated):
+            old = updated[index]
+            updated[index] = Button(
+                name=old.name, action=label, raw=" ".join(f"{b:02x}" for b in packed),
+                action_id=action,
+            )
+            self.state.buttons = updated
+        return label
+
+    def reset_buttons(self) -> None:
+        self._require(bool(self.state.buttons), "Button assignments are not readable on this mouse")
+        for index, action in enumerate(DEFAULT_BUTTON_ACTIONS):
+            if index == 5 and self.model is not None and not self.model.bottom_button:
+                continue
+            if index >= len(self.state.buttons):
+                continue
+            self.set_button_action(index, action)
+
+    def add_stage(self) -> int:
+        self._require(self.state.stage_count < 8, "This mouse already has eight DPI stages")
+        count = self.state.stage_count
+        new_index = count
+        last_stage = self.state.stages[-1] if self.state.stages else (800, 800)
+        family = self.caps.sensor.family
+        packed = pack_dpi_stage(last_stage[0], last_stage[1], family)
+        address = ADDR_DPI_BASE + new_index * 4
+        self.transport.write_eeprom(address, packed)
+        time.sleep(0.03)
+        confirmed = unpack_dpi_stage(self.transport.read_eeprom(address, 4), family)
+        self._require(confirmed == last_stage, "The mouse did not accept the new DPI stage")
+        color = self.state.stage_colors[-1] if self.state.stage_colors else "#ffffff"
+        if self.caps.stage_colors:
+            packed_color = pack_rgb(color)
+            if packed_color is not None:
+                group_address = ADDR_STAGE_COLOR_BASE + (new_index // 2) * 8
+                try:
+                    group = bytearray(self.transport.read_eeprom(group_address, 8))
+                except ProtocolError:
+                    group = bytearray(8)
+                group[(new_index % 2) * 4:(new_index % 2) * 4 + 4] = packed_color
+                self.transport.write_eeprom(group_address, bytes(group))
+                time.sleep(0.03)
+        system = bytearray(self.transport.read_eeprom(ADDR_SYSTEM, 10))
+        system[2:4] = pack_pair(new_index + 1)
+        self.transport.write_eeprom(ADDR_SYSTEM, bytes(system[:6]))
+        time.sleep(0.05)
+        system_after = self.transport.read_eeprom(ADDR_SYSTEM, 10)
+        self._require(
+            decode_pair(system_after[2], system_after[3]) == new_index + 1,
+            "The mouse did not retain the new DPI stage count",
+        )
+        self.state.stages.append(confirmed or last_stage)
+        self.state.stage_colors.append(color)
+        self.state.stage_count = new_index + 1
+        return self.state.stage_count
+
+    def remove_last_stage(self) -> int:
+        self._require(self.state.stage_count > 1, "At least one DPI stage is required")
+        system = bytearray(self.transport.read_eeprom(ADDR_SYSTEM, 10))
+        new_count = self.state.stage_count - 1
+        active = min(self.state.active_stage, new_count - 1)
+        system[2:4] = pack_pair(new_count)
+        system[4:6] = pack_pair(active)
+        self.transport.write_eeprom(ADDR_SYSTEM, bytes(system[:6]))
+        time.sleep(0.05)
+        system_after = self.transport.read_eeprom(ADDR_SYSTEM, 10)
+        self._require(
+            decode_pair(system_after[2], system_after[3]) == new_count,
+            "The mouse did not retain the new DPI stage count",
+        )
+        self.state.stages = self.state.stages[:new_count]
+        self.state.stage_colors = self.state.stage_colors[:new_count]
+        self.state.stage_count = new_count
+        self.state.active_stage = active
+        self.state.dpi, self.state.dpi_y = self.state.stages[active]
+        return new_count
 
     def set_led_mode(self, mode: int, brightness: int, speed: int) -> tuple[int, int, int]:
         self._require(self.state.supports_lighting, "This mouse does not expose DPI lighting")

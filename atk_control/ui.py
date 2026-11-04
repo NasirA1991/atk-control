@@ -20,6 +20,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import config, devices, diagnostics  # noqa: E402
+from .controller import BUTTON_ACTIONS, BUTTON_ACTION_ORDER  # noqa: E402
 from .protocol import clamp_dpi  # noqa: E402
 from .state import MouseState  # noqa: E402
 
@@ -416,9 +417,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._loading = False
         self._angle_timer = 0
         self._dpi_timers: dict[tuple[int, str], int] = {}
-        self._lod_timer = 0
         self._tray_style = config.load().get("tray_icon_style", config.DEFAULT_TRAY_STYLE)
-        self._buttons_signature = None
+        self._button_action_keys = BUTTON_ACTION_ORDER + ("custom",)
 
         self.set_default_size(1140, 900)
         self.set_size_request(860, 620)
@@ -557,6 +557,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.stack.set_transition_duration(170)
         self.stack.set_vexpand(True)
         self.stack.add_named(self._build_overview(), "overview")
+        self.stack.add_named(self._build_buttons(), "buttons")
         self.stack.add_named(self._build_performance(), "performance")
         self.stack.add_named(self._build_dpi(), "dpi")
         self.stack.add_named(self._build_lighting(), "lighting")
@@ -610,8 +611,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.nav_buttons: dict[str, Gtk.Button] = {}
         for key, title, icon in (
             ("overview", "Overview", "go-home-symbolic"),
+            ("buttons", "Buttons", "input-mouse-symbolic"),
             ("performance", "Performance", "utilities-system-monitor-symbolic"),
-            ("dpi", "DPI", "input-mouse-symbolic"),
+            ("dpi", "DPI", "zoom-in-symbolic"),
             ("lighting", "Lighting", "display-brightness-symbolic"),
             ("device", "Device", "preferences-system-symbolic"),
         ):
@@ -755,6 +757,101 @@ class MainWindow(Adw.ApplicationWindow):
         button.connect("clicked", lambda *_: self._select_page(page))
         return button
 
+    # ---------------------------------------------------------------- buttons
+    def _build_buttons(self) -> Gtk.Widget:
+        page, root = self._page(
+            "Buttons",
+            "Choose what each physical button does. Changes apply and verify immediately.",
+        )
+        card, body = self._card(
+            "Button assignments",
+            "The mouse keeps these mappings in its active configuration profile.",
+        )
+        self.button_rows: list[dict] = []
+        labels = [BUTTON_ACTIONS[key][3] for key in BUTTON_ACTION_ORDER] + ["Custom / unsupported"]
+        for index, name in enumerate(("Left button", "Right button", "Middle button",
+                                      "Back button", "Forward button", "Bottom button")):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            title = self._label(name, "row-title")
+            title.set_hexpand(True)
+            row.append(title)
+            dropdown = Gtk.DropDown.new_from_strings(labels)
+            dropdown.set_size_request(210, -1)
+            dropdown.connect(
+                "notify::selected",
+                lambda widget, _param, i=index: self._button_selected(i, widget),
+            )
+            row.append(dropdown)
+            body.append(row)
+            self.button_rows.append({"row": row, "dropdown": dropdown, "title": title})
+        reset = Gtk.Button(label="Restore default assignments")
+        reset.add_css_class("pill")
+        reset.set_halign(Gtk.Align.START)
+        reset.connect("clicked", lambda *_: self._confirm_button_reset())
+        body.append(reset)
+        root.append(card)
+
+        macros, macros_body = self._card(
+            "Macros and advanced shortcuts",
+            "Macro recording is not implemented in ATK Control yet. Buttons already assigned to a "
+            "macro or keyboard shortcut are shown as Custom / unsupported and are preserved unless "
+            "you explicitly assign a different standard action.",
+        )
+        hub = Gtk.Button(label="Open ATK HUB for macros")
+        hub.add_css_class("pill")
+        hub.set_halign(Gtk.Align.START)
+        hub.connect("clicked", lambda *_: self.get_application().activate_action("web-driver", None))
+        macros_body.append(hub)
+        root.append(macros)
+        return page
+
+    def _button_selected(self, index: int, dropdown: Gtk.DropDown) -> None:
+        if self._loading:
+            return
+        selected = dropdown.get_selected()
+        if selected < 0 or selected >= len(self._button_action_keys):
+            return
+        action = self._button_action_keys[selected]
+        if action == "custom":
+            return
+        self.worker.submit("button", index, action, key=f"button:{index}")
+
+    def _confirm_button_reset(self) -> None:
+        dialog = Adw.AlertDialog(
+            heading="Restore default button assignments?",
+            body="Left, right, middle, back, forward and bottom return to their factory actions. "
+                 "Macro assignments are not changed unless they sit on one of those buttons.",
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("reset", "Restore defaults")
+        dialog.set_response_appearance("reset", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_close_response("cancel")
+        dialog.choose(self, None, self._button_reset_done)
+
+    def _button_reset_done(self, dialog, result) -> None:
+        try:
+            response = dialog.choose_finish(result)
+        except GLib.Error:
+            return
+        if response == "reset":
+            self.worker.submit("buttons_reset", key="buttons_reset")
+
+    def _update_buttons(self, state: MouseState) -> None:
+        for index, widgets in enumerate(self.button_rows):
+            if index >= len(state.buttons):
+                widgets["row"].set_visible(False)
+                continue
+            widgets["row"].set_visible(True)
+            button = state.buttons[index]
+            widgets["title"].set_text(button.name)
+            action_id = button.action_id
+            try:
+                selected = self._button_action_keys.index(action_id)
+            except ValueError:
+                selected = len(self._button_action_keys) - 1
+            if widgets["dropdown"].get_selected() != selected:
+                widgets["dropdown"].set_selected(selected)
+
     # ----------------------------------------------------------- performance
     def _build_performance(self) -> Gtk.Widget:
         page, root = self._page("Performance", "Tune the polling link and the sensor's motion processing.")
@@ -768,6 +865,28 @@ class MainWindow(Adw.ApplicationWindow):
         self.rate_hint = self._label("Waiting for a mouse…", "row-sub")
         rate_body.append(self.rate_hint)
         root.append(rate_card)
+
+        self.sensor_mode_card, sensor_body = self._card(
+            "Sensor sampling rate",
+            "Trades sensor responsiveness against battery life.",
+        )
+        self.sensor_mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.sensor_mode_buttons: dict[int, Gtk.Button] = {}
+        self.sensor_mode_descriptions = {
+            0: "Basic: lower sensor rate and the longest battery life.",
+            1: "Competitive: high-performance sensor firmware for gaming.",
+            2: "Competitive MAX: maximum sensor performance and higher power draw.",
+        }
+        for mode, label in ((0, "Basic"), (1, "Competitive"), (2, "Competitive MAX")):
+            button = Gtk.Button(label=label)
+            button.add_css_class("pill")
+            button.connect("clicked", lambda _b, value=mode: self._set_sensor_mode(value))
+            self.sensor_mode_buttons[mode] = button
+            self.sensor_mode_box.append(button)
+        sensor_body.append(self.sensor_mode_box)
+        self.sensor_mode_desc = self._label("", "row-sub", wrap=True)
+        sensor_body.append(self.sensor_mode_desc)
+        root.append(self.sensor_mode_card)
 
         motion, body = self._card("Tracking", "Settings applied directly to the mouse.")
         self.perf_sync = Gtk.Switch()
@@ -784,11 +903,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.perf_line.connect("notify::active", lambda w, _p: self._toggle("straight_line", w, "perf"))
         self.perf_line_row = self._setting_row(
             "Straight-line correction", "Stabilises near-horizontal and near-vertical movement.", self.perf_line, body
-        )
-        self.perf_mode = Gtk.Switch()
-        self.perf_mode.connect("notify::active", lambda w, _p: self._toggle("performance", w, "perf"))
-        self.perf_mode_row = self._setting_row(
-            "Competitive performance mode", "Uses the vendor's competitive sensor profile.", self.perf_mode, body
         )
         self.perf_long = Gtk.Switch()
         self.perf_long.connect("notify::active", lambda w, _p: self._toggle("long_range", w, "perf"))
@@ -823,23 +937,7 @@ class MainWindow(Adw.ApplicationWindow):
             "How far the mouse can be raised before tracking stops.",
         )
         self.lod_buttons_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self.lod_buttons: list[tuple[int, Gtk.Button]] = []
-        for code, mm in ((1, 0.7), (4, 1.0), (11, 1.7)):
-            button = Gtk.Button(label=f"{mm:.1f} mm")
-            button.add_css_class("pill")
-            button.connect("clicked", lambda _b, c=code: self._set_lod(c))
-            self.lod_buttons.append((code, button))
-            self.lod_buttons_box.append(button)
         lod_body.append(self.lod_buttons_box)
-        self.lod_scale_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        self.lod_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 11, 1)
-        self.lod_scale.set_hexpand(True)
-        self.lod_scale.set_draw_value(False)
-        self.lod_scale.connect("value-changed", lambda *_: self._lod_scale_changed())
-        self.lod_value = self._label("1.0 mm", "mono")
-        self.lod_scale_box.append(self.lod_scale)
-        self.lod_scale_box.append(self.lod_value)
-        lod_body.append(self.lod_scale_box)
         root.append(self.lod_card)
 
         timing, timing_body = self._card("Timing & power", "Stored on the mouse and kept across power cycles.")
@@ -871,6 +969,16 @@ class MainWindow(Adw.ApplicationWindow):
         active_text.append(self.dpi_active_note)
         row.append(active_text)
         active_body.append(row)
+        stage_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.add_stage_button = Gtk.Button(label="Add DPI stage")
+        self.add_stage_button.add_css_class("pill")
+        self.add_stage_button.connect("clicked", lambda *_: self._stage_count_action("add_stage"))
+        self.remove_stage_button = Gtk.Button(label="Remove last stage")
+        self.remove_stage_button.add_css_class("pill")
+        self.remove_stage_button.connect("clicked", lambda *_: self._stage_count_action("remove_stage"))
+        stage_actions.append(self.add_stage_button)
+        stage_actions.append(self.remove_stage_button)
+        active_body.append(stage_actions)
         root.append(active)
 
         stages, body = self._card(
@@ -925,7 +1033,7 @@ class MainWindow(Adw.ApplicationWindow):
         note, note_body = self._card()
         note_body.append(self._label(
             "Changes are written to the mouse immediately and verified by reading them back. "
-            "DPI stage count is kept unchanged in this version.",
+            "A new stage copies the last stage, and stage colours can be changed individually.",
             "footer-note", wrap=True,
         ))
         root.append(note)
@@ -995,7 +1103,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     # ---------------------------------------------------------------- device
     def _build_device(self) -> Gtk.Widget:
-        page, root = self._page("Device", "Identity, stored buttons and maintenance.")
+        page, root = self._page("Device", "Identity, firmware, profiles and maintenance.")
         self.devices_card, devices_body = self._card(
             "Configuration devices",
             "Choose which receiver or cable to control when more than one is connected.",
@@ -1034,7 +1142,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         details, body = self._card("Hardware", "Read directly from the configuration channel.")
         self.device_values: dict[str, Gtk.Label] = {}
-        for label in ("Model", "Sensor", "Connection", "Firmware", "USB", "CID / MID", "Receiver", "Device revision"):
+        for label in ("Model", "Sensor", "Connection", "USB", "CID / MID", "Receiver", "Device revision"):
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
             row.append(self._label(label, "row-title"))
             value = self._label("—", "device-value")
@@ -1044,6 +1152,26 @@ class MainWindow(Adw.ApplicationWindow):
             body.append(row)
             self.device_values[label] = value
         root.append(details)
+
+        firmware_card, firmware_body = self._card(
+            "Firmware",
+            "Current version reported by the mouse. ATK Control does not flash firmware.",
+        )
+        self.firmware_value = self._label("—", "metric-value")
+        firmware_body.append(self.firmware_value)
+        firmware_body.append(self._label(
+            "Firmware updates are handled by ATK HUB. Download and install them there, "
+            "then reconnect the mouse. Settings are kept.",
+            "row-sub", wrap=True,
+        ))
+        firmware_button = Gtk.Button(label="Firmware updates in ATK HUB")
+        firmware_button.add_css_class("pill")
+        firmware_button.set_halign(Gtk.Align.START)
+        firmware_button.connect(
+            "clicked", lambda *_: self.get_application().activate_action("web-driver", None)
+        )
+        firmware_body.append(firmware_button)
+        root.append(firmware_card)
 
         self.profile_card, profile_body = self._card("Onboard profiles", "The mouse stores four complete configuration banks.")
         self.profile_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -1057,13 +1185,6 @@ class MainWindow(Adw.ApplicationWindow):
             self.profile_box.append(button)
         profile_body.append(self.profile_box)
         root.append(self.profile_card)
-
-        self.buttons_card, buttons_body = self._card(
-            "Buttons", "Read-only view of what each button currently does.",
-        )
-        self.buttons_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
-        buttons_body.append(self.buttons_list)
-        root.append(self.buttons_card)
 
         integration, integration_body = self._card("Integration", "Desktop behaviour for this app.")
         self.autostart = Gtk.Switch()
@@ -1163,6 +1284,10 @@ class MainWindow(Adw.ApplicationWindow):
         if not self._loading:
             self.worker.submit("active_stage", index)
 
+    def _stage_count_action(self, method: str) -> None:
+        if not self._loading:
+            self.worker.submit(method, key=method)
+
     def _color_changed(self, index: int, button: Gtk.ColorDialogButton) -> None:
         if self._loading:
             return
@@ -1180,17 +1305,6 @@ class MainWindow(Adw.ApplicationWindow):
     def _set_lod(self, code: int) -> None:
         if not self._loading:
             self.worker.submit("lift_off", code)
-
-    def _lod_scale_changed(self) -> None:
-        code = int(round(self.lod_scale.get_value()))
-        self.lod_value.set_text(f"{(code + 6) / 10:.1f} mm")
-        if self._loading:
-            return
-        if self._lod_timer:
-            GLib.source_remove(self._lod_timer)
-        self._lod_timer = GLib.timeout_add(
-            350, lambda: (self.worker.submit("lift_off", int(round(self.lod_scale.get_value())), key="lod"), False)[1]
-        )
 
     def _debounce_selected(self) -> None:
         if self._loading or self._state is None:
@@ -1318,6 +1432,7 @@ class MainWindow(Adw.ApplicationWindow):
             caps = self._caps()
             self._update_header(state, caps)
             self._update_overview(state, caps)
+            self._update_buttons(state)
             self._update_performance(state, caps)
             self._update_dpi(state, caps)
             self._update_lighting(state)
@@ -1416,9 +1531,15 @@ class MainWindow(Adw.ApplicationWindow):
         self._set_switch(self.perf_sync, state.motion_sync, self.perf_sync_row)
         self._set_switch(self.perf_ripple, state.ripple_control, self.perf_ripple_row)
         self._set_switch(self.perf_line, state.straight_line, self.perf_line_row)
-        self._set_switch(self.perf_mode, state.performance_mode, self.perf_mode_row)
-        self.perf_mode_row.set_visible(bool(state.supports_performance_mode))
         self._set_switch(self.perf_long, state.long_range, self.perf_long_row)
+        self.sensor_mode_card.set_visible(bool(state.supports_performance_mode))
+        if state.supports_performance_mode:
+            current_mode = state.sensor_mode if state.sensor_mode is not None else 0
+            for mode, button in self.sensor_mode_buttons.items():
+                self._set_active(button, mode == current_mode)
+            self.sensor_mode_desc.set_text(
+                self.sensor_mode_descriptions.get(current_mode, "Sensor mode reported by the mouse.")
+            )
         self.perf_long_row.set_visible(bool(state.supports_long_range))
 
         self.angle_card.set_visible(bool(state.supports_angle))
@@ -1429,19 +1550,15 @@ class MainWindow(Adw.ApplicationWindow):
             self.angle_value.set_text(f"{angle}°")
             self.angle_switch.set_active(bool(state.angle_enabled))
 
-        self.lod_buttons_box.set_visible(not caps.lift_off_scale)
-        self.lod_scale_box.set_visible(caps.lift_off_scale)
-        if caps.lift_off_scale:
-            code = state.lod_code or 4
-            if self.lod_scale.get_value() != code:
-                self.lod_scale.set_value(code)
-            self.lod_value.set_text(f"{(code + 6) / 10:.1f} mm")
-        else:
-            for code, button in self.lod_buttons:
-                if state.lod_code == code:
-                    button.add_css_class("active")
-                else:
-                    button.remove_css_class("active")
+        for child in list(self.lod_buttons_box):
+            self.lod_buttons_box.remove(child)
+        for code, millimetres in caps.lift_off_choices:
+            button = Gtk.Button(label=f"{millimetres:g} mm")
+            button.add_css_class("pill")
+            if state.lod_code == code:
+                button.add_css_class("active")
+            button.connect("clicked", lambda _b, value=code: self._set_lod(value))
+            self.lod_buttons_box.append(button)
 
         # ComboRow-like DropDowns.  The current value is added to the list by
         # capabilities_for so it can always be represented.
@@ -1461,6 +1578,10 @@ class MainWindow(Adw.ApplicationWindow):
     def _set_polling(self, hz: int) -> None:
         if not self._loading:
             self.worker.submit("polling", hz)
+
+    def _set_sensor_mode(self, mode: int) -> None:
+        if not self._loading:
+            self.worker.submit("sensor_mode", mode, key="sensor_mode")
 
     @staticmethod
     def _sleep_label(seconds: int) -> str:
@@ -1485,6 +1606,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.dpi_active_note.set_text(
             f"{caps.sensor.name} · {caps.sensor.min_dpi:,}–{caps.sensor.max_dpi:,} DPI"
         )
+        self.add_stage_button.set_sensitive(state.stage_count < 8)
+        self.remove_stage_button.set_sensitive(state.stage_count > 1)
         step = 10 if caps.sensor.family == "ultra" and caps.sensor.max_dpi <= 42000 else 50
         for index, row in enumerate(self.dpi_rows):
             visible = index < state.stage_count
@@ -1574,41 +1697,17 @@ class MainWindow(Adw.ApplicationWindow):
         self.device_values["Model"].set_text(state.connected_name)
         self.device_values["Sensor"].set_text(state.sensor or "—")
         self.device_values["Connection"].set_text(state.link_label)
-        firmware = state.firmware
-        if not firmware and state.via_receiver:
-            firmware = "Not forwarded by receiver"
-        self.device_values["Firmware"].set_text(firmware or "—")
         self.device_values["USB"].set_text(f"{state.vendor_id:04x}:{state.product_id:04x}")
         self.device_values["CID / MID"].set_text(state.identity)
         self.device_values["Receiver"].set_text(
             f"{state.receiver_name} (0x{state.receiver_pid:04x})" if state.receiver_pid else "—"
         )
         self.device_values["Device revision"].set_text(state.usb_bcd or "—")
+        self.firmware_value.set_text(state.firmware or "Not reported")
         self._update_device_choices()
         self.profile_card.set_visible(state.profile is not None)
         for number, button in enumerate(self.profile_buttons, start=1):
             self._set_active(button, state.profile == number)
-
-        signature = tuple((button.name, button.action) for button in state.buttons)
-        if signature == self._buttons_signature:
-            return
-        self._buttons_signature = signature
-        for child in list(self.buttons_list):
-            self.buttons_list.remove(child)
-        if not state.buttons:
-            self.buttons_list.append(self._label(
-                "Button assignments are not readable on this firmware.",
-                "row-sub", wrap=True,
-            ))
-        else:
-            for button in state.buttons:
-                row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-                row.append(self._label(button.name, "row-title"))
-                action = self._label(button.action, "device-value")
-                action.set_hexpand(True)
-                action.set_halign(Gtk.Align.END)
-                row.append(action)
-                self.buttons_list.append(row)
 
     def _update_device_choices(self) -> None:
         if not hasattr(self.worker, "available_devices"):

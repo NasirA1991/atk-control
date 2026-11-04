@@ -37,7 +37,7 @@ class FakeTransport:
         put(self.mem, 0x00A9, pack_pair(2) + pack_pair(1) + pack_pair(30) + pack_pair(0) + pack_pair(1))
         put(self.mem, 0x00BD, pack_pair(0) + pack_pair(0))
         put(self.mem, 0x00B5, bytes((1, 0x54, 6, 0x4F, 1, 0x54)))
-        put(self.mem, 0x000A, pack_pair(4))
+        put(self.mem, 0x000A, pack_pair(1))
         buttons = (
             (1, 1, 0), (1, 2, 0),
             (1, 4, 0), (1, 8, 0),
@@ -63,7 +63,7 @@ class FakeTransport:
     def read_identity(self):
         return 2, 49
 
-    def read_firmware(self):
+    def read_firmware(self, attempts=1):
         return "1.24"
 
     def read_profile(self):
@@ -94,7 +94,7 @@ class ControllerTests(unittest.TestCase):
         state = self.state
         self.assertEqual(state.model_name, "MAD R")
         self.assertEqual(state.sensor, "PAW3395")
-        self.assertEqual(state.firmware, "")
+        self.assertEqual(state.firmware, "1.24")
         self.assertEqual(state.identity, "2, 49")
         self.assertTrue(state.via_receiver)
         self.assertEqual(state.receiver_name, "MAD 8K Dongle")
@@ -115,6 +115,7 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(state.supports_angle)
         self.assertTrue(state.supports_lighting)
         self.assertTrue(state.supports_performance_mode)
+        self.assertEqual(state.sensor_mode, 1)
         self.assertEqual(state.profile, 2)
         self.assertEqual(len(state.buttons), 5)
         self.assertEqual(state.buttons[0].action, "Left click")
@@ -129,13 +130,30 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(self.ctl.state.dpi, 800)
 
     def test_sensor_settings(self) -> None:
-        self.assertEqual(self.ctl.set_lift_off_code(4), 4)
+        self.assertEqual(self.ctl.set_lift_off_code(2), 2)
+        self.assertEqual(self.ctl.state.lod_mm, 2.0)
         self.assertEqual(self.ctl.set_debounce(4), 4)
         self.assertFalse(self.ctl.set_motion_sync(False))
         self.assertEqual(self.ctl.set_sleep(120), 120)
         self.assertTrue(self.ctl.set_straight_line(True))
         self.assertFalse(self.ctl.set_ripple(False))
         self.assertEqual(self.ctl.set_angle(-15, True), (-15, True))
+
+    def test_sensor_mode_and_buttons(self) -> None:
+        self.assertEqual(self.ctl.set_sensor_mode(2), 2)
+        self.assertEqual(self.ctl.state.sensor_mode, 2)
+        self.assertTrue(self.ctl.state.performance_mode)
+        self.assertEqual(self.ctl.set_button_action(4, "back"), "Back")
+        self.assertEqual(self.ctl.state.buttons[4].action_id, "back")
+        self.ctl.reset_buttons()
+        self.assertEqual(self.ctl.state.buttons[4].action_id, "forward")
+
+    def test_stage_count(self) -> None:
+        self.assertEqual(self.ctl.add_stage(), 5)
+        self.assertEqual(self.ctl.state.stage_count, 5)
+        self.assertEqual(self.ctl.state.stages[-1], (3200, 3200))
+        self.assertEqual(self.ctl.remove_last_stage(), 4)
+        self.assertEqual(self.ctl.state.stage_count, 4)
 
     def test_lighting_and_profile(self) -> None:
         mode, brightness, speed = self.ctl.set_led_mode(2, 2, 2)

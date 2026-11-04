@@ -308,7 +308,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--demo", action="store_true", help="use a simulated MAD R")
     parser.add_argument(
         "--page",
-        choices=["overview", "performance", "dpi", "lighting", "device"],
+        choices=["overview", "buttons", "performance", "dpi", "lighting", "device"],
         help="open a specific page",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {config.VERSION}")
