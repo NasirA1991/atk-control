@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.4.9" date="2026-11-04">
+      <description>
+        <p>Makes the mutually exclusive tray submenus — polling, DPI, profile and tray icon — use radio items so only the active choice is checked.</p>
+      </description>
+    </release>
     <release version="0.4.8" date="2026-11-04">
       <description>
         <p>Saves settings to the mouse's onboard profile after each change by committing the active profile, so DPI and other values survive a power cycle.</p>

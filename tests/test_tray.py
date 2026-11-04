@@ -70,6 +70,22 @@ class TrayIconTests(unittest.TestCase):
         self.assertIsInstance(layout[2], dbus.Array)
         self.assertEqual(layout[2].signature, "v")
 
+    def test_tray_style_items_are_a_radio_group(self) -> None:
+        tray = object.__new__(Tray)
+        tray.connected = False
+        tray.state = None
+        tray._message = "Waiting"
+        tray.polling_rates = [1000]
+        tray.style = "bars"
+        tray.caps = None
+        items = Tray._items(tray)
+        style = next(item for item in items if item["id"] == 11)
+        states = {child["label"]: child for child in style["children"]}
+        self.assertTrue(all(child["toggle-type"] == "radio" for child in states.values()))
+        self.assertEqual(states["Signal bars"]["toggle-state"], 1)
+        self.assertEqual(states["Hex gauge"]["toggle-state"], 0)
+        self.assertEqual(states["Reticle"]["toggle-state"], 0)
+
     def test_bars_and_reticle_have_transparent_background(self) -> None:
         for style in ("bars", "reticle"):
             data = render_tray_icon(self.state, True, style)[0][2]

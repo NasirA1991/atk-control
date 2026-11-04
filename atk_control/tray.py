@@ -548,7 +548,7 @@ class Tray(dbus.service.Object):
                 "id": ID_POLLING_BASE + hz,
                 "label": f"{hz} Hz",
                 "enabled": connected,
-                "toggle-type": "checkmark",
+                "toggle-type": "radio",
                 "toggle-state": 1 if connected and self._rate() == hz else 0,
             })
         items.append({
@@ -565,7 +565,7 @@ class Tray(dbus.service.Object):
                 "id": ID_DPI_BASE + value,
                 "label": f"{value} DPI",
                 "enabled": connected,
-                "toggle-type": "checkmark",
+                "toggle-type": "radio",
                 "toggle-state": 1 if connected and self._dpi() == value else 0,
             })
         items.append({
@@ -582,7 +582,7 @@ class Tray(dbus.service.Object):
                     "id": ID_PROFILE_BASE + number,
                     "label": f"Profile {number}",
                     "enabled": True,
-                    "toggle-type": "checkmark",
+                    "toggle-type": "radio",
                     "toggle-state": 1 if state.profile == number else 0,
                 })
             items.append({
@@ -622,7 +622,7 @@ class Tray(dbus.service.Object):
                 "id": ID_STYLE_BASE + STYLE_KEYS.index(key),
                 "label": label,
                 "enabled": True,
-                "toggle-type": "checkmark",
+                "toggle-type": "radio",
                 "toggle-state": 1 if key == self.style else 0,
             })
         items.append({
