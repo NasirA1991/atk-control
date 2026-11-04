@@ -62,6 +62,19 @@ class WorkerSafetyTests(unittest.TestCase):
         self.assertEqual(states[-1].model_name, "VXE R1 Pro")
         self.assertTrue(any("Switched automatically" in message for message in toasts))
 
+    def test_hidden_heartbeat_disconnects_after_two_offline_replies(self) -> None:
+        worker = DeviceWorker(lambda *_: None, lambda *_: None)
+        controller = Mock()
+        controller.info.is_receiver = True
+        controller.online_status.return_value = False
+        worker._controller = controller
+        worker._disconnect = Mock()
+        worker._check_online_heartbeat()
+        worker._disconnect.assert_not_called()
+        worker._check_online_heartbeat()
+        worker._disconnect.assert_called_once()
+        self.assertIn("offline", worker._disconnect.call_args.args[0].lower())
+
     def test_offline_paired_mouse_disconnects_after_two_polls(self) -> None:
         worker = DeviceWorker(lambda *_: None, lambda *_: None)
         controller = Mock()

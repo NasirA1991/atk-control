@@ -71,6 +71,8 @@ class DeviceWorker:
         self._warned_permission = False
         self._foreground = False
         self._last_path_check = 0.0
+        self._online_misses = 0
+        self._last_online_ping = 0.0
 
     # -- public API -------------------------------------------------------
     def start(self) -> None:
@@ -234,6 +236,8 @@ class DeviceWorker:
                 continue
             self._controller = controller
             self._query_misses = 0
+            self._online_misses = 0
+            self._last_online_ping = time.monotonic()
             self._warned_permission = False
             self._last_full = time.monotonic()
             with self._lock:
@@ -261,6 +265,7 @@ class DeviceWorker:
             self._state = MouseState()
             self._pending.clear()
         self._query_misses = 0
+        self._online_misses = 0
         self._emit_link(False, reason)
 
     # -- operations -------------------------------------------------------
@@ -328,6 +333,21 @@ class DeviceWorker:
             self._toast(f"Could not write report: {exc}")
         except Exception as exc:
             self._toast(f"Could not create support report: {exc}")
+
+    def _check_online_heartbeat(self) -> None:
+        """A cheap liveness ping, used only while the window is hidden."""
+        controller = self._controller
+        if controller is None or not controller.info.is_receiver:
+            return
+        status = controller.online_status()
+        if status is False:
+            self._online_misses += 1
+            if self._online_misses >= 2:
+                self._disconnect(
+                    "The paired mouse is offline; looking for another connected mouse."
+                )
+        elif status is True:
+            self._online_misses = 0
 
     def _poll(self, force_full: bool = False) -> None:
         controller = self._controller
@@ -421,8 +441,21 @@ class DeviceWorker:
                 self._apply_pending()
             else:
                 live_interval, _full_interval = self._intervals()
-                if force or time.monotonic() - self._last_emit >= live_interval:
+                now = time.monotonic()
+                if force or now - self._last_emit >= live_interval:
                     self._poll(force_full=force)
+                    self._last_online_ping = time.monotonic()
+                else:
+                    with self._lock:
+                        foreground = self._foreground
+                    if (
+                        not foreground
+                        and self._controller is not None
+                        and self._controller.info.is_receiver
+                        and now - self._last_online_ping >= 5.0
+                    ):
+                        self._last_online_ping = now
+                        self._check_online_heartbeat()
             self._stop.wait(0.04)
         self._disconnect(None)
 

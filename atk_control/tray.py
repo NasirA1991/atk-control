@@ -279,7 +279,7 @@ class TrayMenu(dbus.service.Object):
         super().__init__(bus_name, "/MenuBar")
         self.tray = tray
 
-    @dbus.service.method(MENU_IFACE, in_signature="iias", out_signature="(ia{sv}av)")
+    @dbus.service.method(MENU_IFACE, in_signature="iias", out_signature="u(ia{sv}av)")
     def GetLayout(self, parent_id, recursion_depth, property_names):
         return self.tray.GetLayout(parent_id, recursion_depth, property_names)
 
@@ -660,28 +660,38 @@ class Tray(dbus.service.Object):
         return props
 
     def _layout_struct(self, item: dict, revision: int):
-        children = [
-            self._layout_struct(child, revision)
-            for child in item.get("children", [])
-        ]
+        # DBusMenu's layout is recursive: each child is a *variant* wrapping
+        # another (ia{sv}av) node. Returning a(ia{sv}av) here silently yields
+        # an empty menu in Plasma.
+        children = []
+        for child in item.get("children", []):
+            node = self._layout_struct(child, revision)
+            children.append(
+                dbus.Struct(tuple(node), signature="(ia{sv}av)", variant_level=1)
+            )
         return dbus.Struct(
             (
                 dbus.Int32(item["id"]),
                 dbus.Dictionary(self._props(item), signature="sv"),
-                dbus.Array(children, signature="(ia{sv}av)"),
+                dbus.Array(children, signature="v"),
             ),
             signature="(ia{sv}av)",
         )
 
-    @dbus.service.method(MENU_IFACE, in_signature="iias", out_signature="(ia{sv}av)")
+    @dbus.service.method(MENU_IFACE, in_signature="iias", out_signature="u(ia{sv}av)")
     def GetLayout(self, parent_id, recursion_depth, property_names):
+        # DBusMenu GetLayout has two out arguments: the revision and the
+        # recursive layout.  Omitting the revision makes hosts parse an empty
+        # menu even though the layout itself is valid.
         if parent_id in (0, -1):
-            root = {"id": 0, "children": self._items()}
-            return self._layout_struct(root, self._revision)
-        item = self._by_id(parent_id)
-        if item is None:
-            return self._layout_struct({"id": 0, "children": []}, self._revision)
-        return self._layout_struct(item, self._revision)
+            root = {"id": 0, "children": self._items(), "children-display": "submenu"}
+            layout = self._layout_struct(root, self._revision)
+        else:
+            item = self._by_id(parent_id)
+            if item is None:
+                item = {"id": 0, "children": []}
+            layout = self._layout_struct(item, self._revision)
+        return (dbus.UInt32(self._revision), layout)
 
     @dbus.service.method(MENU_IFACE, in_signature="aias", out_signature="a(ia{sv})")
     def GetGroupProperties(self, ids, property_names):

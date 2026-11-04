@@ -126,7 +126,7 @@ Download `atk-control-<version>-x86_64.flatpak` from the
 [Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./atk-control-0.4.4-x86_64.flatpak
+flatpak install --user ./atk-control-0.4.5-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -136,8 +136,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x atk-control-0.4.4-x86_64.AppImage
-./atk-control-0.4.4-x86_64.AppImage
+chmod +x atk-control-0.4.5-x86_64.AppImage
+./atk-control-0.4.5-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -173,7 +173,9 @@ sha256sum -c SHA256SUMS
 - A failed button reset attempts to restore the original mappings and reports
   exactly what happened.
 - Hidden-tray polling backs off to 30-second battery checks and 5-minute full
-  refreshes so a wireless mouse is not kept busy all day.
+  refreshes so a wireless mouse is not kept busy all day. A receiver-only
+  online heartbeat every 5 seconds detects a mouse being switched off without
+  reading its battery or settings.
 - Preferences are type-checked and written atomically; a corrupted JSON file
   cannot crash startup.
 - Button remapping and Competitive MAX are gated to individually verified

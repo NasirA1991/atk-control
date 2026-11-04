@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import unittest
 
+import dbus
+
 from atk_control.state import MouseState
-from atk_control.tray import ICON_SIZE, render_tray_icon
+from atk_control.tray import ICON_SIZE, Tray, render_tray_icon
 
 
 class TrayIconTests(unittest.TestCase):
@@ -39,6 +41,34 @@ class TrayIconTests(unittest.TestCase):
         self.state.charging = False
         idle = render_tray_icon(self.state, True, "hex")[0][2]
         self.assertNotEqual(charging, idle)
+
+    def test_dbusmenu_children_are_variants(self) -> None:
+        tray = object.__new__(Tray)
+        tray._revision = 7
+        node = Tray._layout_struct(
+            tray,
+            {"id": 0, "children": [{"id": 1, "label": "One"}]},
+            7,
+        )
+        children = node[2]
+        self.assertIsInstance(children, dbus.Array)
+        self.assertEqual(children.signature, "v")
+        child = children[0]
+        self.assertIsInstance(child, dbus.Struct)
+        self.assertEqual(child.variant_level, 1)
+        self.assertEqual(int(child[0]), 1)
+        self.assertEqual(str(child[1]["label"]), "One")
+
+    def test_dbusmenu_get_layout_includes_revision_and_layout(self) -> None:
+        tray = object.__new__(Tray)
+        tray._revision = 12
+        tray._items = lambda: [{"id": 1, "label": "One"}]
+        tray._by_id = lambda item_id: None
+        revision, layout = Tray.GetLayout(tray, 0, -1, [])
+        self.assertEqual(int(revision), 12)
+        self.assertEqual(int(layout[0]), 0)
+        self.assertIsInstance(layout[2], dbus.Array)
+        self.assertEqual(layout[2].signature, "v")
 
     def test_bars_and_reticle_have_transparent_background(self) -> None:
         for style in ("bars", "reticle"):

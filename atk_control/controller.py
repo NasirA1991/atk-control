@@ -342,6 +342,18 @@ class Controller:
             return None
         return self.transport.receiver_online()
 
+    def online_status(self) -> bool | None:
+        """Cheap receiver-only liveness check (does not read the mouse)."""
+        if not self.info.is_receiver:
+            return True
+        try:
+            info = self.transport.receiver_online()
+        except ProtocolError:
+            return None
+        if not isinstance(info, dict) or "online" not in info:
+            return None
+        return bool(info["online"])
+
     def read_full(self) -> MouseState:
         """Read identity and all readable settings.  Missing optional rows are OK."""
         self.receiver = devices.receiver_for(self.info.product_id, self.info.product_name)
