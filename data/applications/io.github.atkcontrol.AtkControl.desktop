@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=ATK Control
+GenericName=Mouse Configuration
+Comment=Configure ATK/VXE mice and show battery in the tray
+Exec=atk-control
+Icon=atk-control
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=mouse;gaming;dpi;polling;battery;MAD R;VXE;ATK;R1;
+StartupNotify=true
+StartupWMClass=atk-control
+X-GNOME-UsesNotifications=true

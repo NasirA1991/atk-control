@@ -1,40 +1,71 @@
-name: Device support report
-description: Share a read-only report for another COMPX-based mouse
-title: "[Device] "
+name: ATK/VXE mouse support
+description: Share a sanitized report so another ATK or VXE mouse can be added
+title: "[Mouse support] "
 labels: ["device-report"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping! Generate the report locally with
-        **Device → Save report** or `compxctl report`, review it, then attach
-        it below. Nothing is uploaded automatically.
+        Thanks for helping make ATK Control work with more ATK/VXE mice.
+
+        **Generate the report locally first:**
+        **Device → Save support report** in the app, or:
+
+        ```bash
+        atkctl support
+        ```
+
+        Review the generated `.md` file, then drag it into this issue. The report
+        is read-only and redacts the full RF identifier, USB serial and host name.
   - type: input
     id: model
     attributes:
       label: Mouse model
-      placeholder: e.g. MAD R, VXE R1 Pro Max
+      description: The name on the mouse, box or ATK HUB.
+      placeholder: e.g. VXE R1 Pro, MAD R +
     validations:
       required: true
   - type: input
     id: ids
     attributes:
       label: USB IDs and link
-      description: From `compxctl scan` or `lsusb`.
-      placeholder: e.g. 373b:1040 (8K dongle)
+      description: From `atkctl scan` or `lsusb`; include cable and receiver IDs.
+      placeholder: e.g. receiver 3554:f505, mouse 3554:...
+    validations:
+      required: true
+  - type: dropdown
+    id: receiver
+    attributes:
+      label: How is it connected?
+      options:
+        - 8K receiver
+        - 4K receiver
+        - 1K receiver
+        - USB cable
+        - Not sure
     validations:
       required: true
   - type: textarea
     id: symptoms
     attributes:
       label: What works and what does not?
-      placeholder: Settings, polling, battery, buttons, tray…
+      description: Battery, polling, DPI, buttons, lighting, tray, app detection, etc.
+      placeholder: "Detected as read-only / polling missing / ..."
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: Compx Control version
-      placeholder: e.g. 0.1.2
+      label: ATK Control version
+      placeholder: e.g. 0.2.0
     validations:
       required: true
+  - type: checkboxes
+    id: report
+    attributes:
+      label: Report attached
+      options:
+        - label: I attached the sanitized `atk-control-report-*.md` file.
+          required: true
+        - label: I reviewed the report and it contains no sensitive data.
+          required: true

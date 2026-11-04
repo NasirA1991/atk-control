@@ -17,11 +17,11 @@ jobs:
       - name: Unit tests
         run: python3 -m unittest discover -s tests -v
       - name: Byte-compile
-        run: python3 -m compileall -q compx_control
+        run: python3 -m compileall -q atk_control
       - name: Validate AppStream metadata
-        run: appstreamcli validate --no-net data/metainfo/io.github.compxcontrol.CompxControl.metainfo.xml
+        run: appstreamcli validate --no-net data/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml
       - name: Validate desktop entry
-        run: desktop-file-validate data/applications/io.github.compxcontrol.CompxControl.desktop
+        run: desktop-file-validate data/applications/io.github.atkcontrol.AtkControl.desktop
 
   ui-smoke:
     runs-on: ubuntu-latest
@@ -35,7 +35,7 @@ jobs:
         run: |
           set +e
           timeout 8 dbus-run-session -- xvfb-run -a -s '-screen 0 1200x1000x24' \
-            env GSK_RENDERER=cairo python3 -m compx_control --demo --no-tray
+            env GSK_RENDERER=cairo python3 -m atk_control --demo --no-tray
           code=$?
           if [ "$code" -ne 124 ]; then
             echo "UI exited unexpectedly with $code" >&2

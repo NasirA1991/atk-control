@@ -13,9 +13,9 @@ mkdir -p "$out"
 rm -rf flatpak-build flatpak-repo
 flatpak-builder --force-clean --disable-rofiles-fuse \
     --repo=flatpak-repo flatpak-build \
-    packaging/flatpak/io.github.compxcontrol.CompxControl.yml
+    packaging/flatpak/io.github.atkcontrol.AtkControl.yml
 
 flatpak build-bundle flatpak-repo \
-    "$out/compx-control-${version}-x86_64.flatpak" \
-    io.github.compxcontrol.CompxControl
-echo "built $out/compx-control-${version}-x86_64.flatpak"
+    "$out/atk-control-${version}-x86_64.flatpak" \
+    io.github.atkcontrol.AtkControl
+echo "built $out/atk-control-${version}-x86_64.flatpak"

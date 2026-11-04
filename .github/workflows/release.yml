@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to release (for example v0.1.2)'
+        description: 'Existing tag to release (for example v0.2.0)'
         required: true
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
           REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           VERSION="${REF_NAME#v}"
-          CODE_VERSION=$(python3 -c "from compx_control.config import VERSION; print(VERSION)")
+          CODE_VERSION=$(python3 -c "from atk_control.config import VERSION; print(VERSION)")
           if [ "$VERSION" != "$CODE_VERSION" ]; then
             echo "Tag $REF_NAME does not match VERSION=$CODE_VERSION" >&2
             exit 1
@@ -41,15 +41,15 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           mkdir -p dist
-          git archive --format=tar.gz --prefix="compx-control-${VERSION}/" \
-            -o "dist/compx-control-${VERSION}.tar.gz" HEAD
-          SHA=$(sha256sum "dist/compx-control-${VERSION}.tar.gz" | cut -d' ' -f1)
+          git archive --format=tar.gz --prefix="atk-control-${VERSION}/" \
+            -o "dist/atk-control-${VERSION}.tar.gz" HEAD
+          SHA=$(sha256sum "dist/atk-control-${VERSION}.tar.gz" | cut -d' ' -f1)
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v7
         with:
           name: source
-          path: dist/compx-control-*.tar.gz
+          path: dist/atk-control-*.tar.gz
 
   appimage:
     needs: source
@@ -119,15 +119,15 @@ jobs:
           sed -e "s|@REPO@|${REPO}|g" \
               -e "s|@VERSION@|${VERSION}|g" \
               -e "s|@SHA256@|${SHA256}|g" \
-              packaging/aur/compx-control/PKGBUILD.in \
-              > packaging/aur/compx-control/PKGBUILD
-      - name: Publish compx-control
+              packaging/aur/atk-control/PKGBUILD.in \
+              > packaging/aur/atk-control/PKGBUILD
+      - name: Publish atk-control
         uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
         with:
-          pkgname: compx-control
-          pkgbuild: packaging/aur/compx-control/PKGBUILD
+          pkgname: atk-control
+          pkgbuild: packaging/aur/atk-control/PKGBUILD
           commit_username: ${{ secrets.AUR_USERNAME }}
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: "compx-control ${{ needs.source.outputs.version }}"
+          commit_message: "atk-control ${{ needs.source.outputs.version }}"
           ssh_keyscan_types: ed25519,rsa,ecdsa

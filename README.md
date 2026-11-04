@@ -1,16 +1,16 @@
-# Compx Control
+# ATK Control
 
-[![CI](https://github.com/NasirA1991/compx-control/actions/workflows/ci.yml/badge.svg)](https://github.com/NasirA1991/compx-control/actions/workflows/ci.yml)
-[![Release](https://github.com/NasirA1991/compx-control/actions/workflows/release.yml/badge.svg)](https://github.com/NasirA1991/compx-control/actions/workflows/release.yml)
-[![AUR](https://img.shields.io/aur/version/compx-control?label=AUR)](https://aur.archlinux.org/packages/compx-control)
-[![AUR git](https://img.shields.io/aur/version/compx-control-git?label=AUR%20git)](https://aur.archlinux.org/packages/compx-control-git)
-[![License](https://img.shields.io/github/license/NasirA1991/compx-control)](LICENSE)
+[![CI](https://github.com/NasirA1991/atk-control/actions/workflows/ci.yml/badge.svg)](https://github.com/NasirA1991/atk-control/actions/workflows/ci.yml)
+[![Release](https://github.com/NasirA1991/atk-control/actions/workflows/release.yml/badge.svg)](https://github.com/NasirA1991/atk-control/actions/workflows/release.yml)
+[![AUR](https://img.shields.io/aur/version/atk-control?label=AUR)](https://aur.archlinux.org/packages/atk-control)
+[![AUR git](https://img.shields.io/aur/version/atk-control-git?label=AUR%20git)](https://aur.archlinux.org/packages/atk-control-git)
+[![License](https://img.shields.io/github/license/NasirA1991/atk-control)](LICENSE)
 
-Native **GTK4 / libadwaita** control centre for COMPX-based gaming mice —
-MAD R, VXE R1 and their close relatives — with no browser tab, Windows VM or
-vendor background service.
+Native **GTK4 / libadwaita** control centre for **ATK / VXE gaming mice** —
+MAD R, VXE R1 and their family — with no browser tab, Windows VM or vendor
+background service.
 
-Compx Control talks directly to the mouse over its vendor HID collection. The
+ATK Control talks directly to the mouse over its vendor HID collection. The
 tray icon stays visible with live battery, and every setting is written to the
 mouse itself, so it keeps working when the app is closed.
 
@@ -20,15 +20,15 @@ mouse itself, so it keeps working when the app is closed.
 
 > **Hardware status:** the **MAD R +** on its **8K dongle** and the **VXE R1
 > Pro** on both its **1K** and **4K** receivers have been verified on real
-> hardware. Other MAD R and VXE R1 variants share the configuration protocol
-> but have not each been individually tested. A
-> [read-only report](docs/DEVICE_REPORTS.md) is very welcome.
+> hardware. Other ATK/VXE models share the configuration protocol but have not
+> each been individually tested. [Request support for your mouse](#missing-your-mouse)
+> and it can be added.
 
 ## Features
 
 - **Tray icon with live battery** — three deliberately different designs:
-  *Hex gauge*, *Signal bars* and *Bolt*. Pick one under **Device → Tray icon** or
-  from the tray menu. Charging state and link type live in the tooltip, with
+  *Hex gauge*, *Signal bars* and *Reticle*. Pick one under **Device → Tray icon**
+  or from the tray menu. Charging state and link type live in the tooltip, with
   quick actions for polling, DPI, Motion Sync, ripple control and profiles.
 - **8K / 4K polling** — 125 Hz through 8000 Hz, limited intelligently by the
   actual receiver. The app reads the link type and never offers a rate the
@@ -44,7 +44,7 @@ mouse itself, so it keeps working when the app is closed.
   the mouse.
 - **Button overview** — read-only view of what each physical button currently
   does.
-- **CLI** (`compxctl`) for scripts, keybinds and status bars. Setters read the
+- **CLI** (`atkctl`) for scripts, keybinds and status bars. Setters read the
   value back and fail loudly if the mouse kept something else.
 - **Offline and private** — no telemetry, no cloud account, no vendor service.
 
@@ -56,8 +56,30 @@ mouse itself, so it keeps working when the app is closed.
 
 ![Tray icon styles](docs/screenshots/tray-styles.png)
 
-The angular hexagon and signal-bar designs are intentionally unlike the tray
-icons used by other mouse utilities, so they are easy to tell apart at a glance.
+The angular hexagon and transparent bar/reticle designs are intentionally unlike
+the tray icons used by other mouse utilities.
+
+## Missing your mouse?
+
+ATK Control is built to grow across the ATK/VXE family. If your mouse is not
+listed, or a receiver is not recognised, send a **read-only device report**:
+
+1. Open **Device → Missing your ATK/VXE mouse? → Save support report**.
+2. Review the generated `.md` file.
+3. Attach it to a [mouse support request](https://github.com/NasirA1991/atk-control/issues/new?template=device-report.yml).
+
+From a terminal this is:
+
+```bash
+atkctl support
+```
+
+The report includes the device identity, every setting ATK Control can read and
+a raw dump of the configuration registers. It never includes the full RF
+identifier, USB serial number or host name, and nothing is uploaded
+automatically. [More about device reports](docs/DEVICE_REPORTS.md).
+
+![Device and support report](docs/screenshots/device.png)
 
 ## Install
 
@@ -66,7 +88,7 @@ release.
 
 | Format | Best for | What it bundles |
 |---|---|---|
-| **AUR** `compx-control` / `compx-control-git` | Arch, CachyOS, EndeavourOS | source; builds against your system |
+| **AUR** `atk-control` / `atk-control-git` | Arch, CachyOS, EndeavourOS | source; builds against your system |
 | **Flatpak** `.flatpak` | any distro with Flatpak | GNOME runtime: Python, GTK4, libadwaita, PyGObject, dbus-python |
 | **AppImage** `.AppImage` | quick run anywhere with GTK4 installed | the app only; host provides GTK4/PyGObject |
 | **Source tarball** | packaging and auditing | source + installer |
@@ -74,21 +96,24 @@ release.
 ### Arch / CachyOS (AUR)
 
 ```bash
-paru -S compx-control-git     # latest main, rebuilt on updates
-paru -S compx-control         # latest tagged release
+paru -S atk-control-git     # latest main, rebuilt on updates
+paru -S atk-control         # latest tagged release
 ```
 
-Both are published: [compx-control](https://aur.archlinux.org/packages/compx-control)
-· [compx-control-git](https://aur.archlinux.org/packages/compx-control-git).
+Both are published: [atk-control](https://aur.archlinux.org/packages/atk-control)
+· [atk-control-git](https://aur.archlinux.org/packages/atk-control-git).
+
+`atk-control` supersedes the earlier `compx-control` package and declares the
+old package name as replaced.
 
 ### Flatpak
 
-Download `compx-control-<version>-x86_64.flatpak` from the
-[Releases page](https://github.com/NasirA1991/compx-control/releases), then:
+Download `atk-control-<version>-x86_64.flatpak` from the
+[Releases page](https://github.com/NasirA1991/atk-control/releases), then:
 
 ```bash
-flatpak install --user ./compx-control-0.1.2-x86_64.flatpak
-flatpak run io.github.compxcontrol.CompxControl
+flatpak install --user ./atk-control-0.2.0-x86_64.flatpak
+flatpak run io.github.atkcontrol.AtkControl
 ```
 
 The Flatpak is self-contained and exposes `/dev/hidraw*` via `--device=all`.
@@ -97,8 +122,8 @@ You still need the host udev permission described below.
 ### AppImage
 
 ```bash
-chmod +x compx-control-0.1.2-x86_64.AppImage
-./compx-control-0.1.2-x86_64.AppImage
+chmod +x atk-control-0.2.0-x86_64.AppImage
+./atk-control-0.2.0-x86_64.AppImage
 ```
 
 The AppImage intentionally bundles only the application and uses the host's
@@ -123,7 +148,7 @@ package installs the correct rule for you. For the AppImage, Flatpak, or a
 source checkout, install it once:
 
 ```bash
-sudo tee /usr/lib/udev/rules.d/71-compx-control.rules >/dev/null <<'RULE'
+sudo tee /usr/lib/udev/rules.d/71-atk-control.rules >/dev/null <<'RULE'
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="373b", TAG+="uaccess", MODE="0660"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3554", TAG+="uaccess", MODE="0660"
 RULE
@@ -132,15 +157,15 @@ sudo udevadm trigger --subsystem-match=hidraw
 ```
 
 Then unplug and reconnect the mouse or receiver. The rule grants access to the
-ATK/COMPX (`373b`) and older VXE (`3554`) HID devices.
+ATK (`373b`) and VXE (`3554`) HID devices.
 
 ## Usage
 
 ```bash
-compx-control                # window + tray
-compx-control --tray         # start minimised in the tray
-compx-control --no-tray      # window only
-compx-control --demo         # simulated MAD R, no hardware required
+atk-control                # window + tray
+atk-control --tray         # start minimised in the tray
+atk-control --no-tray      # window only
+atk-control --demo         # simulated MAD R, no hardware required
 ```
 
 Close the window to keep the app in the tray; **Quit** from the tray menu (or
@@ -148,27 +173,28 @@ Close the window to keep the app in the tray; **Quit** from the tray menu (or
 
 ### CLI
 
-`compxctl` works without GTK and is safe to use in scripts:
+`atkctl` works without GTK and is safe to use in scripts:
 
 ```bash
-compxctl status
-compxctl status --json
-compxctl polling 8000
-compxctl dpi 1600
-compxctl dpi 1600 --stage 3
-compxctl stage 2
-compxctl motion-sync on
-compxctl ripple on
-compxctl straight-line off
-compxctl lod 0.7
-compxctl debounce 2
-compxctl sleep 300
-compxctl performance on
-compxctl profile 2
-compxctl light steady --brightness high --speed slow
-compxctl report                 # read-only report for a support issue
-compxctl caps
-compxctl scan
+atkctl status
+atkctl status --json
+atkctl polling 8000
+atkctl dpi 1600
+atkctl dpi 1600 --stage 3
+atkctl stage 2
+atkctl motion-sync on
+atkctl ripple on
+atkctl straight-line off
+atkctl lod 0.7
+atkctl debounce 2
+atkctl sleep 300
+atkctl performance on
+atkctl profile 2
+atkctl light steady --brightness high --speed slow
+atkctl support                # save a sanitized support report
+atkctl report                 # print the same report
+atkctl caps
+atkctl scan
 ```
 
 Every setter reads the device back and exits non-zero if the mouse did not
@@ -182,7 +208,7 @@ and other StatusNotifier hosts work out of the box.
 
 ## Supported devices
 
-The protocol is shared across the current COMPX mouse family. Model and
+The protocol is shared across the current ATK/VXE mouse family. Model and
 capabilities are selected from the mouse's own CID/MID identity, not just the
 USB product id, because receivers are shared between models.
 
@@ -193,21 +219,14 @@ USB product id, because receivers are shared between models.
 | **VXE R1 Pro** | 1K receiver (`3554:f58a`) | **Verified on hardware** — read/write of polling (up to 1K), DPI stages and colours, Motion Sync, ripple, straight-line, LOD, debounce, sleep, performance mode and DPI LED |
 | **VXE R1 Pro** | 4K receiver (`3554:f505`) | **Verified on hardware** — same settings, with 2,000 and 4,000 Hz polling written and read back successfully |
 | VXE R1, VXE R1 Pro Max | cable / receiver | Model entries and receiver ceilings included; not individually tested |
-| Other COMPX mice | any | Detected read-only until a model entry is added |
+| Other ATK/VXE mice | any | Detected read-only until a model entry is added |
 
+The MAD R + is an 8K-receiver mouse; that is the configuration verified here.
 When more than one receiver is connected, the **Device → Configuration devices**
 card lets you switch between them.
 
 **Not yet exposed:** button remapping, macros, firmware updates and changing
 the number of DPI stages. Button assignments are shown read-only.
-
-### Add your mouse
-
-Use **Device → Save report** (or `compxctl report`). The file is generated
-locally, redacts the full RF identifier, and is not uploaded. Review it, then
-attach it to a
-[device support issue](https://github.com/NasirA1991/compx-control/issues/new?template=device-report.yml).
-See [docs/DEVICE_REPORTS.md](docs/DEVICE_REPORTS.md) for details.
 
 ## Why does firmware show "not reported by receiver"?
 
@@ -217,13 +236,15 @@ Over a direct USB cable the firmware can usually be read.
 
 ## Privacy
 
-Compx Control has no network code. It does not phone home, does not upload
+ATK Control has no network code. It does not phone home, does not upload
 device data, and does not require an account. Settings are stored on the mouse;
-window preferences are a small JSON file in `~/.config/compx-control/`.
+window preferences are a small JSON file in `~/.config/atk-control/`.
+
+Support reports are only created when you ask for one. Review them before
+attaching one to a public issue.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
 
-Compx Control is an independent project and is not affiliated with ATK, VXE,
-MAD or COMPX.
+ATK Control is an independent project and is not affiliated with ATK or VXE.

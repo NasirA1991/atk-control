@@ -1,6 +1,6 @@
-# COMPX configuration protocol notes
+# ATK/VXE configuration protocol notes
 
-This document is for maintainers and for auditing how Compx Control talks to
+This document is for maintainers and for auditing how ATK Control talks to
 the mouse. End users do not need it.
 
 ## Transport
@@ -39,7 +39,7 @@ Polling codes: `08`=125, `04`=250, `02`=500, `01`=1000, `10`=2000,
 
 Receivers use shared USB product IDs and answer for the paired mouse. The
 mouse model therefore comes from CID/MID (`0x10`), resolved against the small
-model table in `compx_control/devices.py`. Unknown models are deliberately
+model table in `atk_control/devices.py`. Unknown models are deliberately
 read-only.
 
 Receiver ceilings currently known to the app: `373b:1040` (MAD 8K) = 8000 Hz,
@@ -97,5 +97,5 @@ back. Unknown models remain read-only.
 ## Credits
 
 Protocol facts were recovered from the public ATK HUB WebHID driver and
-corroborated with readback on physical hardware. Compx Control is independent
-and not affiliated with ATK, VXE or COMPX.
+corroborated with readback on physical hardware. ATK Control is independent
+and not affiliated with ATK or VXE.

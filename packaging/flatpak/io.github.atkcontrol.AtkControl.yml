@@ -1,0 +1,47 @@
+app-id: io.github.atkcontrol.AtkControl
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: atk-control
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  # The 0xff02:0002 vendor HID collection is a raw hidraw device.
+  - --device=all
+  # StatusNotifierItem tray (KDE and AppIndicator hosts).
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --own-name=io.github.atkcontrol.AtkControl.StatusNotifierItem
+  - --talk-name=org.freedesktop.Notifications
+
+modules:
+  # The GNOME runtime ships Python 3, PyGObject, GTK4, libadwaita and pycairo,
+  # but not dbus-python, which the StatusNotifierItem tray needs.
+  - name: dbus-python
+    buildsystem: meson
+    config-opts:
+      - -Dtests=disabled
+      - -Ddoc=disabled
+    sources:
+      - type: archive
+        url: https://files.pythonhosted.org/packages/f3/cc/23f24bc7cbfec3a0ab508b7e11bc98837d77a91445d5f666a8545353a147/dbus_python-1.5.1.tar.gz
+        sha256: 57423cf87d09b7d084f420b55b737fe654c33339b06df77945620d97795c6ac4
+
+  - name: atk-control
+    buildsystem: simple
+    build-commands:
+      - install -d /app/share/atk-control
+      - cp -r atk_control data /app/share/atk-control/
+      - find /app/share/atk-control -name __pycache__ -type d -prune -exec rm -rf {} +
+      - install -Dm755 packaging/flatpak/atk-control.sh /app/bin/atk-control
+      - install -Dm755 packaging/flatpak/atkctl /app/bin/atkctl
+      - install -Dm644 packaging/flatpak/launcher.py /app/share/atk-control/launcher.py
+      - install -Dm644 data/applications/io.github.atkcontrol.AtkControl.desktop /app/share/applications/io.github.atkcontrol.AtkControl.desktop
+      - install -Dm644 data/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml /app/share/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml
+      - install -Dm644 data/icons/hicolor/scalable/apps/atk-control.svg /app/share/icons/hicolor/scalable/apps/atk-control.svg
+      - install -Dm644 data/icons/hicolor/scalable/apps/atk-control.svg /app/share/icons/hicolor/scalable/apps/io.github.atkcontrol.AtkControl.svg
+      - install -Dm644 data/icons/hicolor/256x256/apps/atk-control.png /app/share/icons/hicolor/256x256/apps/atk-control.png
+    sources:
+      - type: dir
+        path: ../..

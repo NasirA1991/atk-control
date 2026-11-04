@@ -3,14 +3,14 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "compx-control"
-version = "0.1.2"
-description = "Native Linux configuration for COMPX-based gaming mice (MAD R, VXE R1 and relatives)"
+name = "atk-control"
+version = "0.2.0"
+description = "Native Linux configuration for ATK/VXE gaming mice (MAD R, VXE R1 and relatives)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Compx Control contributors" }]
-keywords = ["mouse", "gaming", "hid", "gtk4", "libadwaita", "compx", "madr", "vxe"]
+authors = [{ name = "ATK Control contributors" }]
+keywords = ["mouse", "gaming", "hid", "gtk4", "libadwaita", "atk", "vxe", "mad-r", "r1"]
 classifiers = [
     "Environment :: X11 Applications :: GTK",
     "Intended Audience :: End Users/Desktop",
@@ -22,14 +22,14 @@ classifiers = [
 dependencies = []
 
 [project.scripts]
-compx-control = "compx_control.app:main"
-compxctl = "compx_control.cli:main"
+atk-control = "atk_control.app:main"
+atkctl = "atk_control.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/NasirA1991/compx-control"
-Repository = "https://github.com/NasirA1991/compx-control"
-Issues = "https://github.com/NasirA1991/compx-control/issues"
-Documentation = "https://github.com/NasirA1991/compx-control#readme"
+Homepage = "https://github.com/NasirA1991/atk-control"
+Repository = "https://github.com/NasirA1991/atk-control"
+Issues = "https://github.com/NasirA1991/atk-control/issues"
+Documentation = "https://github.com/NasirA1991/atk-control#readme"
 
 [tool.setuptools]
-packages = ["compx_control"]
+packages = ["atk_control"]

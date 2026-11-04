@@ -10,18 +10,18 @@ cd "$root"
 mkdir -p "$out"
 
 rm -rf AppDir
-mkdir -p AppDir/usr/share/compx-control
-cp -r compx_control data AppDir/usr/share/compx-control/
-find AppDir/usr/share/compx-control -name '__pycache__' -type d -prune -exec rm -rf {} +
+mkdir -p AppDir/usr/share/atk-control
+cp -r atk_control data AppDir/usr/share/atk-control/
+find AppDir/usr/share/atk-control -name '__pycache__' -type d -prune -exec rm -rf {} +
 install -Dm755 packaging/appimage/AppRun AppDir/AppRun
-install -Dm644 packaging/appimage/launcher.py AppDir/usr/share/compx-control/launcher.py
-install -Dm644 data/icons/compx-control.png AppDir/compx-control.png
-install -Dm644 data/icons/hicolor/scalable/apps/compx-control.svg AppDir/compx-control.svg
-install -Dm644 data/applications/io.github.compxcontrol.CompxControl.desktop AppDir/compx-control.desktop
-install -Dm644 data/applications/io.github.compxcontrol.CompxControl.desktop \
-    AppDir/usr/share/applications/compx-control.desktop
-install -Dm644 data/metainfo/io.github.compxcontrol.CompxControl.metainfo.xml \
-    AppDir/usr/share/metainfo/io.github.compxcontrol.CompxControl.metainfo.xml
+install -Dm644 packaging/appimage/launcher.py AppDir/usr/share/atk-control/launcher.py
+install -Dm644 data/icons/atk-control.png AppDir/atk-control.png
+install -Dm644 data/icons/hicolor/scalable/apps/atk-control.svg AppDir/atk-control.svg
+install -Dm644 data/applications/io.github.atkcontrol.AtkControl.desktop AppDir/atk-control.desktop
+install -Dm644 data/applications/io.github.atkcontrol.AtkControl.desktop \
+    AppDir/usr/share/applications/atk-control.desktop
+install -Dm644 data/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml \
+    AppDir/usr/share/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml
 chmod -R a+rX AppDir
 
 tool="${APPIMAGETOOL:-/tmp/appimagetool-1.9.1-x86_64.AppImage}"
@@ -36,5 +36,5 @@ if [[ -z "${APPIMAGETOOL:-}" ]]; then
 fi
 
 ARCH=x86_64 "$tool" --appimage-extract-and-run "AppDir" \
-    "$out/compx-control-${version}-x86_64.AppImage"
-echo "built $out/compx-control-${version}-x86_64.AppImage"
+    "$out/atk-control-${version}-x86_64.AppImage"
+echo "built $out/atk-control-${version}-x86_64.AppImage"

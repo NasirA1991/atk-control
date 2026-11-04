@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import unittest
 
-from compx_control import controller, devices, protocol
-from compx_control.protocol import DeviceInfo, pack_pair, pack_rgb
-from compx_control.state import MouseState
+from atk_control import controller, devices, protocol
+from atk_control.protocol import DeviceInfo, pack_pair, pack_rgb
+from atk_control.state import MouseState
 
 
 def put(mem: bytearray, addr: int, data: bytes) -> None:
@@ -149,6 +149,13 @@ class ControllerTests(unittest.TestCase):
         self.assertIsInstance(live, MouseState)
         self.assertEqual(live.battery, 76)
         self.assertEqual(live.polling_rate, 8000)
+
+    def test_raw_register_dump(self) -> None:
+        raw = self.ctl.collect_raw_registers(0x0000, 0x0020)
+        self.assertIn(0x0000, raw)
+        self.assertIsNotNone(raw[0x0000])
+        assert raw[0x0000] is not None
+        self.assertEqual(len(raw[0x0000]), 10)
 
     def test_bad_dpi_value_is_rejected(self) -> None:
         with self.assertRaises(protocol.ProtocolError):

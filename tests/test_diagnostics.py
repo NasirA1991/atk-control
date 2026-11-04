@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from compx_control import diagnostics
-from compx_control.state import Button, MouseState
+from atk_control import diagnostics
+from atk_control.state import Button, MouseState
 
 
 class DiagnosticsTests(unittest.TestCase):
@@ -48,10 +48,27 @@ class DiagnosticsTests(unittest.TestCase):
             target = Path(folder) / "report.md"
             path = diagnostics.write_report(target, self._state())
             self.assertTrue(path.exists())
-            self.assertIn("# Compx Control device report", path.read_text())
+            self.assertIn("# ATK Control device report", path.read_text())
+
+    def test_report_has_support_link_and_no_hostname(self) -> None:
+        import socket
+        text = diagnostics.report_text(self._state())
+        self.assertIn("Support request:", text)
+        self.assertIn("ATK Control", text)
+        self.assertNotIn(socket.gethostname(), text)
 
     def test_default_filename(self) -> None:
-        self.assertRegex(diagnostics.default_filename(), r"^compx-control-report-\d{8}-\d{4}\.md$")
+        self.assertRegex(diagnostics.default_filename(), r"^atk-control-report-\d{8}-\d{4}\.md$")
+
+    def test_raw_register_report(self) -> None:
+        text = diagnostics.report_text(
+            self._state(),
+            raw_registers={0x0000: bytes.fromhex("01 54 02 53 01 54 00 55 00 55")},
+        )
+        self.assertIn("Raw configuration registers", text)
+        self.assertIn("0x0000", text)
+        self.assertIn("01 54 02 53", text)
+        self.assertIn("Support request:", text)
 
 
 if __name__ == "__main__":

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
-from compx_control.worker import DemoWorker
+from atk_control import devices
+from atk_control.state import MouseState
+from atk_control.worker import DeviceWorker, DemoWorker
 
 
 class DemoWorkerTests(unittest.TestCase):
@@ -52,6 +56,43 @@ class DemoWorkerTests(unittest.TestCase):
         self.assertEqual(len(devices), 1)
         self.assertEqual(self.worker.device_path, "/dev/hidraw-demo")
         self.worker.select_device("/dev/hidraw-demo")
+
+    def test_support_report(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "report.md"
+            self.worker.save_support_report(str(target))
+            self.assertTrue(target.exists())
+            text = target.read_text()
+            self.assertIn("ATK Control device report", text)
+            self.assertIn("MAD R", text)
+
+
+class SupportReportPathTest(unittest.TestCase):
+    def test_device_worker_writes_raw_report(self) -> None:
+        mouse_state = MouseState(model_name="MAD R +", brand="ATK", sensor="PAW3395")
+        capabilities = devices.default_capabilities()
+
+        class FakeController:
+            path = "/dev/hidraw-test"
+            state = mouse_state
+            caps = capabilities
+
+            def read_full(self):
+                return mouse_state
+
+            def collect_raw_registers(self):
+                return {0x0000: bytes.fromhex("01 54 02 53 01 54 00 55 00 55")}
+
+        worker = DeviceWorker(lambda *_: None, lambda *_: None)
+        worker._controller = FakeController()
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "report.md"
+            worker._write_support_report(str(target))
+            self.assertTrue(target.exists())
+            text = target.read_text()
+            self.assertIn("Raw configuration registers", text)
+            self.assertIn("01 54 02 53", text)
+            self.assertIn("Support request:", text)
 
 
 if __name__ == "__main__":

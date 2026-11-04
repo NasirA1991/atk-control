@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from compx_control.state import MouseState
-from compx_control.tray import ICON_SIZE, render_tray_icon
+from atk_control.state import MouseState
+from atk_control.tray import ICON_SIZE, render_tray_icon
 
 
 class TrayIconTests(unittest.TestCase):
@@ -13,7 +13,7 @@ class TrayIconTests(unittest.TestCase):
         self.state = MouseState(battery=64, charging=False, model_name="MAD R")
 
     def test_all_styles_return_argb_pixmap(self) -> None:
-        for style in ("hex", "bars", "bolt"):
+        for style in ("hex", "bars", "reticle"):
             pixmap = render_tray_icon(self.state, True, style)
             self.assertEqual(len(pixmap), 1)
             width, height, data = pixmap[0]
@@ -24,7 +24,7 @@ class TrayIconTests(unittest.TestCase):
     def test_styles_are_distinct(self) -> None:
         icons = [
             render_tray_icon(self.state, True, style)[0][2]
-            for style in ("hex", "bars", "bolt")
+            for style in ("hex", "bars", "reticle")
         ]
         self.assertEqual(len(set(icons)), 3)
 
@@ -39,6 +39,13 @@ class TrayIconTests(unittest.TestCase):
         self.state.charging = False
         idle = render_tray_icon(self.state, True, "hex")[0][2]
         self.assertNotEqual(charging, idle)
+
+    def test_bars_and_reticle_have_transparent_background(self) -> None:
+        for style in ("bars", "reticle"):
+            data = render_tray_icon(self.state, True, style)[0][2]
+            # Corner alpha is zero: both styles are transparent panel icons.
+            self.assertEqual(data[3], 0, style)
+            self.assertEqual(data[(63 * 64 + 63) * 4 + 3], 0, style)
 
 
 if __name__ == "__main__":

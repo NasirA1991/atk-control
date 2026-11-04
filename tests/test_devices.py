@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from compx_control import devices, protocol
+from atk_control import devices, protocol
 
 
 class ModelTests(unittest.TestCase):

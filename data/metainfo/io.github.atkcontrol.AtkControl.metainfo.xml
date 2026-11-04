@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.atkcontrol.AtkControl</id>
+  <name>ATK Control</name>
+  <summary>Native configuration for ATK/VXE gaming mice</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.atkcontrol">
+    <name>ATK Control contributors</name>
+  </developer>
+  <description>
+    <p>
+      ATK Control is a native Linux companion for ATK/VXE gaming mice such
+      as the MAD R family and VXE R1. It talks to the mouse directly through its
+      vendor HID collection, so no browser tab, Windows virtual machine or vendor
+      service is required.
+    </p>
+    <p>
+      Configure the polling rate, up to eight DPI stages with per-stage colours,
+      lift-off distance, debounce, sleep timer, Motion Sync, ripple control,
+      sensor rotation, straight-line correction and the DPI indicator LED. The
+      battery percentage can live in the system tray with three distinctive icon
+      styles, and a small CLI makes the same settings scriptable.
+    </p>
+    <p>
+      Settings are stored on the mouse itself. The app works offline and sends no
+      telemetry.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.atkcontrol.AtkControl.desktop</launchable>
+  <provides>
+    <binary>atk-control</binary>
+    <binary>atkctl</binary>
+  </provides>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The overview, with live battery and quick controls</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/atk-control/main/docs/screenshots/overview.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Polling rate, sensor processing and sensor rotation</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/atk-control/main/docs/screenshots/performance.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>DPI stages with independent X/Y resolution and colours</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/atk-control/main/docs/screenshots/dpi.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>DPI indicator LED controls</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/atk-control/main/docs/screenshots/lighting.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Device details and a one-click support report</caption>
+      <image>https://raw.githubusercontent.com/NasirA1991/atk-control/main/docs/screenshots/device.png</image>
+    </screenshot>
+  </screenshots>
+  <url type="homepage">https://github.com/NasirA1991/atk-control</url>
+  <url type="bugtracker">https://github.com/NasirA1991/atk-control/issues</url>
+  <url type="help">https://github.com/NasirA1991/atk-control#readme</url>
+  <categories>
+    <category>Settings</category>
+    <category>HardwareSettings</category>
+  </categories>
+  <keywords>
+    <keyword>mouse</keyword>
+    <keyword>gaming</keyword>
+    <keyword>DPI</keyword>
+    <keyword>polling</keyword>
+    <keyword>battery</keyword>
+    <keyword>MAD R</keyword>
+    <keyword>VXE R1</keyword>
+    <keyword>ATK</keyword>
+    <keyword>R1</keyword>
+  </keywords>
+  <content_rating type="oars-1.1"/>
+  <branding>
+    <color type="primary" scheme_preference="dark">#ff6b3d</color>
+  </branding>
+  <releases>
+    <release version="0.2.0" date="2026-11-04">
+      <description>
+        <p>Rebranded as ATK Control, added the Reticle tray icon and a first-class device support report flow for ATK/VXE mice.</p>
+      </description>
+    </release>
+    <release version="0.1.2" date="2026-11-04">
+      <description>
+        <p>Adds hardware-verified VXE R1 Pro 4K receiver support, including 2,000 and 4,000 Hz polling.</p>
+      </description>
+    </release>
+    <release version="0.1.1" date="2026-11-04">
+      <description>
+        <p>Adds hardware-verified VXE R1 Pro support through its 1K receiver and a receiver picker when multiple devices are connected.</p>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-11-04">
+      <description>
+        <p>First release with MAD R family support, 8K receiver support, tray integration and CLI.</p>
+      </description>
+    </release>
+  </releases>
+</component>

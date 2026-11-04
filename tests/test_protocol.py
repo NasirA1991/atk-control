@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from compx_control import protocol
+from atk_control import protocol
 
 
 class ChecksumTests(unittest.TestCase):

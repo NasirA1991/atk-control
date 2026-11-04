@@ -1,0 +1,6 @@
+# ATK / VXE vendor HID configuration collections.
+# The app only needs access to the 0xff02:0002 collection, but hidraw nodes are
+# enumerated per interface, so grant the logged-in user access to the vendor's
+# HID devices. Reconnect the mouse or receiver after installing this rule.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="373b", TAG+="uaccess", MODE="0660"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3554", TAG+="uaccess", MODE="0660"

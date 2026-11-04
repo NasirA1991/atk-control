@@ -14,19 +14,19 @@ if [ "$USER_INSTALL" -eq 0 ] && [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-DATA_ROOT="$PREFIX/share/compx-control"
+DATA_ROOT="$PREFIX/share/atk-control"
 rm -rf "$DATA_ROOT"
-rm -f "$PREFIX/bin/compx-control" "$PREFIX/bin/compxctl"
-rm -f "$PREFIX/share/applications/io.github.compxcontrol.CompxControl.desktop"
-rm -f "$PREFIX/share/metainfo/io.github.compxcontrol.CompxControl.metainfo.xml"
+rm -f "$PREFIX/bin/atk-control" "$PREFIX/bin/atkctl"
+rm -f "$PREFIX/share/applications/io.github.atkcontrol.AtkControl.desktop"
+rm -f "$PREFIX/share/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml"
 for size in 16 32 48 64 128 256 512; do
-    rm -f "$PREFIX/share/icons/hicolor/${size}x${size}/apps/compx-control.png"
+    rm -f "$PREFIX/share/icons/hicolor/${size}x${size}/apps/atk-control.png"
 done
-rm -f "$PREFIX/share/icons/hicolor/scalable/apps/compx-control.svg"
+rm -f "$PREFIX/share/icons/hicolor/scalable/apps/atk-control.svg"
 if [ "$USER_INSTALL" -eq 0 ]; then
-    rm -f "$PREFIX/lib/udev/rules.d/71-compx-control.rules"
+    rm -f "$PREFIX/lib/udev/rules.d/71-atk-control.rules"
     if command -v udevadm >/dev/null 2>&1; then
         udevadm control --reload-rules || true
     fi
 fi
-echo "Compx Control removed. Your saved preferences were left in ~/.config/compx-control."
+echo "ATK Control removed. Your saved preferences were left in ~/.config/atk-control."

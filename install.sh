@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Compx Control from this checkout.
+# Install ATK Control from this checkout.
 #
 #   sudo ./install.sh             system-wide under /usr
 #   ./install.sh --user           per-user under ~/.local
@@ -35,7 +35,7 @@ if [ "$USER_INSTALL" -eq 1 ]; then
         exit 2
     fi
     PREFIX="$HOME/.local"
-    DATA_ROOT="$HOME/.local/share/compx-control"
+    DATA_ROOT="$HOME/.local/share/atk-control"
     INSTALL_DATA_ROOT="$DATA_ROOT"
     BIN_DIR="$HOME/.local/bin"
     ICON_ROOT="$HOME/.local/share/icons/hicolor"
@@ -43,8 +43,8 @@ if [ "$USER_INSTALL" -eq 1 ]; then
     METAINFO_DIR="$HOME/.local/share/metainfo"
     RULE_DIR=""
 else
-    DATA_ROOT="$DESTDIR$PREFIX/share/compx-control"
-    INSTALL_DATA_ROOT="$PREFIX/share/compx-control"
+    DATA_ROOT="$DESTDIR$PREFIX/share/atk-control"
+    INSTALL_DATA_ROOT="$PREFIX/share/atk-control"
     BIN_DIR="$DESTDIR$PREFIX/bin"
     ICON_ROOT="$DESTDIR$PREFIX/share/icons/hicolor"
     DESKTOP_DIR="$DESTDIR$PREFIX/share/applications"
@@ -57,40 +57,40 @@ if [ "$USER_INSTALL" -eq 0 ] && [ -z "$DESTDIR" ] && [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo "Installing Compx Control into ${DATA_ROOT}"
+echo "Installing ATK Control into ${DATA_ROOT}"
 
 install -d "$DATA_ROOT" "$BIN_DIR" "$DESKTOP_DIR" "$METAINFO_DIR"
-rm -rf "$DATA_ROOT/compx_control"
-cp -r "$ROOT/compx_control" "$DATA_ROOT/compx_control"
-find "$DATA_ROOT/compx_control" -type d -name __pycache__ -prune -exec rm -rf {} +
+rm -rf "$DATA_ROOT/atk_control"
+cp -r "$ROOT/atk_control" "$DATA_ROOT/atk_control"
+find "$DATA_ROOT/atk_control" -type d -name __pycache__ -prune -exec rm -rf {} +
 rm -rf "$DATA_ROOT/data"
 cp -r "$ROOT/data" "$DATA_ROOT/data"
 
-cat > "$BIN_DIR/compx-control" <<EOF
+cat > "$BIN_DIR/atk-control" <<EOF
 #!/bin/sh
-PYTHONPATH="$INSTALL_DATA_ROOT\${PYTHONPATH:+:\$PYTHONPATH}" exec python3 -m compx_control "\$@"
+PYTHONPATH="$INSTALL_DATA_ROOT\${PYTHONPATH:+:\$PYTHONPATH}" exec python3 -m atk_control "\$@"
 EOF
-cat > "$BIN_DIR/compxctl" <<EOF
+cat > "$BIN_DIR/atkctl" <<EOF
 #!/bin/sh
-PYTHONPATH="$INSTALL_DATA_ROOT\${PYTHONPATH:+:\$PYTHONPATH}" exec python3 -m compx_control.cli "\$@"
+PYTHONPATH="$INSTALL_DATA_ROOT\${PYTHONPATH:+:\$PYTHONPATH}" exec python3 -m atk_control.cli "\$@"
 EOF
-chmod 755 "$BIN_DIR/compx-control" "$BIN_DIR/compxctl"
+chmod 755 "$BIN_DIR/atk-control" "$BIN_DIR/atkctl"
 
 for size in 16 32 48 64 128 256 512; do
-    src="$ROOT/data/icons/hicolor/${size}x${size}/apps/compx-control.png"
+    src="$ROOT/data/icons/hicolor/${size}x${size}/apps/atk-control.png"
     if [ -f "$src" ]; then
-        install -Dm644 "$src" "$ICON_ROOT/${size}x${size}/apps/compx-control.png"
+        install -Dm644 "$src" "$ICON_ROOT/${size}x${size}/apps/atk-control.png"
     fi
 done
-install -Dm644 "$ROOT/data/icons/hicolor/scalable/apps/compx-control.svg" \
-    "$ICON_ROOT/scalable/apps/compx-control.svg"
-install -Dm644 "$ROOT/data/applications/io.github.compxcontrol.CompxControl.desktop" \
-    "$DESKTOP_DIR/io.github.compxcontrol.CompxControl.desktop"
-install -Dm644 "$ROOT/data/metainfo/io.github.compxcontrol.CompxControl.metainfo.xml" \
-    "$METAINFO_DIR/io.github.compxcontrol.CompxControl.metainfo.xml"
+install -Dm644 "$ROOT/data/icons/hicolor/scalable/apps/atk-control.svg" \
+    "$ICON_ROOT/scalable/apps/atk-control.svg"
+install -Dm644 "$ROOT/data/applications/io.github.atkcontrol.AtkControl.desktop" \
+    "$DESKTOP_DIR/io.github.atkcontrol.AtkControl.desktop"
+install -Dm644 "$ROOT/data/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml" \
+    "$METAINFO_DIR/io.github.atkcontrol.AtkControl.metainfo.xml"
 
 if [ -n "$RULE_DIR" ]; then
-    install -Dm644 "$ROOT/data/udev/71-compx-control.rules" "$RULE_DIR/71-compx-control.rules"
+    install -Dm644 "$ROOT/data/udev/71-atk-control.rules" "$RULE_DIR/71-atk-control.rules"
 fi
 
 if [ -z "$DESTDIR" ]; then
@@ -108,18 +108,18 @@ fi
 
 echo
 echo "Installed:"
-echo "  compx-control"
-echo "  compxctl"
+echo "  atk-control"
+echo "  atkctl"
 if [ "$USER_INSTALL" -eq 1 ]; then
     echo
     echo "The udev rule was not installed for a per-user install. To give your"
     echo "user access to the mouse, run:"
-    echo "  sudo install -Dm644 data/udev/71-compx-control.rules /usr/lib/udev/rules.d/71-compx-control.rules"
+    echo "  sudo install -Dm644 data/udev/71-atk-control.rules /usr/lib/udev/rules.d/71-atk-control.rules"
     echo "  sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw"
     echo "Then unplug and reconnect the mouse or receiver."
     case ":$PATH:" in
         *":$HOME/.local/bin:"*) ;;
-        *) echo; echo "Add ~/.local/bin to PATH to run compx-control and compxctl." ;;
+        *) echo; echo "Add ~/.local/bin to PATH to run atk-control and atkctl." ;;
     esac
 else
     echo
