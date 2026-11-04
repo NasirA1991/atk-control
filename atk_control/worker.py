@@ -70,6 +70,7 @@ class DeviceWorker:
         self._query_misses = 0
         self._warned_permission = False
         self._foreground = False
+        self._last_path_check = 0.0
 
     # -- public API -------------------------------------------------------
     def start(self) -> None:
@@ -343,7 +344,15 @@ class DeviceWorker:
                 self._last_full = now
             else:
                 state = controller.read_live()
-            self._query_misses = 0
+            if controller.info.is_receiver and state.receiver_online is False:
+                self._query_misses += 1
+                if self._query_misses >= 2:
+                    self._disconnect(
+                        "The paired mouse is offline; looking for another connected mouse."
+                    )
+                    return
+            else:
+                self._query_misses = 0
             with self._lock:
                 self._state = copy.deepcopy(state)
             self._emit_state(state, set())
@@ -383,6 +392,11 @@ class DeviceWorker:
                 self._stop.wait(0.15 if retry else backoff)
                 backoff = min(backoff * 1.5, 4.0)
                 continue
+            if time.monotonic() - self._last_path_check >= 1.0:
+                self._last_path_check = time.monotonic()
+                if not os.path.exists(self._controller.path):
+                    self._disconnect("Mouse disconnected; looking for another connected mouse.")
+                    continue
             with self._lock:
                 report_path = self._report_path
                 include_raw = self._report_include_raw

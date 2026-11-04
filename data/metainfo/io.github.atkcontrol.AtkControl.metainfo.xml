@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.4.3" date="2026-11-04">
+      <description>
+        <p>Detects when the paired mouse goes offline and automatically switches to the other connected mouse, with a live receiver-online check and faster unplug detection.</p>
+      </description>
+    </release>
     <release version="0.4.2" date="2026-11-04">
       <description>
         <p>Fixes Flatpak tray registration after the unique-name hardening, while keeping the dynamic battery icon and standard menu path.</p>

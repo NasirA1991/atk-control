@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import tempfile
+import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from atk_control import devices
 from atk_control.protocol import DeviceInfo, ProtocolError
@@ -60,6 +61,24 @@ class WorkerSafetyTests(unittest.TestCase):
         self.assertEqual(worker._preferred_path, two.path)
         self.assertEqual(states[-1].model_name, "VXE R1 Pro")
         self.assertTrue(any("Switched automatically" in message for message in toasts))
+
+    def test_offline_paired_mouse_disconnects_after_two_polls(self) -> None:
+        worker = DeviceWorker(lambda *_: None, lambda *_: None)
+        controller = Mock()
+        controller.path = "/dev/hidraw-test"
+        controller.info.is_receiver = True
+        controller.read_live.return_value = MouseState(
+            model_name="VXE R1 Pro", receiver_online=False, battery=90
+        )
+        worker._controller = controller
+        worker._last_full = time.monotonic()
+        worker._disconnect = Mock()
+        with patch("atk_control.worker.os.path.exists", return_value=True):
+            worker._poll()
+            worker._disconnect.assert_not_called()
+            worker._poll()
+        worker._disconnect.assert_called_once()
+        self.assertIn("offline", worker._disconnect.call_args.args[0].lower())
 
     def test_hidden_polling_is_slower(self) -> None:
         worker = DeviceWorker(lambda *_: None, lambda *_: None)
