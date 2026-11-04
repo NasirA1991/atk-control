@@ -12,6 +12,9 @@ provides=('compx-control')
 conflicts=('compx-control' 'compx-control-git' 'atk-control-git')
 replaces=('compx-control')
 options=('!strip')
+# This local PKGBUILD builds the checked-out working tree ($startdir); it has
+# no remote source to verify. The published AUR atk-control package pins the
+# release tarball and its real SHA-256 (see packaging/aur/atk-control/PKGBUILD.in).
 source=()
 sha256sums=()
 

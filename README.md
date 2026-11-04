@@ -29,7 +29,9 @@ paru -S atk-control     # paru
 yay -S atk-control      # yay
 ```
 
-For the latest main branch, install `atk-control-git` instead. Other
+The stable AUR package pins the release tarball's SHA-256. `atk-control-git`
+tracks main and therefore uses `SKIP`, as VCS packages do. For the latest main
+branch, install `atk-control-git` instead. Other
 distributions can download the latest Flatpak or AppImage from
 [Releases](https://github.com/NasirA1991/atk-control/releases), or read the
 [full installation instructions](#install).
