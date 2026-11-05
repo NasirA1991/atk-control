@@ -149,6 +149,7 @@ class AtkApplication(Adw.Application):
             self.window = MainWindow(self.worker, initial_page=self.page)
             self.window.set_icon_name("atk-control")
             self.window.connect("close-request", self._on_close_request)
+            self.window.connect("notify::visible", self._on_window_visibility)
             self.add_window(self.window)
             self.window.on_link(*self._latest_link)
             if self._latest_state is not None:

@@ -15,7 +15,8 @@ if [ "$USER_INSTALL" -eq 0 ] && [ "$(id -u)" -ne 0 ]; then
 fi
 
 DATA_ROOT="$PREFIX/share/atk-control"
-rm -rf "$DATA_ROOT"
+LICENSE_ROOT="$PREFIX/share/licenses/atk-control"
+rm -rf "$DATA_ROOT" "$LICENSE_ROOT"
 rm -f "$PREFIX/bin/atk-control" "$PREFIX/bin/atkctl"
 rm -f "$PREFIX/share/applications/io.github.atkcontrol.AtkControl.desktop"
 rm -f "$PREFIX/share/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml"
@@ -23,10 +24,22 @@ for size in 16 32 48 64 128 256 512; do
     rm -f "$PREFIX/share/icons/hicolor/${size}x${size}/apps/atk-control.png"
 done
 rm -f "$PREFIX/share/icons/hicolor/scalable/apps/atk-control.svg"
+
+# Autostart is not a preference worth preserving: it launches a binary that is
+# no longer installed. Preferences under ~/.config/atk-control are kept.
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+    user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    if [ -n "$user_home" ]; then
+        CONFIG_HOME="$user_home/.config"
+    fi
+fi
+rm -f "$CONFIG_HOME/autostart/atk-control.desktop"
+
 if [ "$USER_INSTALL" -eq 0 ]; then
     rm -f "$PREFIX/lib/udev/rules.d/71-atk-control.rules"
     if command -v udevadm >/dev/null 2>&1; then
         udevadm control --reload-rules || true
     fi
 fi
-echo "ATK Control removed. Your saved preferences were left in ~/.config/atk-control."
+echo "ATK Control removed. Autostart was cleaned up; saved preferences were left in ~/.config/atk-control."

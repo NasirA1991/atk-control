@@ -1,5 +1,6 @@
 PREFIX ?= /usr
 DESTDIR ?=
+VERSION := $(shell python3 -c 'from atk_control.config import VERSION; print(VERSION)')
 
 .PHONY: all run demo test compile install uninstall appimage flatpak clean
 
@@ -24,10 +25,10 @@ uninstall:
 	./uninstall.sh
 
 appimage:
-	./packaging/appimage/build.sh 0.5.1 dist
+	./packaging/appimage/build.sh $(VERSION) dist
 
 flatpak:
-	./packaging/flatpak/build.sh 0.5.1 dist
+	./packaging/flatpak/build.sh $(VERSION) dist
 
 clean:
 	rm -rf dist build AppDir .flatpak-builder screenshots

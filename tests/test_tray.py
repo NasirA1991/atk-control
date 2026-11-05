@@ -6,8 +6,10 @@ import unittest
 
 import dbus
 
+from types import SimpleNamespace
+
 from atk_control.state import MouseState
-from atk_control.tray import ICON_SIZE, Tray, render_tray_icon
+from atk_control.tray import ICON_SIZE, ID_DPI_BASE, Tray, render_tray_icon
 
 
 class TrayIconTests(unittest.TestCase):
@@ -41,6 +43,29 @@ class TrayIconTests(unittest.TestCase):
         self.state.charging = False
         idle = render_tray_icon(self.state, True, "hex")[0][2]
         self.assertNotEqual(charging, idle)
+
+    def test_tray_dpi_menu_includes_current_and_range(self) -> None:
+        tray = object.__new__(Tray)
+        tray.state = SimpleNamespace(dpi=260)
+        options = [10, 50, 100, 200, 260, 400, 800, 1600, 3200, 6400, 30000, 42000]
+        tray.caps = SimpleNamespace(
+            sensor=SimpleNamespace(min_dpi=10, max_dpi=42000),
+            dpi_options=options,
+        )
+        values = Tray._dpi_menu_values(tray)
+        self.assertIn(10, values)
+        self.assertIn(260, values)
+        self.assertIn(42000, values)
+        self.assertEqual(values, sorted(set(values)))
+
+    def test_tray_dpi_event_uses_current_value_map(self) -> None:
+        tray = object.__new__(Tray)
+        tray._dpi_values = [260, 800]
+        tray.polling_rates = []
+        calls = []
+        tray.on_dpi = calls.append
+        Tray.Event(tray, ID_DPI_BASE + 1, "clicked", "", 0)
+        self.assertEqual(calls, [800])
 
     def test_generated_tray_bus_names_are_valid(self) -> None:
         tray = object.__new__(Tray)

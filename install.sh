@@ -38,6 +38,7 @@ if [ "$USER_INSTALL" -eq 1 ]; then
     DATA_ROOT="$HOME/.local/share/atk-control"
     INSTALL_DATA_ROOT="$DATA_ROOT"
     BIN_DIR="$HOME/.local/bin"
+    LICENSE_DIR="$HOME/.local/share/licenses/atk-control"
     ICON_ROOT="$HOME/.local/share/icons/hicolor"
     DESKTOP_DIR="$HOME/.local/share/applications"
     METAINFO_DIR="$HOME/.local/share/metainfo"
@@ -46,6 +47,7 @@ else
     DATA_ROOT="$DESTDIR$PREFIX/share/atk-control"
     INSTALL_DATA_ROOT="$PREFIX/share/atk-control"
     BIN_DIR="$DESTDIR$PREFIX/bin"
+    LICENSE_DIR="$DESTDIR$PREFIX/share/licenses/atk-control"
     ICON_ROOT="$DESTDIR$PREFIX/share/icons/hicolor"
     DESKTOP_DIR="$DESTDIR$PREFIX/share/applications"
     METAINFO_DIR="$DESTDIR$PREFIX/share/metainfo"
@@ -88,6 +90,7 @@ install -Dm644 "$ROOT/data/applications/io.github.atkcontrol.AtkControl.desktop"
     "$DESKTOP_DIR/io.github.atkcontrol.AtkControl.desktop"
 install -Dm644 "$ROOT/data/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml" \
     "$METAINFO_DIR/io.github.atkcontrol.AtkControl.metainfo.xml"
+install -Dm644 "$ROOT/LICENSE" "$LICENSE_DIR/LICENSE"
 
 if [ -n "$RULE_DIR" ]; then
     install -Dm644 "$ROOT/data/udev/71-atk-control.rules" "$RULE_DIR/71-atk-control.rules"

@@ -355,6 +355,7 @@ class Tray(dbus.service.Object):
         self.connected = False
         self.caps = devices.default_capabilities()
         self.polling_rates = [125, 250, 500, 1000]
+        self._dpi_values: list[int] = []
         self._message = "Waiting for an ATK/VXE mouse"
         self._icon = render_tray_icon(None, False, self.style)
         self._revision = 1
@@ -576,6 +577,17 @@ class Tray(dbus.service.Object):
     def _dpi(self) -> int:
         return self.state.dpi if self.state else 1600
 
+    def _dpi_menu_values(self) -> list[int]:
+        current = self._dpi()
+        candidates = {current, 100, 200, 400, 800, 1600, 3200, 6400}
+        options = self.caps.dpi_options if self.caps else None
+        if self.caps is not None:
+            candidates.add(self.caps.sensor.min_dpi)
+            candidates.add(self.caps.sensor.max_dpi)
+        if options:
+            candidates = {value for value in candidates if value in options or value == current}
+        return sorted(candidates)
+
     def _items(self) -> list[dict]:
         connected = self.connected and self.state is not None
         state = self.state
@@ -600,10 +612,10 @@ class Tray(dbus.service.Object):
             "children-display": "submenu",
         })
         dpi_children = []
-        values = sorted(set((400, 800, 1600, 3200, 6400, self._dpi())))
-        for value in values:
+        self._dpi_values = self._dpi_menu_values()
+        for index, value in enumerate(self._dpi_values):
             dpi_children.append({
-                "id": ID_DPI_BASE + value,
+                "id": ID_DPI_BASE + index,
                 "label": f"{value} DPI",
                 "enabled": connected,
                 "toggle-type": "radio",
@@ -771,8 +783,8 @@ class Tray(dbus.service.Object):
             self.on_straight(not bool(self.state.straight_line))
         elif item_id - ID_POLLING_BASE in self.polling_rates:
             self.on_polling(item_id - ID_POLLING_BASE)
-        elif item_id - ID_DPI_BASE in (400, 800, 1600, 3200, 6400):
-            self.on_dpi(item_id - ID_DPI_BASE)
+        elif 0 <= item_id - ID_DPI_BASE < len(self._dpi_values):
+            self.on_dpi(self._dpi_values[item_id - ID_DPI_BASE])
         elif ID_PROFILE_BASE < item_id < ID_PROFILE_BASE + 5:
             self.on_profile(item_id - ID_PROFILE_BASE)
         elif ID_STYLE_BASE <= item_id < ID_STYLE_BASE + len(STYLE_KEYS):

@@ -634,6 +634,9 @@ class DemoWorker:
     def set_foreground(self, foreground: bool) -> None:
         return None
 
+    def retry(self) -> None:
+        return None
+
     def save_support_report(self, path: str, include_raw: bool = False) -> None:
         target = Path(path).expanduser()
         target.parent.mkdir(parents=True, exist_ok=True)

@@ -21,6 +21,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import config, devices, diagnostics  # noqa: E402
 from .controller import BUTTON_ACTIONS, BUTTON_ACTION_ORDER  # noqa: E402
+from .view_state import state_signature  # noqa: E402
 from .protocol import clamp_dpi  # noqa: E402
 from .state import MouseState  # noqa: E402
 
@@ -277,6 +278,15 @@ def _gdk_rgba(value: str) -> Gdk.RGBA:
     return rgba
 
 
+def _theme_fg(widget, alpha: float = 1.0) -> tuple[float, float, float, float]:
+    """Return the widget's current theme foreground with the given alpha."""
+    try:
+        color = widget.get_color()
+        return (color.red, color.green, color.blue, alpha)
+    except Exception:
+        return (1.0, 1.0, 1.0, alpha)
+
+
 class BatteryRail(Gtk.DrawingArea):
     """Angled battery cells rather than a generic progress bar."""
 
@@ -303,7 +313,7 @@ class BatteryRail(Gtk.DrawingArea):
         skew = 4.0
         usable = width - gap * (cells - 1) - skew
         cell_w = max(1.0, usable / cells)
-        filled = round_cells = int(round(self._percent / 100 * cells)) if self._known else 0
+        filled = int(round(self._percent / 100 * cells)) if self._known else 0
         if self._charging:
             color = (0.24, 0.78, 1.0)
         elif self._percent <= 15:
@@ -324,7 +334,7 @@ class BatteryRail(Gtk.DrawingArea):
             if index < filled:
                 ctx.set_source_rgba(*color, 0.95)
             else:
-                ctx.set_source_rgba(1, 1, 1, 0.10 if not self._charging else 0.08)
+                ctx.set_source_rgba(*_theme_fg(self, 0.10 if not self._charging else 0.08))
             ctx.fill()
         if self._charging:
             ctx.set_source_rgba(0.24, 0.78, 1.0, 0.8)
@@ -356,7 +366,7 @@ class BrandMark(Gtk.DrawingArea):
         ctx.set_line_width(max(2.4, min(width, height) * 0.095))
         ctx.set_line_cap(cairo.LINE_CAP_ROUND)
         ctx.set_line_join(cairo.LINE_JOIN_ROUND)
-        ctx.set_source_rgba(1, 1, 1, 0.95)
+        ctx.set_source_rgba(*_theme_fg(self, 0.95))
         ctx.move_to(cx, cy - radius * 0.43)
         ctx.line_to(cx - radius * 0.40, cy + radius * 0.46)
         ctx.move_to(cx, cy - radius * 0.43)
@@ -396,7 +406,7 @@ class LightingPreview(Gtk.DrawingArea):
         ctx.fill()
 
         ctx.set_line_width(2.0)
-        ctx.set_source_rgba(1, 1, 1, 0.10)
+        ctx.set_source_rgba(*_theme_fg(self, 0.10))
         ctx.arc(cx, cy, min(width, height) * 0.31, 0, 2 * math.pi)
         ctx.stroke()
 
@@ -411,7 +421,7 @@ class LightingPreview(Gtk.DrawingArea):
         text = "OFF" if self._mode == 0 else ("BREATHING" if self._mode == 2 else "STEADY")
         ext = ctx.text_extents(text)
         ctx.move_to(cx - ext.width / 2, cy + 5)
-        ctx.set_source_rgba(1, 1, 1, 0.7)
+        ctx.set_source_rgba(*_theme_fg(self, 0.7))
         ctx.show_text(text)
 
 
@@ -424,6 +434,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._loading = False
         self._angle_timer = 0
         self._dpi_timers: dict[tuple[int, str], int] = {}
+        self._color_timers: dict[int, int] = {}
         self._tray_style = config.load().get("tray_icon_style", config.DEFAULT_TRAY_STYLE)
         self._button_action_keys = BUTTON_ACTION_ORDER + ("custom",)
         self._last_state_signature: str | None = None
@@ -1332,11 +1343,16 @@ class MainWindow(Adw.ApplicationWindow):
             round(rgba.red * 255), round(rgba.green * 255), round(rgba.blue * 255)
         )
         key = f"color:{index}"
-        if getattr(self, "_color_timer", None):
-            GLib.source_remove(self._color_timer)
-        self._color_timer = GLib.timeout_add(
-            250, lambda: (self.worker.submit("stage_color", index, color, key=key), False)[1]
-        )
+        existing = self._color_timers.pop(index, None)
+        if existing:
+            GLib.source_remove(existing)
+
+        def submit() -> bool:
+            self._color_timers.pop(index, None)
+            self.worker.submit("stage_color", index, color, key=key)
+            return False
+
+        self._color_timers[index] = GLib.timeout_add(250, submit)
 
     def _set_lod(self, code: int) -> None:
         if not self._loading:
@@ -1459,29 +1475,10 @@ class MainWindow(Adw.ApplicationWindow):
     def on_state(self, state: MouseState, changed: set[str]) -> None:
         self._state = state
         self._connected = True
-        # The worker re-emits the full state on every live poll.  Rebuilding
-        # every page when nothing changed is expensive (several percent CPU on
-        # an idle GTK window), so only redraw when the data actually differs.
-        # Compare only the fields the window actually renders.  Receiver
-        # liveness, RF id and voltage update every poll but do not affect the
-        # pages; treating them as changes causes a full relayout every 3 s.
-        signature = (
-            state.battery, state.charging, state.wired, state.read_only,
-            state.model_name, state.brand, state.sensor, state.firmware,
-            state.usb_bcd, state.cid, state.mid, state.receiver_name,
-            state.receiver_pid, state.dpi, state.dpi_y, tuple(state.stages),
-            state.active_stage, state.stage_count, state.polling_rate,
-            state.lod_code, state.lod_mm, state.debounce_ms, state.motion_sync,
-            state.sleep_seconds, state.ripple_control, state.straight_line,
-            state.angle_degrees, state.angle_enabled, state.performance_mode,
-            state.sensor_mode, state.long_range, state.led_mode,
-            state.led_brightness, state.led_speed, state.profile,
-            tuple((b.name, b.action, b.action_id) for b in state.buttons),
-            state.supports_angle, state.supports_performance_mode,
-            state.supports_sensor_max, state.supports_button_remap,
-            state.supports_long_range, state.supports_lighting,
-            state.supports_stage_colors,
-        )
+        # The worker re-emits the full state on every live poll. Rebuilding
+        # every page when nothing rendered changed is expensive on an idle
+        # GTK window, so compare the pure rendered-field signature.
+        signature = state_signature(state)
         if signature == self._last_state_signature:
             return
         self._last_state_signature = signature
@@ -1546,6 +1543,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.hero_link.remove_css_class("offline")
         if state.charging:
             self.hero_link.add_css_class("charging")
+        else:
+            self.hero_link.remove_css_class("charging")
         self.hero_receiver.set_text(link)
         self.hero_firmware.set_text(
             state.firmware or ("not reported" if state.via_receiver else "—")
