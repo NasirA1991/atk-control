@@ -11,7 +11,7 @@ from typing import Any
 
 APP_ID = "io.github.atkcontrol.AtkControl"
 APP_NAME = "ATK Control"
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 REPO_URL = "https://github.com/NasirA1991/atk-control"
 ISSUES_URL = f"{REPO_URL}/issues"
 SUPPORT_URL = f"{ISSUES_URL}/new?template=device-report.yml"

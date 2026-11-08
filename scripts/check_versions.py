@@ -41,7 +41,7 @@ def versions() -> dict[str, str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tag", help="release tag such as v0.5.2")
+    parser.add_argument("--tag", help="release tag such as v0.5.3")
     args = parser.parse_args(argv)
     found = versions()
     unique = set(found.values())

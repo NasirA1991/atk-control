@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.5.3" date="2026-11-08">
+      <description>
+        <p>Adds structured debug logging, retry backoff, profile-commit recovery and safer lock handling; fixes stage-colour canonicalisation and removes the unreachable long-range feature. Adds CLI/transport tests, static-analysis CI, coverage reporting, version-source validation, scoped workflow permissions and pinned actions.</p>
+      </description>
+    </release>
     <release version="0.5.2" date="2026-11-05">
       <description>
         <p>Fixes foreground polling when the window is visible, stage-colour redraws, tray DPI values and IDs, stale charging styling, light-theme drawing, per-stage colour debounce, version derivation and uninstall autostart cleanup. Installs the license file.</p>
