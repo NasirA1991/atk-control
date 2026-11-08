@@ -36,6 +36,10 @@ distributions can download the latest Flatpak or AppImage from
 [Releases](https://github.com/NasirA1991/atk-control/releases), or read the
 [full installation instructions](#install).
 
+> **Not a pip package.** `pip install .` is not a supported installation path:
+> the app needs the distro's GTK4/PyGObject stack, udev rule and data files.
+> Use AUR, Flatpak, AppImage, or `./install.sh`.
+
 **On this page:** [Features](#features) · [Supported devices](#supported-devices) · [Installation](#install) · [CLI](#cli) · [Troubleshooting](#troubleshooting) · [Permissions](#permissions) · [Support](#missing-your-mouse)
 
 ![Overview](docs/screenshots/overview.png)
@@ -65,8 +69,8 @@ distributions can download the latest Flatpak or AppImage from
   indicator colours, add/remove stages, and one-click stage activation. The
   active stage is the one the mouse's DPI button cycles through.
 - **Sensor sampling modes** — Basic, Competitive and Competitive MAX, with the
-  same trade-off descriptions as ATK HUB. MAX is enabled only for models where
-  it has been verified.
+  same trade-off descriptions as ATK HUB. MAX is enabled only where the model
+  table records hardware verification or explicit ATK HUB protocol evidence.
 - **Sensor control** — Motion Sync, ripple control, straight-line correction,
   lift-off distance, debounce, sleep timer and sensor rotation (on firmware
   that exposes it).
@@ -185,16 +189,20 @@ tray-only operation is designed to leave a wireless mouse alone.
 <details>
 <summary>Idle usage measurements</summary>
 
+These are approximate local measurements from development builds, not a
+reproducible benchmark suite. RSS counts shared GTK libraries; PSS is the fairer
+figure. The Flatpak shares its runtime with other GNOME apps, so its PSS is
+usually lower. Values depend on the desktop, theme, GPU and polling cadence.
+
 | Mode | Idle CPU | RSS | PSS |
 |---|---|---|---|
 | Tray only, window never created | ~0.05–0.13% | ~76 MB | ~49 MB |
 | Window open, idle | ~0.07–0.13% | ~131 MB | ~78 MB |
 
-RSS counts shared GTK libraries; PSS is the fairer figure. The Flatpak shares
-its runtime with other GNOME apps, so its PSS is usually lower. The window only
-relayouts when a displayed value actually changes; hidden battery polling is
-every 30 seconds, full refresh every 5 minutes, and the receiver liveness ping
-every 5 seconds.
+The window only relayouts when a displayed value actually changes; hidden
+battery polling is every 30 seconds, full refresh every 5 minutes, and the
+receiver liveness ping every 5 seconds. A visible window uses the faster live
+cadence.
 </details>
 
 ## Safety and concurrency
@@ -295,6 +303,11 @@ and other StatusNotifier hosts work out of the box.
 
 ## Troubleshooting
 
+For a problem report, run `atk-control --debug` (or set
+`ATK_CONTROL_DEBUG=1`) and include the stderr output. Debug logging never
+includes raw register bytes unless you explicitly create a report with raw
+registers enabled.
+
 ### “No permission for /dev/hidraw…” 
 Install the udev rule under [Permissions](#permissions), then unplug and
 reconnect the receiver. The AUR package installs it automatically.
@@ -374,6 +387,12 @@ import/export. Those remain in ATK HUB. Existing macro or shortcut button
 assignments are preserved and shown as *Custom / unsupported* unless you
 explicitly reset all button mappings.
 
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the evidence required before enabling
+write support for a new model, and [SECURITY.md](SECURITY.md) for private
+vulnerability reporting. Recent changes are in [CHANGELOG.md](CHANGELOG.md).
+
 ## Firmware
 
 ATK Control reads the firmware version when the mouse is awake and the receiver
@@ -387,13 +406,17 @@ query, and some combinations may not report it at all.
 
 ## Privacy
 
-ATK Control has no network code. It does not phone home, does not upload
+ATK Control has no network client code. It does not phone home, does not upload
 device data, and does not require an account. Settings are stored on the mouse;
 window preferences are a small JSON file in `~/.config/atk-control/`.
 
 Support reports are only created when you ask for one. Raw register bytes are
 omitted unless you opt in, and the app never uploads anything. Review the file
 before attaching it to a public issue.
+
+The only browser action is opening the ATK HUB URL in your default browser
+when you explicitly choose **Open ATK HUB**. That is a local desktop action,
+not a background network request.
 
 ## License
 

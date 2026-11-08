@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import fcntl
 import os
+import stat
 import tempfile
 from pathlib import Path
 
@@ -34,7 +35,20 @@ class DeviceLock:
             return
         try:
             self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-            fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+            info = os.lstat(self.directory)
+            if (
+                not stat.S_ISDIR(info.st_mode)
+                or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) & 0o077
+            ):
+                raise LockBusy(
+                    f"refusing unsafe lock directory {self.directory}"
+                )
+            fd = os.open(
+                self.path,
+                os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
         except OSError as exc:
             raise LockBusy(f"could not create the device lock: {exc}") from exc
         try:

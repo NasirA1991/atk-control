@@ -60,7 +60,6 @@ class MouseState:
     angle_degrees: int | None = None
     performance_mode: bool | None = None
     sensor_mode: int | None = None
-    long_range: bool | None = None
 
     # Lighting
     led_mode: int | None = None
@@ -69,7 +68,6 @@ class MouseState:
 
     # Stored configuration
     profile: int | None = None
-    profile_count: int = 4
     buttons: list[Button] = field(default_factory=list)
 
     # Support flags discovered while reading
@@ -77,7 +75,6 @@ class MouseState:
     supports_performance_mode: bool = False
     supports_sensor_max: bool = False
     supports_button_remap: bool = False
-    supports_long_range: bool = False
     supports_lighting: bool = False
     supports_stage_colors: bool = False
 

@@ -25,6 +25,30 @@ class LockTests(unittest.TestCase):
             third.acquire()
             third.release()
 
+    def test_unsafe_lock_directories_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            base.chmod(0o755)
+            with self.assertRaises(LockBusy):
+                DeviceLock("/dev/hidraw-test", directory=base).acquire()
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            target = base / "target"
+            target.mkdir(mode=0o700)
+            link = base / "lock-dir"
+            link.symlink_to(target, target_is_directory=True)
+            with self.assertRaises(LockBusy):
+                DeviceLock("/dev/hidraw-test", directory=link).acquire()
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            target = base / "target"
+            target.write_text("not a lock", encoding="utf-8")
+            (base / "hidraw-test.lock").symlink_to(target)
+            with self.assertRaises(LockBusy):
+                DeviceLock("/dev/hidraw-test", directory=base).acquire()
+
     def test_different_devices_are_independent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)

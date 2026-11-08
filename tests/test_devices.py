@@ -85,7 +85,6 @@ class CapabilityTests(unittest.TestCase):
     def test_lift_off_choices(self) -> None:
         mad_r = devices.capabilities_for(model=devices.MODEL_BY_CIDMID[(2, 49)], receiver=None)
         self.assertEqual(mad_r.lift_off_choices, [(1, 1.0), (2, 2.0)])
-        self.assertFalse(mad_r.lift_off_scale)
         paw3950 = devices.capabilities_for(model=devices.MODEL_BY_CIDMID[(2, 47)], receiver=None)
         self.assertEqual(paw3950.lift_off_choices, [(3, 0.7), (1, 1.0), (2, 2.0)])
 

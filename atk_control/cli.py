@@ -5,12 +5,16 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import logging
 import sys
 
-from . import config, devices, diagnostics, protocol
+from . import config, devices, diagnostics
 from .controller import BUTTON_ACTION_ORDER, Controller
+from .logging_setup import configure as configure_logging
 from .protocol import DeviceNotFound, PermissionDenied, ProtocolError, discover
 from .state import MouseState
+
+logger = logging.getLogger(__name__)
 
 
 def _state_dict(state: MouseState) -> dict:
@@ -28,7 +32,7 @@ class _PersistingController:
         "set_lift_off_code", "set_debounce", "set_motion_sync", "set_sleep",
         "set_ripple", "set_straight_line", "set_angle", "set_performance_mode",
         "set_sensor_mode", "set_button_action", "reset_buttons", "add_stage",
-        "remove_last_stage", "set_long_range", "set_led_mode",
+        "remove_last_stage", "set_led_mode",
     }
 
     def __init__(self, inner: Controller) -> None:
@@ -106,7 +110,6 @@ def _caps_text(caps: devices.Capabilities) -> str:
         f"DPI lighting:   {'yes' if caps.dpi_lighting else 'no'}",
         f"Stage colours:  {'yes' if caps.stage_colors else 'no'}",
         f"Performance:    {'yes' if caps.performance_mode else 'no'}",
-        f"Long range:     {'yes' if caps.long_range else 'no'}",
     ]
     return "\n".join(lines)
 
@@ -179,6 +182,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Configure ATK/VXE gaming mice (MAD R, VXE R1 and relatives).",
     )
     parser.add_argument("--device", help="hidraw node to use, for example /dev/hidraw22")
+    parser.add_argument("--debug", action="store_true", help="enable debug logging")
     sub = parser.add_subparsers(dest="command")
 
     p = sub.add_parser("status", help="show device status")
@@ -222,9 +226,6 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("add-stage", help="add a DPI stage (copies the last stage)")
     sub.add_parser("remove-stage", help="remove the last DPI stage")
 
-    p = sub.add_parser("long-range", help="toggle long-range mode")
-    p.add_argument("value", type=_parse_onoff)
-
     p = sub.add_parser("lod", help="set lift-off distance in millimetres (1 or 2)")
     p.add_argument("value")
 
@@ -266,6 +267,8 @@ def _set_and_print(label: str, value) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    configure_logging(args.debug)
+    logger.debug("atkctl %s command=%s device=%s", config.VERSION, args.command, args.device)
     if args.command == "version":
         print(f"atkctl {config.VERSION}")
         return 0
@@ -319,8 +322,6 @@ def main(argv: list[str] | None = None) -> int:
             return _set_and_print("DPI stages", controller.add_stage())
         if args.command == "remove-stage":
             return _set_and_print("DPI stages", controller.remove_last_stage())
-        if args.command == "long-range":
-            return _set_and_print("Long range", _onoff(controller.set_long_range(args.value)))
         if args.command == "lod":
             return _set_lod(controller, args.value)
         if args.command == "debounce":

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 
 import dbus
-
-from types import SimpleNamespace
 
 from atk_control.state import MouseState
 from atk_control.tray import ICON_SIZE, ID_DPI_BASE, Tray, render_tray_icon

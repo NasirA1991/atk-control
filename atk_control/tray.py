@@ -7,7 +7,7 @@ They are intentionally unlike the tray icon of RAWM Control.
 
 from __future__ import annotations
 
-import gc
+import logging
 import math
 import os
 from typing import Callable
@@ -21,6 +21,8 @@ from dbus.mainloop.glib import DBusGMainLoop
 from . import devices
 from .config import DEFAULT_TRAY_STYLE, TRAY_STYLES
 from .state import MouseState
+
+logger = logging.getLogger(__name__)
 
 SNI_IFACE = "org.kde.StatusNotifierItem"
 MENU_IFACE = "com.canonical.dbusmenu"
@@ -233,7 +235,6 @@ def render_reticle_icon(state: MouseState | None, connected: bool):
     arm = 14.0
     near = 10.0
     far = 54.0
-    mid = 24.0
     for sx, sy, dx, dy in (
         (near, near, 1, 1),
         (far, near, -1, 1),
@@ -419,10 +420,9 @@ class Tray(dbus.service.Object):
                 self.bus.release_name(name)
             except dbus.DBusException:
                 pass
+            # Each start() uses a fresh generated bus name, so the old
+            # BusName object can be released normally; no GC dependence.
             del old
-            # BusName releases its name when finalized.  Force the old cached
-            # object out before a later start() re-requests the same name.
-            gc.collect()
 
     def set_visible(self, visible: bool) -> bool:
         if visible:
@@ -435,8 +435,11 @@ class Tray(dbus.service.Object):
         self.state = state
         self.connected = connected and state is not None
         if self.connected and state is not None:
+            model = None
+            if state.cid is not None and state.mid is not None:
+                model = devices.MODEL_BY_CIDMID.get((state.cid, state.mid))
             self.caps = devices.capabilities_for(
-                model=devices.MODEL_BY_CIDMID.get((state.cid, state.mid)),
+                model=model,
                 receiver=devices.receiver_for(state.receiver_pid, state.receiver_name)
                 if state.via_receiver and state.receiver_pid else None,
                 sensor_name=state.sensor,
@@ -474,7 +477,7 @@ class Tray(dbus.service.Object):
         try:
             getattr(self, signal)()
         except Exception:
-            pass
+            logger.exception("failed to emit tray signal %s", signal)
 
     # -- SNI properties ---------------------------------------------------
     @dbus.service.method(SNI_IFACE, in_signature="ii", out_signature="")
@@ -798,6 +801,7 @@ class Tray(dbus.service.Object):
                 if event_id == "clicked":
                     self.Event(item_id, event_id, data, timestamp)
             except Exception:
+                logger.exception("tray menu event failed")
                 continue
 
     @dbus.service.method(MENU_IFACE, in_signature="i", out_signature="b")

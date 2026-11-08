@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import copy
+import logging
 import os
 import threading
 import time
 from collections import OrderedDict
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
-from . import devices, diagnostics, protocol
+from . import devices, diagnostics
 from .controller import BUTTON_ACTIONS, DEFAULT_BUTTON_ACTIONS, Controller
 from .protocol import DeviceInfo, DeviceNotFound, PermissionDenied, ProtocolError, discover
 from .state import Button, MouseState
@@ -18,6 +19,8 @@ from .state import Button, MouseState
 StateCallback = Callable[[MouseState, set[str]], None]
 LinkCallback = Callable[[bool, str | None], None]
 ToastCallback = Callable[[str], None]
+
+logger = logging.getLogger(__name__)
 
 
 def _prioritise_candidates(candidates, preferred: str | None):
@@ -170,7 +173,7 @@ class DeviceWorker:
         try:
             self.on_state(copy.deepcopy(state), changed or set())
         except Exception:
-            pass
+            logger.exception("state callback failed")
 
     def _emit_link(self, connected: bool, error: str | None = None) -> None:
         key = (connected, error)
@@ -183,14 +186,14 @@ class DeviceWorker:
         try:
             self.on_link(connected, error)
         except Exception:
-            pass
+            logger.exception("link callback failed")
 
     def _toast(self, message: str) -> None:
         if self.on_toast is not None:
             try:
                 self.on_toast(message)
             except Exception:
-                pass
+                logger.exception("toast callback failed")
 
     # -- connection -------------------------------------------------------
     def _connect(self) -> bool:
@@ -257,6 +260,8 @@ class DeviceWorker:
         return False
 
     def _disconnect(self, reason: str | None = None) -> None:
+        if reason:
+            logger.info("device disconnected: %s", reason)
         controller = self._controller
         self._controller = None
         if controller is not None:
@@ -275,9 +280,9 @@ class DeviceWorker:
             return
         if getattr(controller, "read_only", False):
             with self._lock:
-                pending = bool(self._pending)
+                had_pending = bool(self._pending)
                 self._pending.clear()
-            if pending:
+            if had_pending:
                 self._toast("This model is not in the supported database yet; settings are read-only.")
             return
         with self._lock:
@@ -309,9 +314,10 @@ class DeviceWorker:
                         self._state = copy.deepcopy(state)
                     self._emit_state(state, set())
                 except Exception:
-                    pass
+                    logger.exception("failed to re-read state after a rejected write")
                 self._toast(str(exc))
             except Exception as exc:  # keep the HID loop alive
+                logger.exception("setting operation failed")
                 self._toast(f"Could not apply setting: {exc}")
         if wrote:
             try:
@@ -324,6 +330,7 @@ class DeviceWorker:
             except (ProtocolError, ValueError) as exc:
                 self._toast(f"Setting applied but not saved to onboard memory: {exc}")
             except Exception as exc:
+                logger.exception("settings commit failed")
                 self._toast(f"Setting applied but could not be saved: {exc}")
 
     def _write_support_report(self, path: str, include_raw: bool = False) -> None:
@@ -347,6 +354,7 @@ class DeviceWorker:
         except OSError as exc:
             self._toast(f"Could not write report: {exc}")
         except Exception as exc:
+            logger.exception("support report creation failed")
             self._toast(f"Could not create support report: {exc}")
 
     def _check_online_heartbeat(self) -> None:
@@ -381,6 +389,7 @@ class DeviceWorker:
                 state = controller.read_live()
             if controller.info.is_receiver and state.receiver_online is False:
                 self._query_misses += 1
+                self._last_emit = now
                 if self._query_misses >= 2:
                     self._disconnect(
                         "The paired mouse is offline; looking for another connected mouse."
@@ -398,6 +407,11 @@ class DeviceWorker:
             self._disconnect(str(exc))
         except ProtocolError as exc:
             self._query_misses += 1
+            logger.warning("device poll failed (%d/4): %s", self._query_misses, exc)
+            # Do not immediately retry in the 40 ms loop.  A sleeping mouse or
+            # one dropped wireless reply would otherwise be polled again and
+            # again until the miss counter disconnects it.
+            self._last_emit = time.monotonic()
             message = str(exc)
             if self._query_misses >= 4:
                 self._disconnect(message)
@@ -449,6 +463,7 @@ class DeviceWorker:
                 try:
                     discovered = discover()
                 except Exception:
+                    logger.exception("device rescan failed")
                     discovered = []
                 with self._lock:
                     self._available = discovered
@@ -487,7 +502,7 @@ def _set_led(controller: Controller, mode: int, brightness: int, speed: int) -> 
     controller.set_led_mode(int(mode), int(brightness), int(speed))
 
 
-OPERATIONS = {
+OPERATIONS: dict[str, Callable[..., Any]] = {
     "polling": lambda c, hz: c.set_polling(int(hz)),
     "active_stage": lambda c, index: c.set_active_stage(int(index)),
     "stage_dpi": _set_stage_dpi,
@@ -505,7 +520,6 @@ OPERATIONS = {
     "buttons_reset": lambda c: c.reset_buttons(),
     "add_stage": lambda c: c.add_stage(),
     "remove_stage": lambda c: c.remove_last_stage(),
-    "long_range": lambda c, enabled: c.set_long_range(bool(enabled)),
     "led": _set_led,
     "profile": lambda c, profile: c.set_profile(int(profile)),
 }
@@ -563,12 +577,10 @@ class DemoWorker:
             angle_degrees=0,
             performance_mode=True,
             sensor_mode=1,
-            long_range=False,
             led_mode=1,
             led_brightness=1,
             led_speed=1,
             profile=2,
-            profile_count=4,
             buttons=[
                 Button("Left", "Left click", action_id="left"),
                 Button("Right", "Right click", action_id="right"),

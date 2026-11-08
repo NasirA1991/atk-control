@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import time
+
 from . import devices, protocol
 from .protocol import (
     ADDR_ADVANCED,
@@ -25,6 +27,8 @@ from .protocol import (
     unpack_rgb,
 )
 from .state import Button, MouseState
+
+logger = logging.getLogger(__name__)
 
 BUTTON_ADDRESSES = (0x0060, 0x0068, 0x0070)
 BUTTON_NAMES = ("Left", "Right", "Middle", "Back", "Forward", "Bottom")
@@ -163,7 +167,8 @@ class Controller:
             except ProtocolError as exc:
                 last = exc
                 time.sleep(0.03)
-        assert last is not None
+        if last is None:
+            raise ProtocolError("the mouse did not answer")
         raise last
 
     def _identify(self) -> tuple[int | None, int | None, str]:
@@ -409,9 +414,12 @@ class Controller:
 
         try:
             battery = self.transport.read_battery()
-            state.battery = battery.get("percent")
-            state.charging = battery.get("charging")
-            state.voltage_mv = battery.get("millivolts")
+            percent = battery.get("percent")
+            charging = battery.get("charging")
+            voltage = battery.get("millivolts")
+            state.battery = percent if isinstance(percent, int) else None
+            state.charging = charging if isinstance(charging, bool) else None
+            state.voltage_mv = voltage if isinstance(voltage, int) else None
         except ProtocolError:
             pass
 
@@ -482,7 +490,6 @@ class Controller:
         )
         # Discovered rows take precedence over the conservative model table.
         self.caps.performance_mode = self.caps.performance_mode or state.supports_performance_mode
-        self.caps.long_range = self.caps.long_range or state.supports_long_range
         self.caps.dpi_lighting = self.caps.dpi_lighting and state.supports_lighting
         self.caps.stage_colors = self.caps.stage_colors and state.supports_stage_colors
         return state
@@ -494,9 +501,12 @@ class Controller:
         state = self.state
         try:
             battery = self.transport.read_battery()
-            state.battery = battery.get("percent")
-            state.charging = battery.get("charging")
-            state.voltage_mv = battery.get("millivolts")
+            percent = battery.get("percent")
+            charging = battery.get("charging")
+            voltage = battery.get("millivolts")
+            state.battery = percent if isinstance(percent, int) else None
+            state.charging = charging if isinstance(charging, bool) else None
+            state.voltage_mv = voltage if isinstance(voltage, int) else None
         except ProtocolError:
             pass
         system = self._read_optional(ADDR_SYSTEM, 10)
@@ -549,8 +559,9 @@ class Controller:
             raise ProtocolError(f"{hertz} Hz is not available on this link")
         code = protocol.POLLING_TO_CODE.get(hertz)
         self._require(code is not None, f"Unknown polling rate {hertz} Hz")
-        system = self.transport.read_eeprom(ADDR_SYSTEM, 10)
-        system = bytearray(system)
+        if code is None:
+            raise ProtocolError(f"Unknown polling rate {hertz} Hz")
+        system = bytearray(self.transport.read_eeprom(ADDR_SYSTEM, 10))
         system[0:2] = pack_pair(code)
         # The full six-byte system row preserves stage count and active stage.
         self.transport.write_eeprom(ADDR_SYSTEM, bytes(system[:6]))
@@ -584,7 +595,8 @@ class Controller:
         time.sleep(0.03)
         confirmed = unpack_dpi_stage(self.transport.read_eeprom(address, 4), family)
         self._require(confirmed is not None, "The mouse returned an invalid DPI stage")
-        assert confirmed is not None
+        if confirmed is None:
+            raise ProtocolError("the mouse returned an invalid DPI stage")
         self._require(confirmed == (x, y), f"The mouse kept {confirmed[0]}×{confirmed[1]} DPI")
         self.state.stages[index] = confirmed
         if index == self.state.active_stage:
@@ -594,9 +606,11 @@ class Controller:
     def set_stage_color(self, index: int, color: str) -> str:
         self._require(self.caps.stage_colors, "This mouse does not expose stage colours")
         self._require(0 <= index < self.state.stage_count, "DPI stage out of range")
-        packed = pack_rgb(color)
+        normalized = f"#{color.strip().lstrip('#').lower()}"
+        packed = pack_rgb(normalized)
         self._require(packed is not None, "Colour must be #rrggbb")
-        assert packed is not None
+        if packed is None:
+            raise ProtocolError("Colour must be #rrggbb")
         group_address = ADDR_STAGE_COLOR_BASE + (index // 2) * 8
         group = bytearray(self.transport.read_eeprom(group_address, 8))
         group[(index % 2) * 4:(index % 2) * 4 + 4] = packed
@@ -604,11 +618,11 @@ class Controller:
         time.sleep(0.03)
         confirmed_raw = self.transport.read_eeprom(group_address, 8)
         confirmed = unpack_rgb(confirmed_raw[(index % 2) * 4:(index % 2) * 4 + 4])
-        self._require(confirmed == color.lower(), f"The mouse kept {confirmed or 'an invalid colour'}")
+        self._require(confirmed == normalized, f"The mouse kept {confirmed or 'an invalid colour'}")
         while len(self.state.stage_colors) < self.state.stage_count:
             self.state.stage_colors.append("#ffffff")
-        self.state.stage_colors[index] = confirmed or color.lower()
-        return confirmed or color.lower()
+        self.state.stage_colors[index] = confirmed or normalized
+        return confirmed or normalized
 
     def set_lift_off_code(self, code: int) -> int:
         allowed = [item[0] for item in self.caps.lift_off_choices]
@@ -889,21 +903,27 @@ class Controller:
         """
         current = self.state.profile or self._read_profile()
         self._require(current is not None, "The mouse did not report its active profile")
+        if current is None:
+            raise ProtocolError("The mouse did not report its active profile")
         self._require(self.caps.profiles, "This mouse does not expose onboard profiles")
         other = 2 if current == 1 else 1
-        self.transport.set_profile(other - 1)
-        time.sleep(0.18)
-        self.transport.set_profile(current - 1)
-        time.sleep(0.22)
-        confirmed = self._read_profile()
-        self._require(confirmed == current,
-                      "The mouse did not return to its profile after saving")
+        switched = False
+        try:
+            self.transport.set_profile(other - 1)
+            switched = True
+            time.sleep(0.18)
+            self.transport.set_profile(current - 1)
+            switched = False
+            time.sleep(0.22)
+            confirmed = self._read_profile()
+            self._require(confirmed == current,
+                          "The mouse did not return to its profile after saving")
+        except Exception:
+            if switched:
+                logger.exception("profile commit interrupted; restoring profile %d", current)
+                try:
+                    self.transport.set_profile(current - 1)
+                except Exception:
+                    logger.exception("could not restore profile %d after failed commit", current)
+            raise
         self.state.profile = current
-
-    def set_long_range(self, enabled: bool) -> bool:
-        self._require(self.caps.long_range, "Long-range mode is not supported")
-        self.transport.set_long_range(enabled)
-        confirmed = self.transport.read_long_range()
-        self._require(confirmed == enabled, "The mouse did not retain long-range mode")
-        self.state.long_range = enabled
-        return enabled

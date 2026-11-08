@@ -18,7 +18,7 @@ import errno
 import os
 import select
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from .locking import DeviceLock, LockBusy
@@ -36,8 +36,6 @@ CMD_VERSION = 0x12
 CMD_CID_MID = 0x10
 CMD_CURRENT_PROFILE = 0x0E
 CMD_SET_PROFILE = 0x0F
-CMD_LONG_RANGE_GET = 0x17
-CMD_LONG_RANGE_SET = 0x16
 CMD_RECEIVER_ONLINE = 0x03
 CMD_RECEIVER_PAIR_STATUS = 0x06
 
@@ -532,7 +530,8 @@ class CompxTransport:
                 if matcher(reply):
                     return reply
             last = ProtocolError("the mouse did not answer (asleep, out of range, or another app owns it)")
-        assert last is not None
+        if last is None:
+            raise ProtocolError("no reply was received")
         raise last
 
     # -- commands ----------------------------------------------------------
@@ -627,26 +626,6 @@ class CompxTransport:
             "status": data[0],
             "rf_id": bytes((data[3], data[2], data[1])).hex(" ").upper(),
         }
-
-    def read_long_range(self) -> bool | None:
-        try:
-            reply = self._simple_command(CMD_LONG_RANGE_GET)
-        except ProtocolError:
-            return None
-        if reply[4] < 1 or reply[5] > 1:
-            return None
-        return reply[5] == 1
-
-    def set_long_range(self, enabled: bool) -> None:
-        frame = bytearray(build_frame(CMD_LONG_RANGE_SET, bytes((0, 0, 0, 10, 1 if enabled else 0))))
-        frame[15] = 0
-        frame[15] = checksum(bytes(frame[:15]))
-        self._write(bytes(frame))
-        time.sleep(0.03)
-        self.drain(0.02)
-        confirmed = self.read_long_range()
-        if confirmed is not enabled:
-            raise ProtocolError("the mouse did not retain the long-range setting")
 
 
 def format_bcd(value: str) -> str:

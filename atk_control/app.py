@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import os
+import logging
 import sys
+from typing import TYPE_CHECKING
 
 import gi
 
@@ -14,8 +15,15 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import config  # noqa: E402
+from .logging_setup import configure as configure_logging  # noqa: E402
+from .state import MouseState  # noqa: E402
 from .ui import MainWindow  # noqa: E402
 from .worker import DemoWorker, DeviceWorker  # noqa: E402
+
+if TYPE_CHECKING:
+    from .tray import Tray
+
+logger = logging.getLogger(__name__)
 
 
 class AtkApplication(Adw.Application):
@@ -27,12 +35,12 @@ class AtkApplication(Adw.Application):
         self.page = page
         self.demo = demo
         self.window: MainWindow | None = None
-        self.tray = None
-        self.worker = None
+        self.tray: Tray | None = None
+        self.worker: DemoWorker | DeviceWorker | None = None
         self._held = False
         self._quitting = False
         self._activated_once = False
-        self._latest_state = None
+        self._latest_state: MouseState | None = None
         self._latest_link: tuple[bool, str | None] = (False, None)
         self._low_battery_notified = False
         GLib.set_application_name(config.APP_NAME)
@@ -57,6 +65,8 @@ class AtkApplication(Adw.Application):
                 self._state_from_thread, self._link_from_thread, self._toast_from_thread,
                 live_seconds=live, full_seconds=full,
             )
+        if self.worker is None:
+            raise RuntimeError("no worker could be created")
         self.worker.start()
 
         if not self.use_tray:
@@ -91,7 +101,7 @@ class AtkApplication(Adw.Application):
                 # tray item until there is something relevant to show.
                 tray.stop()
         except Exception as exc:  # tray is optional
-            print(f"atk-control: tray unavailable: {exc}", file=sys.stderr)
+            logger.exception("tray unavailable: %s", exc)
 
     def _install_icon_path(self) -> None:
         display = Gdk.Display.get_default()
@@ -145,7 +155,8 @@ class AtkApplication(Adw.Application):
 
     def _ensure_window(self) -> MainWindow:
         if self.window is None:
-            assert self.worker is not None
+            if self.worker is None:
+                raise RuntimeError("the device worker has not started")
             self.window = MainWindow(self.worker, initial_page=self.page)
             self.window.set_icon_name("atk-control")
             self.window.connect("close-request", self._on_close_request)
@@ -156,9 +167,9 @@ class AtkApplication(Adw.Application):
                 self.window.on_state(self._latest_state, set())
         return self.window
 
-    def _on_close_request(self, _window) -> bool:
+    def _on_close_request(self, window) -> bool:
         if self.tray is not None and self.tray.visible and not self._quitting:
-            self.window.set_visible(False)
+            window.set_visible(False)
             return True
         # With no tray item there is nowhere to hide to; closing the window
         # exits rather than leaving an invisible process behind.
@@ -266,8 +277,7 @@ class AtkApplication(Adw.Application):
         if self.tray is not None:
             self.tray.set_style(style)
         if self.window is not None:
-            self.window._tray_style = style
-            self.window._update_tray_style_buttons()
+            self.window.set_tray_style(style)
         self.change_action_state("tray-style", GLib.Variant.new_string(style))
 
     def _on_tray_style_action(self, _action, value) -> None:
@@ -343,12 +353,16 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["overview", "buttons", "performance", "dpi", "lighting", "device"],
         help="open a specific page",
     )
+    parser.add_argument("--debug", action="store_true", help="enable debug logging")
     parser.add_argument("--version", action="version", version=f"%(prog)s {config.VERSION}")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    configure_logging(args.debug)
+    logger.info("starting %s %s (demo=%s, tray=%s)", config.APP_NAME, config.VERSION,
+                args.demo, not args.no_tray)
     app = AtkApplication(
         start_hidden=args.tray,
         use_tray=not args.no_tray,

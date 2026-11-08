@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 # GTK4, libadwaita, PyGObject, pycairo and dbus-python come from the distro.
+# This metadata is for development tooling; pip installation is not supported.
 dependencies = []
 
 [project.scripts]
@@ -33,3 +34,14 @@ Documentation = "https://github.com/NasirA1991/atk-control#readme"
 
 [tool.setuptools]
 packages = ["atk_control"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
