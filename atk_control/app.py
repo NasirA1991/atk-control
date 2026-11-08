@@ -228,7 +228,8 @@ class AtkApplication(Adw.Application):
         if self.tray is not None:
             if connected:
                 if not self.tray.visible:
-                    self.tray.start()
+                    if not self.tray.start():
+                        logger.error("connected, but the tray item could not be registered")
                 self.tray.update(self._latest_state, True)
             else:
                 self.tray.update(None, False, error)

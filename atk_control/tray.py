@@ -404,14 +404,17 @@ class Tray(dbus.service.Object):
             watcher.RegisterStatusNotifierItem(
                 self.bus_name.get_name(), dbus_interface=WATCHER
             )
-        except dbus.DBusException:
+        except dbus.DBusException as exc:
+            logger.exception("tray registration failed: %s", exc)
             return False
         self.visible = True
+        logger.info("tray item registered as %s", self.bus_name.get_name())
         return True
 
     def stop(self) -> None:
         """Remove the item from the panel without stopping the worker."""
         self.visible = False
+        logger.info("tray item removed")
         old = self.bus_name
         self.bus_name = None
         if old is not None:
