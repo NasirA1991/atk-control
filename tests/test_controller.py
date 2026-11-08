@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from atk_control import controller, devices, protocol
+from atk_control import controller, protocol
 from atk_control.protocol import DeviceInfo, pack_pair, pack_rgb
 from atk_control.state import MouseState
 
@@ -74,6 +74,18 @@ class FakeTransport:
 
     def receiver_online(self):
         return {"online": True, "status": 1, "rf_id": "A4 19 7C"}
+
+
+class _ProfileCommitFailure(FakeTransport):
+    def __init__(self) -> None:
+        super().__init__()
+        self.profile_calls: list[int] = []
+
+    def set_profile(self, profile: int):
+        self.profile_calls.append(profile)
+        if len(self.profile_calls) == 2:
+            raise protocol.ProtocolError("link dropped during commit")
+        self.profile = profile
 
 
 class _UnverifiedIdentity(FakeTransport):
@@ -218,11 +230,21 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(self.ctl.state.profile, 1)
         self.assertEqual(self.ctl.transport.profile, 0)
 
+    def test_commit_settings_attempts_profile_restore_after_failure(self) -> None:
+        fake = _ProfileCommitFailure()
+        self.ctl.transport = fake
+        self.ctl.state.profile = 1
+        with self.assertRaises(protocol.ProtocolError):
+            self.ctl.commit_settings()
+        self.assertEqual(fake.profile_calls, [1, 0, 0])
+
     def test_lighting_and_profile(self) -> None:
         mode, brightness, speed = self.ctl.set_led_mode(2, 2, 2)
         self.assertEqual((mode, brightness, speed), (2, 2, 2))
         self.assertEqual(self.ctl.set_performance_mode(False), False)
         self.assertEqual(self.ctl.set_stage_color(1, "#112233"), "#112233")
+        self.assertEqual(self.ctl.set_stage_color(1, "112233"), "#112233")
+        self.assertEqual(self.ctl.set_stage_color(1, "AABBCC"), "#aabbcc")
         self.assertEqual(self.ctl.set_profile(3), 3)
 
     def test_read_live(self) -> None:

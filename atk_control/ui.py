@@ -20,10 +20,10 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import config, devices, diagnostics  # noqa: E402
-from .controller import BUTTON_ACTIONS, BUTTON_ACTION_ORDER  # noqa: E402
-from .view_state import state_signature  # noqa: E402
+from .controller import BUTTON_ACTION_ORDER, BUTTON_ACTIONS  # noqa: E402
 from .protocol import clamp_dpi  # noqa: E402
 from .state import MouseState  # noqa: E402
+from .view_state import state_signature  # noqa: E402
 
 CSS = """
 @define-color accent_bg_color #ff6b3d;
@@ -437,7 +437,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._color_timers: dict[int, int] = {}
         self._tray_style = config.load().get("tray_icon_style", config.DEFAULT_TRAY_STYLE)
         self._button_action_keys = BUTTON_ACTION_ORDER + ("custom",)
-        self._last_state_signature: str | None = None
+        self._last_state_signature: tuple[object, ...] | None = None
 
         self.set_default_size(1140, 900)
         self.set_size_request(860, 620)
@@ -942,11 +942,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.perf_line_row = self._setting_row(
             "Straight-line correction", "Stabilises near-horizontal and near-vertical movement.", self.perf_line, body
         )
-        self.perf_long = Gtk.Switch()
-        self.perf_long.connect("notify::active", lambda w, _p: self._toggle("long_range", w, "perf"))
-        self.perf_long_row = self._setting_row(
-            "Long range", "Raises link robustness at a small power cost.", self.perf_long, body
-        )
         root.append(motion)
 
         self.angle_card, angle_body = self._card(
@@ -1401,11 +1396,15 @@ class MainWindow(Adw.ApplicationWindow):
         if not config.set_autostart(enabled):
             self.toast("Could not update autostart.")
 
+    def set_tray_style(self, style: str) -> None:
+        """Apply a tray-style change coming from the application or tray."""
+        self._tray_style = style
+        self._update_tray_style_buttons()
+
     def _tray_style_selected(self, style: str) -> None:
         app = self.get_application()
         app.activate_action("tray-style", GLib.Variant.new_string(style))
-        self._tray_style = style
-        self._update_tray_style_buttons()
+        self.set_tray_style(style)
 
     def _update_tray_style_buttons(self) -> None:
         for key, button in self.style_buttons.items():
@@ -1417,7 +1416,11 @@ class MainWindow(Adw.ApplicationWindow):
     # --------------------------------------------------------------- updates
     def _caps(self) -> devices.Capabilities:
         model = None
-        if self._state is not None and self._state.cid is not None:
+        if (
+            self._state is not None
+            and self._state.cid is not None
+            and self._state.mid is not None
+        ):
             model = devices.MODEL_BY_CIDMID.get((self._state.cid, self._state.mid))
         receiver = None
         if self._state is not None and self._state.via_receiver and self._state.receiver_pid:
@@ -1550,7 +1553,6 @@ class MainWindow(Adw.ApplicationWindow):
             state.firmware or ("not reported" if state.via_receiver else "—")
         )
         self.hero_identity.set_text(state.identity)
-        self.hero_link.set_text(link_badge)
         self.sidebar_device.set_text(state.connected_name.upper())
         self.sidebar_battery.set_text(
             f"{state.battery}%" if state.battery is not None else "—"
@@ -1597,7 +1599,6 @@ class MainWindow(Adw.ApplicationWindow):
         self._set_switch(self.perf_sync, state.motion_sync, self.perf_sync_row)
         self._set_switch(self.perf_ripple, state.ripple_control, self.perf_ripple_row)
         self._set_switch(self.perf_line, state.straight_line, self.perf_line_row)
-        self._set_switch(self.perf_long, state.long_range, self.perf_long_row)
         self.sensor_mode_card.set_visible(bool(state.supports_performance_mode))
         if state.supports_performance_mode:
             current_mode = state.sensor_mode if state.sensor_mode is not None else 0
@@ -1607,7 +1608,6 @@ class MainWindow(Adw.ApplicationWindow):
             self.sensor_mode_desc.set_text(
                 self.sensor_mode_descriptions.get(current_mode, "Sensor mode reported by the mouse.")
             )
-        self.perf_long_row.set_visible(bool(state.supports_long_range))
 
         self.angle_card.set_visible(bool(state.supports_angle))
         if state.supports_angle:

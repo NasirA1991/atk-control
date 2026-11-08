@@ -7,6 +7,7 @@ import math
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 
 APP_ID = "io.github.atkcontrol.AtkControl"
 APP_NAME = "ATK Control"
@@ -23,7 +24,7 @@ TRAY_STYLES = [
 ]
 DEFAULT_TRAY_STYLE = "hex"
 
-DEFAULTS = {
+DEFAULTS: dict[str, Any] = {
     "start_hidden": False,
     "low_battery_notifications": True,
     "tray_icon_style": DEFAULT_TRAY_STYLE,
@@ -41,11 +42,11 @@ def config_path() -> Path:
     return config_dir() / "config.json"
 
 
-def _valid_bool(value, default: bool) -> bool:
+def _valid_bool(value: object, default: bool) -> bool:
     return value if isinstance(value, bool) else default
 
 
-def _valid_seconds(value, default: float, minimum: float, maximum: float) -> float:
+def _valid_seconds(value: object, default: float, minimum: float, maximum: float) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return default
     number = float(value)
@@ -70,14 +71,14 @@ def sanitize(stored: object) -> dict:
     style = stored.get("tray_icon_style")
     if isinstance(style, str) and style in {key for key, _label in TRAY_STYLES}:
         data["tray_icon_style"] = style
-    data["live_refresh_seconds"] = _valid_seconds(
+    live = _valid_seconds(
         stored.get("live_refresh_seconds"), DEFAULTS["live_refresh_seconds"], 2.0, 120.0
     )
-    data["full_refresh_seconds"] = _valid_seconds(
+    full = _valid_seconds(
         stored.get("full_refresh_seconds"), DEFAULTS["full_refresh_seconds"], 10.0, 1800.0
     )
-    if data["full_refresh_seconds"] < data["live_refresh_seconds"]:
-        data["full_refresh_seconds"] = data["live_refresh_seconds"] * 5
+    data["live_refresh_seconds"] = live
+    data["full_refresh_seconds"] = live * 5 if full < live else full
     return data
 
 

@@ -30,7 +30,7 @@ The app verifies every reply checksum and reads every write back.
 | `0x00a9` | debounce, Motion Sync, sleep, straight-line, ripple |
 | `0x00b5` | sensor performance mode |
 | `0x00bd` | sensor rotation angle and enable switch (may be unprogrammed) |
-| `0x0060`–`0x0074` | read-only button assignments (four bytes each) |
+| `0x0060`–`0x0074` | button assignment records (four bytes each; read/write) |
 
 Polling codes: `08`=125, `04`=250, `02`=500, `01`=1000, `10`=2000,
 `20`=4000, `40`=8000 Hz.

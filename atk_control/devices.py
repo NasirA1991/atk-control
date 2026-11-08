@@ -52,7 +52,6 @@ class Model:
     performance_mode: bool = False
     sensor_max: bool = False
     button_remap: bool = False
-    long_range: bool = False
     bottom_button: bool = True
     usb_ids: tuple[tuple[int, int], ...] = ()
 
@@ -153,8 +152,7 @@ class Capabilities:
     model: Model | None
     receiver: Receiver | None
     polling_rates: list[int]
-    lift_off_choices: list[tuple[int, int]]
-    lift_off_scale: bool
+    lift_off_choices: list[tuple[int, float]]
     debounce_options: list[int]
     sleep_options: list[int]
     dpi_lighting: bool
@@ -163,7 +161,6 @@ class Capabilities:
     performance_mode: bool
     sensor_max: bool
     button_remap: bool
-    long_range: bool
     profiles: bool
     bottom_button: bool
     dpi_options: list[int]
@@ -208,8 +205,6 @@ def capabilities_for(
     choices = [(1, 1.0), (2, 2.0)]
     if sensor.name in ("PAW3950", "PAW3950DM"):
         choices.insert(0, (3, 0.7))
-    scale = False
-
     name = model.name if model else fallback_name(usb_name)
     brand = model.brand if model else ("VXE" if "vxe" in usb_name.lower() else "ATK")
     model_source = model
@@ -221,8 +216,7 @@ def capabilities_for(
         receiver=receiver,
         polling_rates=polling,
         lift_off_choices=choices,
-        lift_off_scale=scale,
-        debounce_options=_with_current(list(DEFAULT_DEBOUNCE_OPTIONS), debounce),
+            debounce_options=_with_current(list(DEFAULT_DEBOUNCE_OPTIONS), debounce),
         sleep_options=_with_current(list(DEFAULT_SLEEP_OPTIONS), sleep),
         dpi_lighting=model.dpi_lighting if model else True,
         stage_colors=model.stage_colors if model else True,
@@ -230,7 +224,6 @@ def capabilities_for(
         performance_mode=model.performance_mode if model else False,
         sensor_max=model.sensor_max if model else False,
         button_remap=model.button_remap if model else False,
-        long_range=model.long_range if model else False,
         profiles=True,
         bottom_button=model.bottom_button if model else True,
         dpi_options=sensor.options(),
@@ -239,7 +232,3 @@ def capabilities_for(
 
 def default_capabilities() -> Capabilities:
     return capabilities_for(model=None, receiver=None)
-
-
-def stage_count_max(model: Model | None) -> int:
-    return 8

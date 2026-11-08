@@ -6,12 +6,13 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from atk_control import devices
 from atk_control.protocol import DeviceInfo, ProtocolError
 from atk_control.state import MouseState
-from atk_control.worker import DeviceWorker, DemoWorker, _prioritise_candidates
+from atk_control.worker import DemoWorker, DeviceWorker, _prioritise_candidates
 
 
 class WorkerSafetyTests(unittest.TestCase):
@@ -101,6 +102,26 @@ class WorkerSafetyTests(unittest.TestCase):
         self.assertGreaterEqual(hidden[0], 30.0)
         self.assertGreaterEqual(hidden[1], 300.0)
         self.assertEqual(visible, (3.0, 30.0))
+
+
+class ProtocolRetryTests(unittest.TestCase):
+    def test_failed_poll_backs_off_instead_of_retrying_every_loop(self) -> None:
+        class FailingController:
+            path = "/dev/null"
+            info = SimpleNamespace(is_receiver=False)
+            def read_full(self):
+                raise ProtocolError("asleep")
+            def read_live(self):
+                raise ProtocolError("asleep")
+            def close(self):
+                pass
+
+        worker = DeviceWorker(lambda *_: None, lambda *_: None)
+        worker._controller = FailingController()
+        worker._last_emit = 0.0
+        worker._poll()
+        self.assertEqual(worker._query_misses, 1)
+        self.assertGreater(worker._last_emit, 0.0)
 
 
 class DemoWorkerTests(unittest.TestCase):
