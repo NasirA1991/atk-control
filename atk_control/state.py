@@ -11,6 +11,7 @@ class Button:
     action: str
     raw: str = ""
     action_id: str = ""
+    readable: bool = True
 
 
 @dataclass

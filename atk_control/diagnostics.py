@@ -55,6 +55,14 @@ def _raw_lines(raw_registers: dict[int, bytes | None]) -> list[str]:
     return lines
 
 
+def _distribution_name() -> str:
+    try:
+        release = platform.freedesktop_os_release()
+    except (OSError, AttributeError):
+        return "unknown"
+    return str(release.get("PRETTY_NAME") or "unknown")
+
+
 def report_text(state: MouseState, device_path: str | None = None,
                 caps=None, raw_registers: dict[int, bytes | None] | None = None) -> str:
     """Build a Markdown report suitable for a public issue.
@@ -72,7 +80,7 @@ def report_text(state: MouseState, device_path: str | None = None,
     lines.append("")
     lines.append(f"- OS: {platform.platform()}")
     lines.append(f"- Kernel: {platform.release()}")
-    lines.append(f"- Distribution: {platform.freedesktop_os_release().get('PRETTY_NAME', 'unknown')}")
+    lines.append(f"- Distribution: {_distribution_name()}")
     lines.append("")
     lines.append("## Configuration interfaces")
     lines.append("")

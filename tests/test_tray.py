@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
+import cairo
 import dbus
 
 from atk_control.state import MouseState
@@ -23,6 +24,18 @@ class TrayIconTests(unittest.TestCase):
             self.assertEqual((width, height), (ICON_SIZE, ICON_SIZE))
             self.assertEqual(len(data), ICON_SIZE * ICON_SIZE * 4)
             self.assertGreater(sum(data[3::4]), 0)
+
+    def test_argb_pixmap_uses_network_channel_order(self) -> None:
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 1, 1)
+        context = cairo.Context(surface)
+        context.set_source_rgba(1.0, 0.0, 0.0, 1.0)
+        context.paint()
+        # Exercise the conversion directly rather than relying on a rendered
+        # icon pixel happening to be opaque red.
+        from atk_control.tray import _argb_pixmap
+
+        converted = _argb_pixmap(surface)[0][2]
+        self.assertEqual(converted, b"\xff\xff\x00\x00")
 
     def test_styles_are_distinct(self) -> None:
         icons = [

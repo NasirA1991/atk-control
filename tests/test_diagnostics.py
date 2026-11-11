@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from atk_control import diagnostics
 from atk_control.state import Button, MouseState
@@ -61,6 +62,14 @@ class DiagnosticsTests(unittest.TestCase):
 
     def test_default_filename(self) -> None:
         self.assertRegex(diagnostics.default_filename(), r"^atk-control-report-\d{8}-\d{4}\.md$")
+
+    def test_missing_os_release_does_not_break_report(self) -> None:
+        with mock.patch(
+            "atk_control.diagnostics.platform.freedesktop_os_release",
+            side_effect=OSError("missing"),
+        ):
+            text = diagnostics.report_text(self._state())
+        self.assertIn("- Distribution: unknown", text)
 
     def test_raw_register_report(self) -> None:
         text = diagnostics.report_text(

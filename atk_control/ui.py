@@ -438,6 +438,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._tray_style = config.load().get("tray_icon_style", config.DEFAULT_TRAY_STYLE)
         self._button_action_keys = BUTTON_ACTION_ORDER + ("custom",)
         self._last_state_signature: tuple[object, ...] | None = None
+        self._last_device_signature: tuple[object, ...] | None = None
 
         self.set_default_size(1140, 900)
         self.set_size_request(860, 620)
@@ -879,9 +880,16 @@ class MainWindow(Adw.ApplicationWindow):
                 widgets["row"].set_visible(False)
                 continue
             widgets["row"].set_visible(True)
-            widgets["dropdown"].set_sensitive(editable)
             button = state.buttons[index]
-            widgets["title"].set_text(button.name)
+            widgets["dropdown"].set_sensitive(editable and button.readable)
+            if button.readable:
+                widgets["title"].set_text(button.name)
+                widgets["title"].set_tooltip_text("")
+            else:
+                widgets["title"].set_text(f"{button.name} (unreadable)")
+                widgets["title"].set_tooltip_text(
+                    "This button record failed its checksum. Restore defaults to repair it."
+                )
             action_id = button.action_id
             try:
                 selected = self._button_action_keys.index(action_id)
@@ -914,6 +922,7 @@ class MainWindow(Adw.ApplicationWindow):
             0: "Basic: lower sensor rate and the longest battery life.",
             1: "Competitive: high-performance sensor firmware for gaming.",
             2: "Competitive MAX: maximum sensor performance and higher power draw.",
+            3: "Competitive MAX 13K: reported by the mouse; this mode is read-only in ATK Control.",
         }
         for mode, label in ((0, "Basic"), (1, "Competitive"), (2, "Competitive MAX")):
             button = Gtk.Button(label=label)
@@ -922,6 +931,9 @@ class MainWindow(Adw.ApplicationWindow):
             self.sensor_mode_buttons[mode] = button
             self.sensor_mode_box.append(button)
         sensor_body.append(self.sensor_mode_box)
+        self.sensor_mode_readonly = self._label("", "row-sub", wrap=True)
+        self.sensor_mode_readonly.set_visible(False)
+        sensor_body.append(self.sensor_mode_readonly)
         self.sensor_mode_desc = self._label("", "row-sub", wrap=True)
         sensor_body.append(self.sensor_mode_desc)
         root.append(self.sensor_mode_card)
@@ -1435,6 +1447,26 @@ class MainWindow(Adw.ApplicationWindow):
             usb_name=self._state.usb_name if self._state else "",
         )
 
+    def _device_signature(self) -> tuple[object, ...]:
+        try:
+            available = self.worker.available_devices()
+        except Exception:
+            return ()
+        return (
+            tuple(
+                (info.path, info.vendor_id, info.product_id, info.product_name, info.accessible)
+                for info in available
+            ),
+            self.worker.device_path,
+        )
+
+    def _refresh_devices_if_changed(self, state: MouseState) -> None:
+        signature = self._device_signature()
+        if signature == self._last_device_signature:
+            return
+        self._last_device_signature = signature
+        self._update_device_choices(state)
+
     def on_link(self, connected: bool, error: str | None) -> None:
         self._connected = connected
         if connected:
@@ -1443,6 +1475,7 @@ class MainWindow(Adw.ApplicationWindow):
             return
         self._state = None
         self._last_state_signature = None
+        self._last_device_signature = None
         self.stack.set_sensitive(False)
         self.notice_label.set_text(error or "Waiting for an ATK/VXE mouse…")
         self.notice.set_reveal_child(True)
@@ -1483,6 +1516,7 @@ class MainWindow(Adw.ApplicationWindow):
         # GTK window, so compare the pure rendered-field signature.
         signature = state_signature(state)
         if signature == self._last_state_signature:
+            self._refresh_devices_if_changed(state)
             return
         self._last_state_signature = signature
         self.notice.set_reveal_child(bool(state.read_only))
@@ -1502,6 +1536,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._update_dpi(state, caps)
             self._update_lighting(state)
             self._update_device(state)
+            self._last_device_signature = self._device_signature()
         finally:
             self._loading = False
 
@@ -1605,6 +1640,11 @@ class MainWindow(Adw.ApplicationWindow):
             for mode, button in self.sensor_mode_buttons.items():
                 button.set_visible(mode < 2 or bool(state.supports_sensor_max))
                 self._set_active(button, mode == current_mode)
+            self.sensor_mode_readonly.set_visible(current_mode == 3)
+            self.sensor_mode_readonly.set_text(
+                "Competitive MAX 13K is active on the mouse and remains read-only here."
+                if current_mode == 3 else ""
+            )
             self.sensor_mode_desc.set_text(
                 self.sensor_mode_descriptions.get(current_mode, "Sensor mode reported by the mouse.")
             )

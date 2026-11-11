@@ -78,9 +78,13 @@ def _argb_pixmap(surface: cairo.ImageSurface) -> list[tuple[int, int, bytes]]:
     out = bytearray(width * height * 4)
     for y in range(height):
         row = data[y * stride:y * stride + width * 4]
-        for x in range(width):
-            b, g, r, a = row[x * 4:x * 4 + 4]
-            out[(y * width + x) * 4:(y * width + x) * 4 + 4] = bytes((a, r, g, b))
+        base = y * width * 4
+        end = base + width * 4
+        # Cairo ARGB32 is BGRA on little-endian hosts; SNI wants ARGB.
+        out[base:end:4] = row[3::4]
+        out[base + 1:end:4] = row[2::4]
+        out[base + 2:end:4] = row[1::4]
+        out[base + 3:end:4] = row[0::4]
     return [(width, height, bytes(out))]
 
 
@@ -337,9 +341,18 @@ class Tray(dbus.service.Object):
         on_profile: Callable[[int], None],
         on_style: Callable[[str], None],
         style: str = DEFAULT_TRAY_STYLE,
+        on_unavailable: Callable[[], None] | None = None,
     ) -> None:
         DBusGMainLoop(set_as_default=True)
         self.bus = dbus.SessionBus()
+        self.on_unavailable = on_unavailable
+        self.bus.add_signal_receiver(
+            self._on_name_owner_changed,
+            signal_name="NameOwnerChanged",
+            dbus_interface="org.freedesktop.DBus",
+            bus_name="org.freedesktop.DBus",
+            path="/org/freedesktop/DBus",
+        )
         self.app_name = app_name
         self.on_open = on_open
         self.on_quit = on_quit
@@ -359,9 +372,12 @@ class Tray(dbus.service.Object):
         self._dpi_values: list[int] = []
         self._message = "Waiting for an ATK/VXE mouse"
         self._icon = render_tray_icon(None, False, self.style)
+        self._icon_key: tuple[object, ...] = (self.style, False, None, None)
+        self._menu_key: tuple[object, ...] | None = None
         self._revision = 1
         self._status = "Passive"
         self.visible = False
+        self._want_visible = False
         self._sni_generation = 0
         self._flatpak_id = os.environ.get("FLATPAK_ID")
 
@@ -386,8 +402,28 @@ class Tray(dbus.service.Object):
             return f"{self._flatpak_id}.StatusNotifierItem.g{self._sni_generation}"
         return f"org.kde.StatusNotifierItem-{os.getpid()}-{self._sni_generation}-1"
 
+    def _on_name_owner_changed(self, name, old_owner, new_owner) -> None:
+        if str(name) != WATCHER:
+            return
+        if new_owner:
+            if self._want_visible and not self.visible:
+                logger.info("StatusNotifierWatcher appeared; re-registering tray item")
+                self.start()
+        elif self.visible:
+            logger.warning("StatusNotifierWatcher disappeared; waiting for it to return")
+            self.visible = False
+
+    def _notify_unavailable(self) -> None:
+        callback = self.on_unavailable
+        if callback is not None:
+            try:
+                callback()
+            except Exception:
+                logger.exception("tray-unavailable callback failed")
+
     def start(self) -> bool:
         """Register the tray item with StatusNotifierWatcher."""
+        self._want_visible = True
         if self.visible and self.bus_name is not None:
             return True
         if self.bus_name is None:
@@ -405,7 +441,15 @@ class Tray(dbus.service.Object):
                 self.bus_name.get_name(), dbus_interface=WATCHER
             )
         except dbus.DBusException as exc:
-            logger.exception("tray registration failed: %s", exc)
+            try:
+                watcher_present = bool(self.bus.name_has_owner(WATCHER))
+            except dbus.DBusException:
+                watcher_present = False
+            if watcher_present:
+                logger.exception("tray registration failed: %s", exc)
+            else:
+                logger.warning("tray watcher is not running: %s", exc)
+                self._notify_unavailable()
             return False
         self.visible = True
         logger.info("tray item registered as %s", self.bus_name.get_name())
@@ -413,6 +457,7 @@ class Tray(dbus.service.Object):
 
     def stop(self) -> None:
         """Remove the item from the panel without stopping the worker."""
+        self._want_visible = False
         self.visible = False
         logger.info("tray item removed")
         old = self.bus_name
@@ -427,6 +472,14 @@ class Tray(dbus.service.Object):
             # BusName object can be released normally; no GC dependence.
             del old
 
+    def show_error(self, message: str) -> None:
+        """Surface a transient failure in the tray tooltip."""
+        if not self.visible:
+            return
+        self._message = f"{self.app_name}: {message}"
+        self._emit("NewToolTip")
+        self._emit("NewTitle")
+
     def set_visible(self, visible: bool) -> bool:
         if visible:
             return self.start()
@@ -437,6 +490,8 @@ class Tray(dbus.service.Object):
                message: str | None = None) -> None:
         self.state = state
         self.connected = connected and state is not None
+        message_before = self._message
+        status_before = self._status
         if self.connected and state is not None:
             model = None
             if state.cid is not None and state.mid is not None:
@@ -459,19 +514,38 @@ class Tray(dbus.service.Object):
         else:
             self._message = message or "No ATK/VXE mouse connected"
             self._status = "Passive"
-        self._icon = render_tray_icon(state, self.connected, self.style)
-        self._revision += 1
-        self._emit("NewIcon")
-        self._emit("NewToolTip")
-        self._emit("NewTitle")
-        self.NewStatus(self._status)
-        self.menu.LayoutUpdated(self._revision, 0)
+        icon_key = (self.style, self.connected, state.battery if state else None, state.charging if state else None)
+        if icon_key != self._icon_key:
+            self._icon = render_tray_icon(state, self.connected, self.style)
+            self._icon_key = icon_key
+            self._emit("NewIcon")
+        if self._message != message_before:
+            self._emit("NewToolTip")
+            self._emit("NewTitle")
+        if self._status != status_before:
+            self.NewStatus(self._status)
+        menu_key = (
+            self.connected,
+            self.style,
+            tuple(self.polling_rates),
+            tuple(self._dpi_menu_values()),
+            state.profile if state else None,
+            state.stage_count if state else None,
+            state.active_stage if state else None,
+            self._message,
+        )
+        if menu_key != self._menu_key:
+            self._menu_key = menu_key
+            self._revision += 1
+            self.menu.LayoutUpdated(self._revision, 0)
 
     def set_style(self, style: str) -> None:
         if style not in STYLE_KEYS or style == self.style:
             return
         self.style = style
         self._icon = render_tray_icon(self.state, self.connected, style)
+        self._icon_key = (style, self.connected, self.state.battery if self.state else None, self.state.charging if self.state else None)
+        self._menu_key = None
         self._revision += 1
         self._emit("NewIcon")
         self.menu.LayoutUpdated(self._revision, 0)

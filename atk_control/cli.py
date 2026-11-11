@@ -158,6 +158,7 @@ def _sensor_mode_label(mode: int) -> str:
         0: "Basic",
         1: "Competitive",
         2: "Competitive MAX",
+        3: "Competitive MAX 13K (read-only)",
     }.get(mode, f"mode {mode}")
 
 
@@ -183,6 +184,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--device", help="hidraw node to use, for example /dev/hidraw22")
     parser.add_argument("--debug", action="store_true", help="enable debug logging")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {config.VERSION}",
+        help="print the version and exit",
+    )
     sub = parser.add_subparsers(dest="command")
 
     p = sub.add_parser("status", help="show device status")

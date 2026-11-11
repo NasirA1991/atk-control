@@ -186,7 +186,6 @@ def capabilities_for(
     receiver: Receiver | None,
     sensor_name: str | None = None,
     active_polling: int = 1000,
-    supported_lift_off_codes: tuple[int, ...] = (1, 4, 11),
     debounce: int | None = None,
     sleep: int | None = None,
     usb_name: str = "",

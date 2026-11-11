@@ -116,10 +116,6 @@ POLLING_CODES: tuple[tuple[int, int], ...] = (
 POLLING_FROM_CODE = dict(POLLING_CODES)
 POLLING_TO_CODE = {hz: code for code, hz in POLLING_CODES}
 
-LIFT_OFF_CODES: tuple[tuple[int, int], ...] = ((1, 7), (4, 10), (11, 17))
-LIFT_OFF_MM_TO_CODE = {mm: code for code, mm in LIFT_OFF_CODES}
-LIFT_OFF_LABELS = {7: "Low", 10: "Medium", 17: "High"}
-
 SLEEP_STEP_SECONDS = 10
 DEFAULT_SLEEP_OPTIONS = (30, 60, 120, 180, 300, 600, 1200, 1800)
 DEFAULT_DEBOUNCE_OPTIONS = (0, 1, 2, 4, 8, 15, 20)
