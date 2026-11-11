@@ -22,8 +22,10 @@ rm -f "$PREFIX/share/applications/io.github.atkcontrol.AtkControl.desktop"
 rm -f "$PREFIX/share/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml"
 for size in 16 32 48 64 128 256 512; do
     rm -f "$PREFIX/share/icons/hicolor/${size}x${size}/apps/atk-control.png"
+    rm -f "$PREFIX/share/icons/hicolor/${size}x${size}/apps/io.github.atkcontrol.AtkControl.png"
 done
 rm -f "$PREFIX/share/icons/hicolor/scalable/apps/atk-control.svg"
+rm -f "$PREFIX/share/icons/hicolor/scalable/apps/io.github.atkcontrol.AtkControl.svg"
 
 # Autostart is not a preference worth preserving: it launches a binary that is
 # no longer installed. Preferences under ~/.config/atk-control are kept.

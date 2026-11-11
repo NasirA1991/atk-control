@@ -82,10 +82,13 @@ for size in 16 32 48 64 128 256 512; do
     src="$ROOT/data/icons/hicolor/${size}x${size}/apps/atk-control.png"
     if [ -f "$src" ]; then
         install -Dm644 "$src" "$ICON_ROOT/${size}x${size}/apps/atk-control.png"
+        install -Dm644 "$src" "$ICON_ROOT/${size}x${size}/apps/io.github.atkcontrol.AtkControl.png"
     fi
 done
 install -Dm644 "$ROOT/data/icons/hicolor/scalable/apps/atk-control.svg" \
     "$ICON_ROOT/scalable/apps/atk-control.svg"
+install -Dm644 "$ROOT/data/icons/hicolor/scalable/apps/atk-control.svg" \
+    "$ICON_ROOT/scalable/apps/io.github.atkcontrol.AtkControl.svg"
 install -Dm644 "$ROOT/data/applications/io.github.atkcontrol.AtkControl.desktop" \
     "$DESKTOP_DIR/io.github.atkcontrol.AtkControl.desktop"
 install -Dm644 "$ROOT/data/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml" \

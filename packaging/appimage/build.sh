@@ -16,7 +16,9 @@ find AppDir/usr/share/atk-control -name '__pycache__' -type d -prune -exec rm -r
 install -Dm755 packaging/appimage/AppRun AppDir/AppRun
 install -Dm644 packaging/appimage/launcher.py AppDir/usr/share/atk-control/launcher.py
 install -Dm644 data/icons/atk-control.png AppDir/atk-control.png
+install -Dm644 data/icons/atk-control.png AppDir/io.github.atkcontrol.AtkControl.png
 install -Dm644 data/icons/hicolor/scalable/apps/atk-control.svg AppDir/atk-control.svg
+install -Dm644 data/icons/hicolor/scalable/apps/atk-control.svg AppDir/io.github.atkcontrol.AtkControl.svg
 install -Dm644 data/applications/io.github.atkcontrol.AtkControl.desktop AppDir/atk-control.desktop
 install -Dm644 data/applications/io.github.atkcontrol.AtkControl.desktop \
     AppDir/usr/share/applications/atk-control.desktop
