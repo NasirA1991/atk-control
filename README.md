@@ -209,14 +209,17 @@ cadence.
 
 Writes are verified by reading them back, then committed to the active onboard
 profile so they survive a power cycle. A per-device lock prevents the GUI and
-CLI from racing; failed writes and partial button resets are recovered as far
-as the protocol allows. Button remapping and Competitive MAX are enabled only
-for individually verified models.
+CLI from racing, so quit one before using the other on the same mouse; failed
+writes and partial button resets are recovered as far as the protocol allows.
+Button remapping and Competitive MAX are enabled only for individually verified
+models.
 
 <details>
 <summary>Implementation details</summary>
 
 - Rejected values are re-read so the UI reverts to the confirmed state.
+- Committing a batch briefly selects another profile and switches back
+  (roughly 0.4 s) because the firmware only flushes the active profile.
 - Adding a DPI stage preflights the shared colour row and preserves the
   neighbouring stage's bytes.
 - A failed button reset attempts to restore the original mappings and reports
