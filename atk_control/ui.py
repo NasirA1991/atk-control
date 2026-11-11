@@ -1873,7 +1873,7 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.set_title("Save ATK Control support report")
         name = (
             diagnostics.default_filename()
-            if self._state is not None
+            if getattr(self.worker, "connected", False)
             else diagnostics.discovery_filename()
         )
         dialog.set_initial_name(name)
