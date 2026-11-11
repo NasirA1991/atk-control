@@ -1166,9 +1166,11 @@ class MainWindow(Adw.ApplicationWindow):
         )
         support_text = self._label(
             "Save the report, review it, then attach it to the GitHub support "
-            "request. By default it contains device IDs and settings but no raw "
-            "registers, full RF identifier, USB serial or host name. Raw bytes are "
-            "opt-in and only needed when maintainers ask for them.",
+            "request. If no mouse is detected, it lists the ATK/VXE HID interfaces "
+            "and descriptors instead, so maintainers can identify an unsupported "
+            "protocol. By default it contains no raw registers, full RF identifier, "
+            "USB serial or host name. Raw bytes are opt-in and only needed when "
+            "maintainers ask for them.",
             "row-sub", wrap=True,
         )
         support_text.set_max_width_chars(78)
@@ -1867,12 +1869,14 @@ class MainWindow(Adw.ApplicationWindow):
             self.toast("Could not open the GitHub support request.")
 
     def _save_report(self) -> None:
-        if self._state is None:
-            self.toast("Connect a mouse first.")
-            return
         dialog = Gtk.FileDialog()
         dialog.set_title("Save ATK Control support report")
-        dialog.set_initial_name(diagnostics.default_filename())
+        name = (
+            diagnostics.default_filename()
+            if self._state is not None
+            else diagnostics.discovery_filename()
+        )
+        dialog.set_initial_name(name)
         dialog.save(self, None, self._report_saved)
 
     def _report_saved(self, dialog, result) -> None:
@@ -1880,7 +1884,7 @@ class MainWindow(Adw.ApplicationWindow):
             gfile = dialog.save_finish(result)
         except GLib.Error:
             return
-        if gfile is None or not gfile.get_path() or self._state is None:
+        if gfile is None or not gfile.get_path():
             return
         try:
             if hasattr(self.worker, "save_support_report"):
@@ -1889,11 +1893,14 @@ class MainWindow(Adw.ApplicationWindow):
                     include_raw=bool(self.include_raw_report.get_active()),
                 )
                 self.toast("Generating support report…")
-            else:
+            elif self._state is not None:
                 path = diagnostics.write_report(
                     gfile.get_path(), self._state, self.worker.device_path, self.worker.capabilities
                 )
                 self.toast(f"Saved {Path(path).name}")
+            else:
+                path = diagnostics.write_discovery_report(gfile.get_path())
+                self.toast(f"Discovery report saved: {Path(path).name}")
         except Exception as exc:
             self.toast(f"Could not save report: {exc}")
 

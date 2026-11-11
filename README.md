@@ -292,6 +292,7 @@ atkctl support                # save a sanitized support report
 atkctl report                 # print the same report
 atkctl caps
 atkctl scan
+atkctl scan --all            # include unrecognised ATK/VXE interfaces
 ```
 
 Every setter reads the device back and exits non-zero if the mouse did not
@@ -319,6 +320,10 @@ reconnect the receiver. The AUR package installs it automatically.
 Move the mouse to wake it. The receiver must also be connected. If two mice are
 connected, the app switches to the other one when the selected mouse goes
 offline.
+
+If the mouse is connected but still not detected, its protocol may be newer
+than this build. Run `atkctl scan --all` to see the interface, then
+`atkctl support` to create a discovery report with the HID descriptor.
 
 ### The tray icon is missing or has no menu
 GNOME needs a StatusNotifier/AppIndicator extension. On KDE/XFCE, left click
@@ -374,13 +379,17 @@ From a terminal this is:
 
 ```bash
 atkctl support
+atkctl scan --all   # if the mouse is not detected at all
 ```
 
-The report includes the device identity and every setting ATK Control can read.
-It never includes the full RF identifier, USB serial number or host name, and
-nothing is uploaded automatically. Raw register bytes are **opt-in**: enable
-*Include raw registers* in the save dialog, or run `atkctl support --raw`, only
-when maintainers ask for them. [More about device reports](docs/DEVICE_REPORTS.md).
+A normal report includes the device identity and every setting ATK Control can
+read. If no supported configuration interface can be opened, the same command
+writes a **discovery report** instead: it lists every ATK/VXE HID interface and
+its report descriptor, without opening the device for writing. Neither report
+includes the full RF identifier, USB serial number or host name, and nothing is
+uploaded automatically. Raw register bytes are **opt-in**: enable *Include raw
+registers* in the save dialog, or run `atkctl support --raw`, only when
+maintainers ask for them. [More about device reports](docs/DEVICE_REPORTS.md).
 
 ![Device and support report](docs/screenshots/device.png)
 

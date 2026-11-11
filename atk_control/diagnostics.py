@@ -63,6 +63,112 @@ def _distribution_name() -> str:
     return str(release.get("PRETTY_NAME") or "unknown")
 
 
+def _candidate_lines(interfaces) -> list[str]:
+    if not interfaces:
+        return [
+            "- No ATK/VXE hidraw interfaces were found. Check that the mouse or "
+            "receiver is connected and visible as a USB device."
+        ]
+    lines = []
+    for info in interfaces:
+        kind = "receiver" if info.is_receiver else "HID interface"
+        access = "read/write" if info.accessible else "no permission"
+        status = "supported" if info.supported else f"unsupported: {info.unsupported_reason}"
+        lines.append(
+            f"- `{_node_name(info.path)}` — {info.vendor_id:04x}:{info.product_id:04x}"
+            f" — {info.product_name or 'unnamed interface'} — {kind} — {access}"
+            f" — **{status}**"
+        )
+        lines.append(f"  - Interface: `{info.interface or 'unknown'}`")
+        lines.append(
+            f"  - USB device revision: {info.bcd_device or 'unknown'}; "
+            f"hidraw node: `{info.path}`"
+        )
+        if info.usage_pages:
+            pages = ", ".join(f"0x{page:04x}" for page in info.usage_pages)
+            lines.append(f"  - Vendor usage pages: {pages}")
+        if info.report_ids:
+            ids = ", ".join(str(report_id) for report_id in info.report_ids)
+            lines.append(f"  - Report IDs: {ids}")
+        if info.descriptor:
+            descriptor = info.descriptor[:4096]
+            suffix = " (truncated to 4096 bytes)" if len(info.descriptor) > len(descriptor) else ""
+            lines.append(
+                f"  - Report descriptor ({len(info.descriptor)} bytes{suffix}):"
+            )
+            lines.append("")
+            lines.append("    ```")
+            lines.append(f"    {descriptor.hex()}")
+            lines.append("    ```")
+        else:
+            lines.append("  - Report descriptor: unavailable")
+    return lines
+
+
+def discovery_report_text(
+    reason: str | None = None,
+    interfaces=None,
+) -> str:
+    """Build a report when no supported configuration interface can be opened."""
+    from .protocol import discover_all
+
+    if interfaces is None:
+        try:
+            interfaces = discover_all()
+        except Exception:
+            interfaces = []
+    lines: list[str] = []
+    lines.append("# ATK Control discovery report")
+    lines.append("")
+    lines.append(
+        f"Generated: {dt.datetime.now().astimezone().isoformat(timespec='seconds')}"
+    )
+    lines.append(f"ATK Control: {config.VERSION}")
+    lines.append("")
+    lines.append("## Why this report exists")
+    lines.append("")
+    lines.append(
+        "ATK Control could not open a supported configuration interface. This "
+        "report lists the raw ATK/VXE HID interfaces so a maintainer can identify "
+        "the protocol used by this device and add support."
+    )
+    if reason:
+        lines.append("")
+        lines.append(f"Detection result: {reason}")
+    lines.append("")
+    lines.append("## System")
+    lines.append("")
+    lines.append(f"- OS: {platform.platform()}")
+    lines.append(f"- Kernel: {platform.release()}")
+    lines.append(f"- Distribution: {_distribution_name()}")
+    lines.append("")
+    lines.append("## ATK/VXE HID interfaces")
+    lines.append("")
+    lines.extend(_candidate_lines(interfaces))
+    lines.append("")
+    lines.append("## What maintainers need")
+    lines.append("")
+    lines.append(
+        "The report descriptor, vendor usage page, report IDs and USB IDs above "
+        "are the minimum needed to identify an unrecognised protocol. The "
+        "maintainer may ask for a USB capture or a read-only register dump after "
+        "reviewing this report."
+    )
+    lines.append("")
+    lines.append("## Privacy")
+    lines.append("")
+    lines.append(
+        "This report is generated locally. It does not include the host name, "
+        "USB serial number, RF identifier, user file paths, or device serials. "
+        "The HID report descriptor is generic hardware metadata; review the file "
+        "before attaching it to a public issue."
+    )
+    lines.append("")
+    lines.append(f"Support request: {config.SUPPORT_URL}")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def report_text(state: MouseState, device_path: str | None = None,
                 caps=None, raw_registers: dict[int, bytes | None] | None = None) -> str:
     """Build a Markdown report suitable for a public issue.
@@ -189,6 +295,22 @@ def report_text(state: MouseState, device_path: str | None = None,
 def default_filename() -> str:
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M")
     return f"atk-control-report-{stamp}.md"
+
+
+def discovery_filename() -> str:
+    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M")
+    return f"atk-control-discovery-{stamp}.md"
+
+
+def write_discovery_report(path: str | Path, reason: str | None = None,
+                           interfaces=None) -> Path:
+    target = Path(path).expanduser()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        discovery_report_text(reason=reason, interfaces=interfaces),
+        encoding="utf-8",
+    )
+    return target
 
 
 def write_report(path: str | Path, state: MouseState,

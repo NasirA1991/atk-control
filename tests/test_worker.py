@@ -63,6 +63,21 @@ class WorkerSafetyTests(unittest.TestCase):
         self.assertEqual(states[-1].model_name, "VXE R1 Pro")
         self.assertTrue(any("Switched automatically" in message for message in toasts))
 
+    def test_support_report_without_controller_uses_discovery_report(self) -> None:
+        toasts = []
+        worker = DeviceWorker(lambda *_: None, lambda *_: None, toasts.append)
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "discovery.md"
+            with patch(
+                "atk_control.worker.diagnostics.discovery_report_text",
+                return_value="# ATK Control discovery report\n",
+            ):
+                worker._write_support_report(str(target))
+            self.assertEqual(
+                target.read_text(), "# ATK Control discovery report\n"
+            )
+        self.assertTrue(any("Discovery report saved" in message for message in toasts))
+
     def test_hidden_heartbeat_disconnects_after_two_offline_replies(self) -> None:
         worker = DeviceWorker(lambda *_: None, lambda *_: None)
         controller = Mock()

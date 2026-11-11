@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added a discovery report for unrecognised ATK/VXE devices. `atkctl support`
+  and the Device page now work when no supported mouse can be opened, listing
+  each vendor HID interface, report descriptor, usage pages and report IDs.
+  `atkctl scan --all` shows the same candidates. This is diagnostic only; no
+  unsupported protocol is opened for writing.
 - Preserved button-slot indexes when an individual button record fails its
   checksum, so remapping a later button cannot overwrite a different physical
   button. Unreadable slots are disabled in the UI and can be repaired by

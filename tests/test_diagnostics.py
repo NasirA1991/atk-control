@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from atk_control import diagnostics
+from atk_control.protocol import DeviceInfo
 from atk_control.state import Button, MouseState
 
 
@@ -84,3 +85,52 @@ class DiagnosticsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DiscoveryReportTests(unittest.TestCase):
+    def _unsupported(self) -> DeviceInfo:
+        return DeviceInfo(
+            path="/dev/hidraw-a9",
+            vendor_id=0x373B,
+            product_id=0x1216,
+            product_name="ATK A9 Plus 2.0",
+            interface="1-3:1.0",
+            bcd_device="0110",
+            accessible=False,
+            descriptor=bytes.fromhex("0605ff0902850895407508"),
+            supported=False,
+            unsupported_reason="vendor usage page 0xff05 instead of 0xff02",
+            usage_pages=(0xFF05,),
+            report_ids=(8,),
+        )
+
+    def test_discovery_report_lists_unsupported_interface(self) -> None:
+        text = diagnostics.discovery_report_text(
+            "No supported ATK/VXE configuration interface found.",
+            [self._unsupported()],
+        )
+        self.assertIn("# ATK Control discovery report", text)
+        self.assertIn("373b:1216", text)
+        self.assertIn("ATK A9 Plus 2.0", text)
+        self.assertIn("0xff05", text)
+        self.assertIn("0605ff0902850895407508", text)
+        self.assertIn("Support request:", text)
+
+    def test_discovery_report_handles_no_interfaces(self) -> None:
+        text = diagnostics.discovery_report_text("none", interfaces=[])
+        self.assertIn("No ATK/VXE hidraw interfaces were found", text)
+
+    def test_write_discovery_report(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "discovery.md"
+            path = diagnostics.write_discovery_report(
+                target, "none", [self._unsupported()]
+            )
+            self.assertTrue(path.exists())
+            self.assertIn("# ATK Control discovery report", path.read_text())
+
+    def test_discovery_filename(self) -> None:
+        self.assertRegex(
+            diagnostics.discovery_filename(),
+            r"^atk-control-discovery-\d{8}-\d{4}\.md$",
+        )

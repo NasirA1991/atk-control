@@ -21,6 +21,13 @@ directory and prints the support-request URL. You can choose another location:
 atkctl support -o ~/atk-r1-report.md
 ```
 
+If ATK Control cannot open a supported configuration interface, it writes a
+**discovery report** instead (`atk-control-discovery-*.md`). That report lists
+every ATK/VXE HID interface, its USB ID, vendor usage pages, report IDs and
+raw HID report descriptor. It does not open an unknown device for writing.
+`atkctl scan --all` prints the same candidate interfaces without writing a
+file.
+
 `atkctl report` prints the same content to the terminal instead. If a
 maintainer asks for raw bytes, add `--raw` (and review the result):
 
@@ -31,12 +38,18 @@ atkctl report --raw
 
 ## 2. What is in it?
 
+A normal report contains:
+
 - distribution, kernel and session details;
 - all detected ATK/VXE configuration interfaces;
 - model, sensor, USB IDs, device revision, firmware and CID/MID;
 - battery and link telemetry;
 - every setting ATK Control can read;
 - the read-only button map.
+
+A discovery report is generated when no supported interface can be opened. It
+contains the system details plus every ATK/VXE HID interface, its USB ID,
+interface name, vendor usage pages, report IDs and HID report descriptor.
 
 Raw register bytes are omitted by default. They are the most useful part when
 adding a new model, but they are undocumented device data, so they are opt-in.

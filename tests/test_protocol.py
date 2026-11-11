@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
 from atk_control import protocol
 
@@ -91,3 +93,59 @@ class BcdTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DiscoveryTests(unittest.TestCase):
+    def _interface(self, root: Path, name: str, descriptor: bytes,
+                   vendor: int = 0x373B, product: int = 0x1216) -> Path:
+        device = root / name / "device"
+        device.mkdir(parents=True)
+        (device / "uevent").write_text(
+            f"HID_ID=0003:{vendor:08X}:{product:08X}\n"
+            "HID_NAME=ATK A9 Plus 2.0\n",
+            encoding="utf-8",
+        )
+        (device / "report_descriptor").write_bytes(descriptor)
+        (device / "bcdDevice").write_text("0110\n", encoding="ascii")
+        return device
+
+    def test_unsupported_ff05_interface_is_listed(self) -> None:
+        descriptor = bytes.fromhex("0605ff0902850895407508")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self._interface(root, "hidraw-a9", descriptor)
+            found = protocol.discover_all(base=root)
+        self.assertEqual(len(found), 1)
+        info = found[0]
+        self.assertFalse(info.supported)
+        self.assertIn("0xff05", info.unsupported_reason)
+        self.assertEqual(info.usage_pages, (0xFF05,))
+        self.assertEqual(info.report_ids, (8,))
+        self.assertIn("373b:1216", f"{info.vendor_id:04x}:{info.product_id:04x}")
+
+    def test_supported_ff02_interface_remains_supported(self) -> None:
+        descriptor = bytes.fromhex("0602ff09028508951075088102")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self._interface(root, "hidraw-mad", descriptor, 0x373B, 0x1040)
+            found = protocol.discover_all(base=root)
+        self.assertEqual(len(found), 1)
+        self.assertTrue(found[0].supported)
+        self.assertEqual(found[0].unsupported_reason, "")
+
+    def test_missing_descriptor_is_explained(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self._interface(root, "hidraw-empty", b"")
+            found = protocol.discover_all(base=root)
+        self.assertEqual(len(found), 1)
+        self.assertFalse(found[0].supported)
+        self.assertEqual(found[0].unsupported_reason, "no readable report descriptor")
+
+    def test_descriptor_parser_does_not_crash_on_truncated_data(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self._interface(root, "hidraw-short", b"\x06\x05")
+            found = protocol.discover_all(base=root)
+        self.assertEqual(len(found), 1)
+        self.assertFalse(found[0].supported)

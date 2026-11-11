@@ -335,8 +335,20 @@ class DeviceWorker:
 
     def _write_support_report(self, path: str, include_raw: bool = False) -> None:
         controller = self._controller
+        target = Path(path).expanduser()
         if controller is None:
-            self._toast("Connect a mouse before saving a support report.")
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    diagnostics.discovery_report_text(),
+                    encoding="utf-8",
+                )
+                self._toast(f"Discovery report saved: {target.name}")
+            except OSError as exc:
+                self._toast(f"Could not write report: {exc}")
+            except Exception as exc:
+                logger.exception("discovery report creation failed")
+                self._toast(f"Could not create discovery report: {exc}")
             return
         try:
             try:
@@ -344,7 +356,6 @@ class DeviceWorker:
             except ProtocolError:
                 state = controller.state
             raw = controller.collect_raw_registers() if include_raw else None
-            target = Path(path).expanduser()
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(
                 diagnostics.report_text(state, controller.path, controller.caps, raw),
@@ -426,6 +437,13 @@ class DeviceWorker:
                 self._retry_now = False
             with self._lock:
                 preferred = self._preferred_path
+            with self._lock:
+                report_path = self._report_path
+                include_raw = self._report_include_raw
+                self._report_path = None
+                self._report_include_raw = False
+            if report_path:
+                self._write_support_report(report_path, include_raw)
             if (
                 retry
                 and self._controller is not None
@@ -446,13 +464,6 @@ class DeviceWorker:
                 if not os.path.exists(self._controller.path):
                     self._disconnect("Mouse disconnected; looking for another connected mouse.")
                     continue
-            with self._lock:
-                report_path = self._report_path
-                include_raw = self._report_include_raw
-                self._report_path = None
-                self._report_include_raw = False
-            if report_path:
-                self._write_support_report(report_path, include_raw)
             with self._lock:
                 force = self._force_full
                 self._force_full = False

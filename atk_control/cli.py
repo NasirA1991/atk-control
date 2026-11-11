@@ -11,7 +11,13 @@ import sys
 from . import config, devices, diagnostics
 from .controller import BUTTON_ACTION_ORDER, Controller
 from .logging_setup import configure as configure_logging
-from .protocol import DeviceNotFound, PermissionDenied, ProtocolError, discover
+from .protocol import (
+    DeviceNotFound,
+    PermissionDenied,
+    ProtocolError,
+    discover,
+    discover_all,
+)
 from .state import MouseState
 
 logger = logging.getLogger(__name__)
@@ -84,16 +90,38 @@ def _open(path: str | None = None) -> Controller:
     raise DeviceNotFound("No ATK/VXE mouse or receiver found. Check the udev rule.")
 
 
-def _print_scan() -> int:
-    candidates = discover()
+def _print_scan(all_devices: bool = False) -> int:
+    candidates = discover_all() if all_devices else discover()
     if not candidates:
-        print("No ATK/VXE configuration interface found.")
+        if all_devices:
+            print("No ATK/VXE HID interfaces found.")
+        else:
+            print("No supported ATK/VXE configuration interface found. "
+                  "Run `atkctl scan --all` to list unrecognised interfaces.")
         return 1
     for info in candidates:
         access = "read/write" if info.accessible else "no permission"
-        kind = "receiver" if info.is_receiver else "mouse"
+        kind = "receiver" if info.is_receiver else "HID"
+        status = "supported" if info.supported else f"unsupported: {info.unsupported_reason}"
         print(f"{info.path}  {info.vendor_id:04x}:{info.product_id:04x}  "
-              f"{kind:8}  {info.product_name}  [{access}]")
+              f"{kind:8}  {info.product_name}  [{access}]  {status}")
+    return 0
+
+
+def _write_discovery(args, reason: str) -> int:
+    interfaces = discover_all()
+    text = diagnostics.discovery_report_text(reason=reason, interfaces=interfaces)
+    if args.command == "support" and not args.output:
+        args.output = diagnostics.discovery_filename()
+    if args.output:
+        path = diagnostics.write_discovery_report(
+            args.output, reason=reason, interfaces=interfaces
+        )
+        print(f"Discovery report saved to {path}")
+        print("Attach it to the device-support issue so maintainers can identify the protocol.")
+    else:
+        print(text)
+    print(f"\nSupport request: {config.SUPPORT_URL}")
     return 0
 
 
@@ -195,7 +223,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("status", help="show device status")
     p.add_argument("--json", action="store_true")
 
-    sub.add_parser("scan", help="list detected ATK/VXE interfaces")
+    p = sub.add_parser("scan", help="list detected ATK/VXE interfaces")
+    p.add_argument("--all", action="store_true",
+                   help="include interfaces that do not match the supported protocol")
     sub.add_parser("caps", help="show supported features and ranges")
 
     p = sub.add_parser("polling", help="set the report rate")
@@ -280,11 +310,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"atkctl {config.VERSION}")
         return 0
     if args.command == "scan":
-        return _print_scan()
+        return _print_scan(bool(getattr(args, "all", False)))
 
     controller: Controller | None = None
     try:
-        controller = _open(args.device)
+        try:
+            controller = _open(args.device)
+        except DeviceNotFound as exc:
+            if args.command in ("report", "support"):
+                return _write_discovery(args, str(exc))
+            raise
         read_only_commands = {None, "status", "caps", "report", "support"}
         if controller.state.read_only and args.command not in read_only_commands:
             print(
