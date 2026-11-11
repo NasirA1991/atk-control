@@ -271,6 +271,9 @@ Close the window to keep the app in the tray; **Quit** from the tray menu (or
 ```bash
 atkctl status
 atkctl status --json
+atkctl battery               # percentage, charging state and voltage
+atkctl battery --json
+atkctl watch                 # live battery/link samples until Ctrl-C
 atkctl polling 8000
 atkctl dpi 1600
 atkctl dpi 1600 --stage 3
@@ -297,7 +300,8 @@ atkctl scan --all            # include unrecognised ATK/VXE interfaces
 
 Every setter reads the device back and exits non-zero if the mouse did not
 confirm the change. The GUI and CLI share a per-device lock, so quit the GUI
-(or its tray process) before using `atkctl` on the same mouse.
+(or its tray process) before using `atkctl` on the same mouse. `atkctl watch`
+holds that lock until you stop it.
 
 ### Tray on GNOME
 

@@ -599,10 +599,10 @@ class Controller:
         self._require(code is not None, f"Unknown polling rate {hertz} Hz")
         if code is None:
             raise ProtocolError(f"Unknown polling rate {hertz} Hz")
-        system = bytearray(self.transport.read_eeprom(ADDR_SYSTEM, 10))
-        system[0:2] = pack_pair(code)
-        # The full six-byte system row preserves stage count and active stage.
-        self.transport.write_eeprom(ADDR_SYSTEM, bytes(system[:6]))
+        # Only the polling field belongs to this write. Sending a read-modify-
+        # write of the whole system row can overwrite a stage change made by
+        # the mouse or another utility in between the read and the write.
+        self.transport.write_eeprom(ADDR_SYSTEM, pack_pair(code))
         time.sleep(0.12)
         confirmed = self.transport.read_eeprom(ADDR_SYSTEM, 10)
         actual = protocol.POLLING_FROM_CODE.get(confirmed[0])

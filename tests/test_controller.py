@@ -186,6 +186,7 @@ class ControllerTests(unittest.TestCase):
     def test_polling_and_dpi_writes(self) -> None:
         self.assertEqual(self.ctl.set_polling(4000), 4000)
         self.assertEqual(self.ctl.state.polling_rate, 4000)
+        self.assertEqual(self.fake.writes[-1], (0x0000, pack_pair(0x20)))
         x, y = self.ctl.set_stage_dpi(2, 800, 800)
         self.assertEqual((x, y), (800, 800))
         self.assertEqual(self.ctl.state.stages[2], (800, 800))

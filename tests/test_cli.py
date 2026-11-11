@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,6 +21,9 @@ class _FakeController:
     caps = devices.default_capabilities()
 
     def read_full(self):
+        return self.state
+
+    def read_live(self):
         return self.state
 
     def close(self):
@@ -39,6 +43,58 @@ class CliTests(unittest.TestCase):
             cli.main(["--help"])
         self.assertEqual(caught.exception.code, 0)
         self.assertIn("status", out.getvalue())
+
+    def test_battery_reports_level_and_voltage(self) -> None:
+        ctl = _FakeController()
+        ctl.state = MouseState(
+            model_name="MAD R", battery=76, charging=False,
+            voltage_mv=3980, polling_rate=8000,
+        )
+        out = io.StringIO()
+        with patch("atk_control.cli._open", return_value=ctl):
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(cli.main(["battery"]), 0)
+        self.assertIn("Battery: 76%", out.getvalue())
+        self.assertIn("3980 mV", out.getvalue())
+
+    def test_battery_json_and_watch(self) -> None:
+        ctl = _FakeController()
+        ctl.state = MouseState(
+            model_name="MAD R", battery=76, charging=True,
+            voltage_mv=3980, polling_rate=8000,
+        )
+        out = io.StringIO()
+        with patch("atk_control.cli._open", return_value=ctl):
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(cli.main(["battery", "--json"]), 0)
+        self.assertEqual(
+            json.loads(out.getvalue()),
+            {
+                "model": "MAD R",
+                "battery": 76,
+                "charging": True,
+                "voltage_mv": 3980,
+                "polling_rate": 8000,
+            },
+        )
+
+        out = io.StringIO()
+        with patch("atk_control.cli._open", return_value=ctl), \
+                patch("atk_control.cli.time.sleep") as sleep:
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(
+                    cli.main(["watch", "--count", "2", "--interval", "0.2"]), 0
+                )
+        lines = [line for line in out.getvalue().splitlines() if line]
+        self.assertEqual(len(lines), 2)
+        self.assertIn("76%+", lines[0])
+        sleep.assert_called_once_with(0.2)
+
+    def test_watch_rejects_invalid_interval(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as caught:
+                cli.main(["watch", "--interval", "0"])
+        self.assertEqual(caught.exception.code, 2)
 
     def test_caps_uses_discovered_controller(self) -> None:
         out = io.StringIO()

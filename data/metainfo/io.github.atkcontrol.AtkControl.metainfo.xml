@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.6.0" date="2026-11-11">
+      <description>
+        <p>Adds read-only discovery reports for unrecognised ATK/VXE mice, so a support report can be produced even when the configuration protocol is unknown. Adds `atkctl scan --all`, `atkctl battery` and `atkctl watch`. Hardens button-slot alignment, battery validation, device-picker refresh, tray watcher recovery, hidden error notifications and tray signal caching. Polling writes are now field-scoped to avoid a read-modify-write race.</p>
+      </description>
+    </release>
     <release version="0.5.3" date="2026-11-08">
       <description>
         <p>Adds structured debug logging, retry backoff, profile-commit recovery and safer lock handling; fixes stage-colour canonicalisation and removes the unreachable long-range feature. Adds CLI/transport tests, static-analysis CI, coverage reporting, version-source validation, scoped workflow permissions and pinned actions.</p>

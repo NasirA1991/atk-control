@@ -7,6 +7,8 @@ import dataclasses
 import json
 import logging
 import sys
+import time
+from datetime import datetime
 
 from . import config, devices, diagnostics
 from .controller import BUTTON_ACTION_ORDER, Controller
@@ -184,6 +186,61 @@ def _status(controller: Controller, as_json: bool) -> int:
     return 0
 
 
+def _battery_dict(state: MouseState) -> dict:
+    return {
+        "model": state.connected_name,
+        "battery": state.battery,
+        "charging": state.charging,
+        "voltage_mv": state.voltage_mv,
+        "polling_rate": state.polling_rate,
+    }
+
+
+def _battery_text(state: MouseState) -> str:
+    if state.battery is None:
+        text = "Battery: unknown"
+    else:
+        text = f"Battery: {state.battery}%"
+        if state.charging:
+            text += " (charging)"
+    if state.voltage_mv:
+        text += f"  {state.voltage_mv} mV"
+    return text
+
+
+def _battery(controller: Controller, as_json: bool) -> int:
+    state = controller.read_live()
+    if as_json:
+        print(json.dumps(_battery_dict(state), ensure_ascii=False))
+    else:
+        print(_battery_text(state))
+    return 0
+
+
+def _watch(controller: Controller, interval: float, count: int | None,
+           as_json: bool) -> int:
+    seen = 0
+    while count is None or seen < count:
+        state = controller.read_live()
+        if as_json:
+            payload = _battery_dict(state)
+            payload["timestamp"] = datetime.now().astimezone().isoformat(timespec="seconds")
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            stamp = datetime.now().strftime("%H:%M:%S")
+            battery = "?" if state.battery is None else f"{state.battery}%"
+            charging = "+" if state.charging else ""
+            print(
+                f"[{stamp}] {state.connected_name:<18} {battery + charging:>5}  "
+                f"{state.polling_rate:>4} Hz"
+            )
+        seen += 1
+        if count is not None and seen >= count:
+            break
+        time.sleep(interval)
+    return 0
+
+
 def _sensor_mode_label(mode: int) -> str:
     return {
         0: "Basic",
@@ -230,6 +287,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--all", action="store_true",
                    help="include interfaces that do not match the supported protocol")
     sub.add_parser("caps", help="show supported features and ranges")
+
+    p = sub.add_parser("battery", help="show battery level and charging state")
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("watch", help="poll battery and link state until interrupted")
+    p.add_argument("--interval", type=float, default=2.0,
+                   help="seconds between samples (default: 2)")
+    p.add_argument("--count", type=int, help="stop after this many samples")
+    p.add_argument("--json", action="store_true", help="one JSON object per sample")
 
     p = sub.add_parser("polling", help="set the report rate")
     p.add_argument("hz", type=int)
@@ -308,6 +374,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     configure_logging(args.debug)
+    if args.command == "watch":
+        if not 0.2 <= args.interval <= 60.0:
+            parser.error("--interval must be between 0.2 and 60 seconds")
+        if args.count is not None and args.count < 1:
+            parser.error("--count must be at least 1")
     logger.debug("atkctl %s command=%s device=%s", config.VERSION, args.command, args.device)
     if args.command == "version":
         print(f"atkctl {config.VERSION}")
@@ -323,7 +394,9 @@ def main(argv: list[str] | None = None) -> int:
             if args.command in ("report", "support"):
                 return _write_discovery(args, str(exc))
             raise
-        read_only_commands = {None, "status", "caps", "report", "support"}
+        read_only_commands = {
+            None, "status", "caps", "battery", "watch", "report", "support",
+        }
         if controller.state.read_only and args.command not in read_only_commands:
             print(
                 "atkctl: this mouse is recognized but not in the supported model "
@@ -337,6 +410,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "caps":
             print(_caps_text(controller.caps))
             return 0
+        if args.command == "battery":
+            return _battery(controller, bool(getattr(args, "json", False)))
+        if args.command == "watch":
+            return _watch(
+                controller,
+                float(args.interval),
+                args.count,
+                bool(getattr(args, "json", False)),
+            )
         if args.command == "polling":
             return _set_and_print("Polling", f"{controller.set_polling(args.hz)} Hz")
         if args.command == "dpi":
