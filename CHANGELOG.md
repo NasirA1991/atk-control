@@ -1,12 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-11-11
 
 - Added a discovery report for unrecognised ATK/VXE devices. `atkctl support`
   and the Device page now work when no supported mouse can be opened, listing
   each vendor HID interface, report descriptor, usage pages and report IDs.
   `atkctl scan --all` shows the same candidates. This is diagnostic only; no
   unsupported protocol is opened for writing.
+- Added `atkctl battery` and `atkctl watch` for scripts and status bars. Both
+  are read-only; `watch` can print JSON lines and stop after a fixed sample count.
+- Polling changes now write only the polling field instead of rewriting the
+  whole system row, removing a read-modify-write race with stage changes.
 - Preserved button-slot indexes when an individual button record fails its
   checksum, so remapping a later button cannot overwrite a different physical
   button. Unreadable slots are disabled in the UI and can be repaired by
