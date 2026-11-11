@@ -1,463 +1,366 @@
-# ATK Control
-
 <p align="center">
-  <img src="data/icons/hicolor/scalable/apps/atk-control.svg" width="112" alt="ATK Control icon">
+  <img src="data/icons/hicolor/scalable/apps/atk-control.svg" width="104" alt="ATK Control icon">
 </p>
 
+<h1 align="center">ATK Control</h1>
+
 <p align="center">
-  <strong>A native GTK4 control centre for ATK/VXE gaming mice.</strong><br>
-  Polling, DPI, buttons, lighting, profiles and a live battery tray — without a
-  browser tab, Windows VM or vendor service.
+  <strong>Native GTK4 control centre for ATK and VXE gaming mice.</strong><br>
+  DPI, polling, buttons, lighting and onboard profiles on Linux, with a live
+  battery tray and a scriptable CLI.
 </p>
 
 <p align="center">
   <a href="https://github.com/NasirA1991/atk-control/actions/workflows/ci.yml"><img src="https://github.com/NasirA1991/atk-control/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/NasirA1991/atk-control/actions/workflows/release.yml"><img src="https://github.com/NasirA1991/atk-control/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <a href="https://github.com/NasirA1991/atk-control/releases/latest"><img src="https://img.shields.io/github/v/release/NasirA1991/atk-control?label=release" alt="Latest release"></a>
   <a href="https://aur.archlinux.org/packages/atk-control"><img src="https://img.shields.io/aur/version/atk-control?label=AUR" alt="AUR"></a>
   <a href="https://aur.archlinux.org/packages/atk-control-git"><img src="https://img.shields.io/aur/version/atk-control-git?label=AUR%20git" alt="AUR git"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/NasirA1991/atk-control" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/NasirA1991/atk-control" alt="MIT licence"></a>
 </p>
 
-## Quick install
+ATK Control is an independent, local-first desktop application for configuring
+ATK and VXE mice. It talks to the mouse's vendor HID interface directly, so
+settings are written to the mouse instead of being held in a browser profile.
+There is no account, telemetry, network client or root daemon.
 
-### Arch, CachyOS or EndeavourOS
+It is a native alternative to ATK HUB for everyday settings, with a tray
+battery indicator and a CLI for scripting. ATK HUB remains the vendor tool for
+firmware updates and the features listed under [Limitations](#limitations).
 
-Use whichever AUR helper you normally use:
+**Start here:** [Supported devices](#supported-devices) ·
+[Quick start](#quick-start) · [Features](#features) · [CLI](#cli) ·
+[Troubleshooting](#troubleshooting) · [Documentation](#documentation)
 
-```bash
-paru -S atk-control     # paru
-yay -S atk-control      # yay
-```
+<img src="docs/screenshots/overview.png" width="860" alt="ATK Control overview showing battery, DPI, polling and quick controls">
 
-The stable AUR package pins the release tarball's SHA-256. `atk-control-git`
-tracks main and therefore uses `SKIP`, as VCS packages do. For the latest main
-branch, install `atk-control-git` instead. Other
-distributions can download the latest Flatpak or AppImage from
-[Releases](https://github.com/NasirA1991/atk-control/releases), or read the
-[full installation instructions](#install).
+<sub>Overview using demo data. The interface follows the system light or dark
+theme.</sub>
 
-> **Not a pip package.** `pip install .` is not a supported installation path:
-> the app needs the distro's GTK4/PyGObject stack, udev rule and data files.
-> Use AUR, Flatpak, AppImage, or `./install.sh`.
+## Supported devices
 
-**On this page:** [Features](#features) · [Supported devices](#supported-devices) · [Installation](#install) · [CLI](#cli) · [Troubleshooting](#troubleshooting) · [Permissions](#permissions) · [Support](#missing-your-mouse)
+Support is model-specific. A family name does not mean every variant has been
+tested on hardware, and “full settings” only refers to the features exposed by
+that model's firmware.
 
-![Overview](docs/screenshots/overview.png)
+| Device family | Status | What to expect |
+| --- | --- | --- |
+| **MAD R family** — MAD R+, MAD R, MAD R MAJOR, MAD R MAJOR+ | **Verified on MAD R+** | Full settings and 8K receiver support tested on MAD R+. Other family members are recognized but were not individually tested. |
+| **VXE R1 family** — R1 Pro, R1, R1 Pro Max | **Verified on R1 Pro** | Full settings tested on R1 Pro with 1K and 4K receivers. Other family members are recognized but were not individually tested. |
+| **ATK A9 Pro Max 2.0** — 373b:11dc dongle / 373b:1264 wired | **Experimental** | 0xFF05 settings for DPI, polling, lift-off, buttons, lighting and profiles. No physical hardware test; rotation and adding/removing DPI stages are not supported. Bluetooth has no configuration interface. |
+| **Other known models** — ATK X1 Pro Max, ATK A9 Plus NearLink, VXE R1 Ultra | Recognized | Settings controls are exposed from the model database, but these exact models have not been hardware-tested. |
+| **26 additional ATK/VXE models** — F1, X1, Z1, U2, A9, VXE R1 SE/R1S+, V3, X3 families | **Read-only** | The model and sensor are recognized so reports are useful, but writes stay disabled until the transport is verified. |
+| **Other ATK/VXE mice** | **Read-only** | Detected interfaces can produce a discovery report. Unmapped protocols are never opened for writing. |
 
-<sub>Screenshots are rendered by the built-in demo mode (`--demo`).</sub>
+**Verified** means the exact model was tested with ATK Control. **Experimental**
+means the protocol is implemented but has not been tested on that hardware.
+**Read-only** means recognition and reporting work, but settings writes are
+deliberately blocked.
 
-> **Hardware status:** the **MAD R +** on its **8K dongle** and the **VXE R1
-> Pro** on both its **1K** and **4K** receivers have been verified on real
-> hardware. Other ATK/VXE models share the configuration protocol but have not
-> each been individually tested. [Request support for your mouse](#missing-your-mouse)
-> and it can be added.
+Receiver support matters as much as the mouse model:
 
-## Features
+- 1K receiver: up to 1000 Hz.
+- VXE 4K receiver: up to 4000 Hz.
+- MAD 8K receiver: up to 8000 Hz.
 
-- **Tray icon with live battery** — three deliberately different designs:
-  *Hex gauge*, *Signal bars* and *Reticle*. Pick one under **Device → Tray icon**
-  or from the tray menu. Charging state and link type live in the tooltip, with
-  quick actions for polling, DPI, Motion Sync, ripple control and profiles.
-  The icon itself uses a dynamic battery pixmap, so the percentage is visible
-  in the panel as well as the tooltip. The item is removed while no mouse is
-  connected and restored automatically when a mouse comes back. Left click
-  opens the window; right click opens the quick menu; middle click refreshes.
-- **8K / 4K polling** — 125 Hz through 8000 Hz, limited intelligently by the
-  actual receiver. The app reads the link type and never offers a rate the
-  transport cannot carry.
-- **DPI** — separate X/Y resolution, up to eight stored stages, per-stage
-  indicator colours, add/remove stages, and one-click stage activation. The
-  active stage is the one the mouse's DPI button cycles through.
-- **Sensor sampling modes** — Basic, Competitive and Competitive MAX, with the
-  same trade-off descriptions as ATK HUB. MAX is enabled only where the model
-  table records hardware verification or explicit ATK HUB protocol evidence.
-- **Sensor control** — Motion Sync, ripple control, straight-line correction,
-  lift-off distance, debounce, sleep timer and sensor rotation (on firmware
-  that exposes it).
-- **DPI indicator LED** — off, steady or breathing, with brightness and speed.
-- **Onboard profiles** — switch between the four configuration banks stored in
-  the mouse.
-- **Button remapping** — assign standard mouse and DPI actions to the left,
-  right, middle, back, forward and bottom buttons, with a recoverable
-  restore-defaults action. Remapping is enabled only for verified models;
-  elsewhere the button map is read-only. Existing macro/shortcut assignments
-  are preserved individually but are explicitly overwritten by a full reset.
-- **Firmware awareness** — shows the firmware the mouse is actually running and
-  links to ATK HUB for updates. ATK Control never flashes firmware itself.
-- **CLI** (`atkctl`) for scripts, keybinds and status bars. Setters read the
-  value back and fail loudly if the mouse kept something else.
-- **Offline and private** — no telemetry, no cloud account, no vendor service.
-  Raw support bytes are opt-in, and a per-device lock prevents the GUI and CLI
-  from fighting over one hidraw stream.
+ATK Control caps polling at the receiver's link ceiling. A 4K dongle cannot
+reach 8K, and a wired connection may have different limits. Run `atkctl caps`
+or open the Device page for the actual values.
 
-![Buttons](docs/screenshots/buttons.png)
-![Performance](docs/screenshots/performance.png)
-![DPI](docs/screenshots/dpi.png)
-![Lighting](docs/screenshots/lighting.png)
+Missing your model, or a setting not working? Generate a
+[device support report](#device-support-reports). That is the fastest way to
+add evidence-backed support.
 
-### Tray icon styles
+## Quick start
 
-![Tray icon styles](docs/screenshots/tray-styles.png)
-
-The angular hexagon and transparent bar/reticle designs are intentionally unlike
-the tray icons used by other mouse utilities.
-
-## Install
-
-Release builds are produced by GitHub Actions and attached to every `v*`
-release.
-
-| Format | Best for | What it bundles |
-|---|---|---|
-| **AUR** `atk-control` / `atk-control-git` | Arch, CachyOS, EndeavourOS | source; builds against your system |
-| **Flatpak** `.flatpak` | any distro with Flatpak | GNOME runtime: Python, GTK4, libadwaita, PyGObject, dbus-python |
-| **AppImage** `.AppImage` | quick run anywhere with GTK4 installed | the app only; host provides GTK4/PyGObject |
-| **Source tarball** | packaging and auditing | source + installer |
-
-### Arch / CachyOS (AUR)
+### Arch Linux and derivatives (AUR)
 
 ```bash
-# Use your normal AUR helper; for example:
-paru -S atk-control        # paru, latest tagged release
-yay -S atk-control         # yay
-paru -S atk-control-git    # latest main, rebuilt on updates
+paru -S atk-control
+# or
+yay -S atk-control
 ```
 
-Both are published: [atk-control](https://aur.archlinux.org/packages/atk-control)
-· [atk-control-git](https://aur.archlinux.org/packages/atk-control-git).
-
-`atk-control` supersedes the earlier `compx-control` package and declares the
-old package name as replaced.
+Use `atk-control-git` for the latest development commit. The AUR package
+installs the desktop files, dependencies and udev rule.
 
 ### Flatpak
 
-Download `atk-control-<version>-x86_64.flatpak` from the
-[Releases page](https://github.com/NasirA1991/atk-control/releases), replacing
-`<version>` with the latest version, then:
+Download the bundle from the
+[latest release](https://github.com/NasirA1991/atk-control/releases/latest),
+then install it for your user:
 
 ```bash
-flatpak install --user ./atk-control-<version>-x86_64.flatpak
+flatpak install --user ./atk-control-0.8.0-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
-The Flatpak is self-contained and exposes `/dev/hidraw*` via `--device=all`.
-You still need the host udev permission described below.
+The Flatpak needs the GNOME runtime and the
+[host udev rule](docs/INSTALLATION.md#hid-permissions). It exposes
+`/dev/hidraw*` through `--device=all`.
 
 ### AppImage
 
 ```bash
-chmod +x atk-control-<version>-x86_64.AppImage
-./atk-control-<version>-x86_64.AppImage
+chmod +x atk-control-0.8.0-x86_64.AppImage
+./atk-control-0.8.0-x86_64.AppImage
 ```
 
-The AppImage intentionally bundles only the application and uses the host's
-Python 3, PyGObject, GTK4, libadwaita, pycairo and dbus-python. Install them
-with:
+The AppImage uses the host's GTK4, PyGObject and dbus-python packages. It also
+needs the [udev rule](docs/INSTALLATION.md#hid-permissions).
 
-```bash
-# Arch / CachyOS
-sudo pacman -S python-gobject gtk4 libadwaita python-cairo python-dbus hicolor-icon-theme
-# Debian / Ubuntu
-sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 python3-cairo python3-dbus hicolor-icon-theme
-# Fedora
-sudo dnf install python3-gobject gtk4 libadwaita python3-cairo python3-dbus hicolor-icon-theme
-```
+**Full instructions:** [Installation](docs/INSTALLATION.md) covers
+dependencies, source installs, udev setup, updates and uninstalling. Installing
+with `pip` is not supported.
 
-A fully self-contained bundle is the Flatpak above. Every release also includes
-`SHA256SUMS`; verify a download with:
+## Features
 
-```bash
-sha256sum -c SHA256SUMS
-```
+### Configure the mouse
 
-### From source
+- **DPI stages** — set X and Y resolution, switch the active stage, and edit
+  per-stage colours where the model exposes them.
+- **Polling rate** — choose 125–8000 Hz within the receiver and sensor limits.
+- **Sensor controls** — lift-off distance, debounce, sleep timer, Motion Sync,
+  ripple control, straight-line correction and rotation where supported.
+- **Sensor modes** — Basic, Competitive and Competitive MAX where the firmware
+  allows them. Competitive MAX 13K is read-only.
+- **Buttons** — remap the five main buttons plus the optional bottom button to
+  standard mouse, DPI or disabled actions, and restore defaults.
+- **Lighting** — DPI indicator modes (off, steady, breathing) with brightness
+  and speed where the model supports them.
+- **Profiles** — four onboard banks on supported v1 models. The experimental
+  A9 Pro Max 2.0 writes directly to its active profile.
 
-```bash
-git clone https://github.com/NasirA1991/atk-control.git
-cd atk-control
-./install.sh
-```
+### Use it your way
 
-This installs the launchers, desktop entry, icons and udev rule. The same
-GTK4/PyGObject dependencies listed for the AppImage are required.
-
-## Performance
-
-Native GTK4/Python, not Electron. The main window is created only when opened;
-tray-only operation is designed to leave a wireless mouse alone.
+- **Tray integration** — live battery, charging state, quick DPI/profile
+  changes and receiver switching.
+- **CLI** — `atkctl` exposes status, battery, scanning, reports and every
+  supported setting without starting GTK.
+- **Demo mode** — explore the interface with synthetic data using
+  `atk-control --demo`.
+- **Native and lightweight** — GTK4/libadwaita, with the main window created
+  only when opened.
 
 <details>
-<summary>Idle usage measurements</summary>
+<summary>Resource use and hidden polling</summary>
 
-These are approximate local measurements from development builds, not a
-reproducible benchmark suite. RSS counts shared GTK libraries; PSS is the fairer
-figure. The Flatpak shares its runtime with other GNOME apps, so its PSS is
-usually lower. Values depend on the desktop, theme, GPU and polling cadence.
+The hidden tray polls battery every 30 seconds, full state every 5 minutes and
+receiver liveness every 5 seconds. That keeps failover responsive without
+continuously reading every register. On the development test system, idle CPU
+was roughly 0.07–0.13% after the 0.4.7 UI and polling changes. Exact usage
+depends on the desktop, receiver and whether the tray is visible.
 
-| Mode | Idle CPU | RSS | PSS |
-|---|---|---|---|
-| Tray only, window never created | ~0.05–0.13% | ~76 MB | ~49 MB |
-| Window open, idle | ~0.07–0.13% | ~131 MB | ~78 MB |
-
-The window only relayouts when a displayed value actually changes; hidden
-battery polling is every 30 seconds, full refresh every 5 minutes, and the
-receiver liveness ping every 5 seconds. A visible window uses the faster live
-cadence.
 </details>
 
-## Safety and concurrency
+### Reliability and privacy
 
-Writes are verified by reading them back, then committed to the active onboard
-profile so they survive a power cycle. A per-device lock prevents the GUI and
-CLI from racing, so quit one before using the other on the same mouse; failed
-writes and partial button resets are recovered as far as the protocol allows.
-Button remapping and Competitive MAX are enabled only for individually verified
-models.
+- Reads are checked against protocol limits; writes are verified by reading
+  the value back.
+- v1 settings are committed to the mouse by a profile round-trip. The app does
+  not keep a hidden settings copy.
+- A per-device lock prevents the GUI and CLI from writing at the same time.
+- No network client, telemetry or account. Support reports are generated
+  locally and are never uploaded automatically.
+- Firmware is read-only. ATK Control does not flash firmware.
 
-<details>
-<summary>Implementation details</summary>
+![Tray icon styles: Hex gauge, Signal bars and Reticle](docs/screenshots/tray-styles.png)
 
-- Rejected values are re-read so the UI reverts to the confirmed state.
-- Committing a batch briefly selects another profile and switches back
-  (roughly 0.4 s) because the firmware only flushes the active profile.
-- Adding a DPI stage preflights the shared colour row and preserves the
-  neighbouring stage's bytes.
-- A failed button reset attempts to restore the original mappings and reports
-  exactly what happened.
-- Preferences are type-checked and written atomically; a corrupted JSON file
-  cannot crash startup.
-</details>
+<sub>Tray styles can be changed from the tray menu. The battery reading is
+live, and the tray item is hidden when no mouse is connected.</sub>
 
-## Permissions
+## Screenshots
 
-The vendor HID collection is `/dev/hidrawN`, normally owned by root. The AUR
-package installs the correct rule for you. For the AppImage, Flatpak, or a
-source checkout, install it once:
+| Buttons | Performance |
+| --- | --- |
+| <img src="docs/screenshots/buttons.png" width="430" alt="Buttons page with button assignments"> | <img src="docs/screenshots/performance.png" width="430" alt="Performance page with polling and sensor options"> |
+| **DPI** | **Lighting** |
+| <img src="docs/screenshots/dpi.png" width="430" alt="DPI page with stages and resolution"> | <img src="docs/screenshots/lighting.png" width="430" alt="Lighting page with DPI indicator controls"> |
+
+<sub>Demo data. Labels and available controls vary by model and firmware.</sub>
+
+## Getting started
+
+Start the app from your application menu or with:
 
 ```bash
-sudo tee /usr/lib/udev/rules.d/71-atk-control.rules >/dev/null <<'RULE'
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="373b", TAG+="uaccess", MODE="0660"
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3554", TAG+="uaccess", MODE="0660"
-RULE
+atk-control
+```
+
+The first supported mouse is selected automatically. Use the **Device** page to
+choose a receiver when more than one is connected; ATK Control can fail over to
+another connected mouse when the selected one goes offline.
+
+The window can be closed to the tray. Use the tray menu to reopen it, refresh
+the device or quit. `atk-control --no-tray` runs without a tray host, and
+`atk-control --tray` starts hidden where the desktop supports it. On GNOME you
+need a StatusNotifier/AppIndicator extension; see
+[Troubleshooting](docs/TROUBLESHOOTING.md#the-tray-icon-is-missing).
+
+## CLI
+
+`atkctl` is the headless counterpart. It is useful for keybinds, status bars,
+scripts and checking a mouse over SSH.
+
+```bash
+atkctl status                 # model, battery, DPI, polling, sensor state
+atkctl battery               # percentage, charging and voltage
+atkctl scan                  # supported receivers and mice
+atkctl scan --all            # include unsupported ATK/VXE interfaces
+atkctl dpi 1600 --stage 2    # set a DPI stage
+atkctl polling 1000          # set the report rate
+atkctl button 3 middle       # remap a button
+atkctl light breathing       # DPI indicator effect
+atkctl watch --count 10      # sample battery/link state
+atkctl support               # save a sanitized support report
+```
+
+Run `atkctl --help` or see the [CLI reference](docs/CLI.md) for every command,
+JSON output, exit codes and more examples.
+
+> **Concurrency:** the GUI and CLI share a per-device lock. Stop `atkctl watch`
+> before opening the app, and do not run two writers against the same mouse.
+> `atkctl watch` holds the lock until it exits.
+
+## Limitations
+
+- Support is model-specific. A listed family does not mean every variant has
+  been verified on hardware.
+- Polling is capped by the receiver and model; see
+  [Supported devices](#supported-devices).
+- The ATK A9 Pro Max 2.0 `0xFF05` path is experimental. It has no rotation
+  control and no way to add or remove stages. Settings work over the dongle or
+  USB cable; Bluetooth exposes no configuration interface.
+- Some known models are recognized but read-only until their transport is
+  verified. Experimental catalog entries never write.
+- Firmware flashing is not implemented. Use [ATK HUB](https://hub.atk.pro) for firmware updates.
+- Macro recording, keyboard-shortcut assignment, config import/export,
+  receiver pairing and factory reset are not implemented. Existing macro or
+  shortcut assignments are preserved and shown as unsupported.
+- Competitive MAX 13K sensor mode can be read but not selected.
+- ATK Control does not require root and should not be run as root.
+
+When a feature is missing, a [support report](#device-support-reports) is more
+useful than guessing a write command. It records the model, protocol and
+descriptor without opening an unknown device for writing.
+
+## Security, permissions and privacy
+
+### Local by design
+
+ATK Control has no network client, no telemetry and no account system. It does
+not upload settings or reports. Preferences are stored locally in
+`~/.config/atk-control/` with mode `0600`. The app opens ATK HUB or the
+support page in your browser only when you choose those buttons; it does not
+embed or fetch either page.
+
+### HID permissions
+
+Writing settings requires read/write access to the mouse's hidraw node. The
+project ships a udev rule that grants the active local user access through
+`uaccess`. It matches the ATK/VXE vendor IDs `373b` and `3554`, so it is
+intentionally broader than one product ID.
+
+AUR and system `install.sh` install the rule. Flatpak, AppImage and per-user
+installs need it once on the host:
+
+```bash
+sudo install -Dm644 data/udev/71-atk-control.rules \
+  /usr/lib/udev/rules.d/71-atk-control.rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger --subsystem-match=hidraw
 ```
 
-Then unplug and reconnect the mouse or receiver. The rule grants access to the
-ATK (`373b`) and VXE (`3554`) HID devices.
+Then reconnect the mouse. Do not run the application with `sudo` and do not
+`chmod 777` the device. See [Installation](docs/INSTALLATION.md#hid-permissions)
+and [SECURITY.md](SECURITY.md) for the full permission scope.
 
-The rule and the Flatpak's `--device=all` permission are deliberately broad:
-Linux exposes the vendor HID collection as a generic `/dev/hidrawN` node, and
-the app validates the collection at the descriptor level before using it. The
-Flatpak has no network permission and no privileged helper. Do not run the GUI
-as root; the udev rule is the supported permission path.
+### Write safety
 
-## Usage
+- Values are validated against protocol and sensor limits.
+- Successful writes are read back.
+- v1 writes are committed with a profile round-trip that takes roughly 0.4
+  seconds; the original profile is restored if the round-trip fails.
+- Button reset keeps a recovery copy and restores the previous map if the
+  write fails.
+- Unknown models and read-only catalog entries reject writes instead of guessing.
+- The GUI and CLI use the same per-device lock.
 
-```bash
-atk-control                # window + tray
-atk-control --tray         # start minimised in the tray
-atk-control --no-tray      # window only
-atk-control --demo         # simulated MAD R, no hardware required
-```
+### Support reports
 
-Close the window to keep the app in the tray; **Quit** from the tray menu (or
-`Ctrl+Q`) exits.
-
-### CLI
-
-`atkctl` works without GTK and is safe to use in scripts:
-
-```bash
-atkctl status
-atkctl status --json
-atkctl battery               # percentage, charging state and voltage
-atkctl battery --json
-atkctl watch                 # live battery/link samples until Ctrl-C
-atkctl polling 8000
-atkctl dpi 1600
-atkctl dpi 1600 --stage 3
-atkctl stage 2
-atkctl motion-sync on
-atkctl ripple on
-atkctl straight-line off
-atkctl lod 1
-atkctl debounce 2
-atkctl sleep 300
-atkctl sensor-mode competitive
-atkctl button 5 back
-atkctl buttons-reset
-atkctl add-stage
-atkctl remove-stage
-atkctl profile 2
-atkctl light steady --brightness high --speed slow
-atkctl support                # save a sanitized support report
-atkctl report                 # print the same report
-atkctl caps
-atkctl scan
-atkctl scan --all            # include unrecognised ATK/VXE interfaces
-```
-
-Every setter reads the device back and exits non-zero if the mouse did not
-confirm the change. The GUI and CLI share a per-device lock, so quit the GUI
-(or its tray process) before using `atkctl` on the same mouse. `atkctl watch`
-holds that lock until you stop it.
-
-### Tray on GNOME
-
-GNOME needs an AppIndicator/StatusNotifier extension, for example
-*AppIndicator and KStatusNotifierItem Support*. KDE Plasma, XFCE, sway/waybar
-and other StatusNotifier hosts work out of the box.
+Reports contain the model, USB IDs, firmware, link state, readable settings,
+button map and sanitized system details. RF/USB serials, hostnames and paths
+are redacted by default. Raw register bytes are opt-in and are never uploaded
+automatically. Read [Device support reports](docs/DEVICE_REPORTS.md) before
+sharing one.
 
 ## Troubleshooting
 
-For a problem report, run `atk-control --debug` (or set
-`ATK_CONTROL_DEBUG=1`) and include the stderr output. Debug logging never
-includes raw register bytes unless you explicitly create a report with raw
-registers enabled.
+| Problem | Where to look |
+| --- | --- |
+| Mouse not detected, or the receiver says the mouse is asleep | [Detection](docs/TROUBLESHOOTING.md#the-mouse-is-not-detected) |
+| `permission denied` on `/dev/hidraw*` | [Permissions](docs/TROUBLESHOOTING.md#permission-denied) |
+| “Another ATK Control instance is configuring this mouse” | [Device lock](docs/TROUBLESHOOTING.md#another-process-owns-the-mouse) |
+| Tray icon missing or not updating | [Tray](docs/TROUBLESHOOTING.md#the-tray-icon-is-missing) |
+| Settings revert after a power cycle | [Persistence](docs/TROUBLESHOOTING.md#settings-do-not-persist) |
+| Writes are rejected or controls are disabled | [Read-only models](docs/TROUBLESHOOTING.md#writes-are-rejected) |
+| Flatpak or AppImage does not start | [Packaging](docs/TROUBLESHOOTING.md#flatpak-or-appimage-problems) |
 
-### “No permission for /dev/hidraw…” 
-Install the udev rule under [Permissions](#permissions), then unplug and
-reconnect the receiver. The AUR package installs it automatically.
+For a reproducible log, run `atk-control --debug` or `atkctl --debug status`.
+The full guide is in [Troubleshooting](docs/TROUBLESHOOTING.md).
 
-### The mouse is not detected, or the app says it is asleep
-Move the mouse to wake it. The receiver must also be connected. If two mice are
-connected, the app switches to the other one when the selected mouse goes
-offline.
+## Device support reports
 
-If the mouse is connected but still not detected, its protocol may be newer
-than this build. Run `atkctl scan --all` to see the interface, then
-`atkctl support` to create a discovery report with the HID descriptor.
+If your mouse is missing, detected but read-only, or a setting does not work:
 
-### The tray icon is missing or has no menu
-GNOME needs a StatusNotifier/AppIndicator extension. On KDE/XFCE, left click
-opens the window, right click opens the quick menu, and middle click refreshes.
-If an older ATK Control process is still running, quit it completely and
-relaunch. The **Signal bars** style is intentionally text-free; choose
-**Hex gauge** or **Reticle** to see the percentage in the icon.
+1. Open **Device → Save support report**, or run `atkctl support`.
+2. Review the file; it is generated locally and redacts sensitive identifiers.
+3. Attach it to the [device report issue](https://github.com/NasirA1991/atk-control/issues/new)
+   with the model, USB IDs and receiver type.
 
-### “Device is already controlled by another ATK Control process”
-Only one GUI/CLI process may own a hidraw node. Quit the other window or tray
-process before running `atkctl` on the same mouse.
+If no supported configuration interface can be opened, ATK Control writes a
+**discovery report** instead. It lists every ATK/VXE HID interface, usage page,
+report ID and descriptor, without opening an unknown device for writing.
+`atkctl scan --all` shows the same candidates in the terminal.
 
-### Settings went back to defaults after powering the mouse off
-Use **0.4.8 or newer**. ATK Control commits the active onboard profile after
-each change; older builds did not. If the latest build still loses a setting,
-save a support report from the Device page.
+Raw register bytes are opt-in (`atkctl support --raw`). Use them only when a
+maintainer asks. See [Device support reports](docs/DEVICE_REPORTS.md) for the
+full contents and privacy rules.
 
-### The firmware version is blank
-Not every receiver forwards the query. Wake the mouse and refresh; if it still
-does not appear, use ATK HUB for firmware information and updates.
+<img src="docs/screenshots/device.png" width="720" alt="Device page showing configuration devices, report actions and hardware details">
 
-## Supported devices
+## Documentation
 
-Model and capabilities are selected from the mouse's own CID/MID identity, not
-just the USB product ID, because receivers are shared between models.
+| Document | Contents |
+| --- | --- |
+| [Installation](docs/INSTALLATION.md) | AUR, Flatpak, AppImage, source, dependencies, udev and uninstall |
+| [CLI reference](docs/CLI.md) | Every command, JSON output, exit codes and scripting examples |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Detection, permissions, tray, persistence and packaging problems |
+| [Device support reports](docs/DEVICE_REPORTS.md) | What to send, what is redacted and how to open a support request |
+| [Protocol notes](docs/PROTOCOL.md) | v1 and v2 hardware protocol, registers and evidence (maintainers) |
+| [Changelog](CHANGELOG.md) | Release history and notable fixes |
+| [Contributing](CONTRIBUTING.md) | Development setup, tests and pull requests |
+| [Security](SECURITY.md) | Permission scope, local-only design and reporting vulnerabilities |
 
-| Family | Models | Connection | Status |
-|---|---|---|---|
-| **MAD R** | MAD R +, MAD R, MAD R MAJOR, MAD R MAJOR+ | 8K dongle `373b:1040` or cable | **Verified** on MAD R+ |
-| **VXE R1** | VXE R1 Pro, VXE R1, VXE R1 Pro Max | 4K `3554:f505`, 1K `3554:f58a`, or cable | **Verified** on R1 Pro |
-| **A9 Pro Max 2.0** | ATK Dragonfly A9 Pro Max 2.0 | 8K dongle `373b:11dc` or cable `373b:1264` | **Experimental** |
-| **ATK/VXE catalog** | 26 F1/X1/Z1/U2/A9 and VXE R1 SE/R1S+/V3/X3 IDs | v1 receiver or cable | **Experimental · read-only** |
-| **Other ATK/VXE** | — | any supported receiver or cable | **Read-only** |
+## Contributing
 
-**Verified** means the core controls were exercised on that hardware.
-**Experimental** means full settings are implemented but not yet tested on the
-model. **Experimental · read-only** means the model is recognized from the
-public ATK HUB catalog, but its transport and writes have not been verified;
-the app shows identity, battery and readable settings, and rejects writes.
-**Read-only** means detection and support reports only.
+Bug reports, hardware reports and focused pull requests are welcome. For device
+support, include a sanitized report and state what was physically tested. For
+code, run the test suite and keep unknown or unverified devices read-only.
 
-The experimental catalog is deliberately conservative. It covers the F1, X1,
-Z1, U2, A9, VXE R1 SE/R1S+, V3 and X3 families, and adds the CORE26K sensor
-(50–26,000 DPI). A model is promoted to verified support only after a device
-report and hardware testing. If yours is listed but read-only, send a report;
-that is the evidence needed to enable writes safely.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[documentation index](#documentation). Report security issues privately as
+described in [SECURITY.md](SECURITY.md).
 
-**Full settings** cover battery, DPI stages and colours, polling, LOD, button
-remapping, lighting, profiles, Motion Sync, ripple, straight-line correction,
-debounce, sleep and sensor modes. Exact polling ceilings and feature
-availability depend on the model and receiver. Other models in a verified
-family share the protocol but were not tested individually.
+## License and project information
 
-The A9 Pro Max 2.0 uses the newer `0xFF05` 64-byte protocol: angle snap replaces
-straight-line correction, and Bluetooth has no configuration channel. Unknown
-`0xFF05` mice with report 8 / 63-byte collections are detected for reports and
-telemetry, but stay read-only until their identity is known.
+ATK Control is released under the [MIT License](LICENSE). It is an independent
+community project and is not affiliated with ATK, VXE, MADLIONS or the ATK HUB
+team.
 
-With more than one receiver connected, choose the active mouse in
-**Device → Configuration devices**. If it goes offline, ATK Control tries the
-other detected mouse automatically and updates the tray and window.
+ATK Control is developed with AI assistance. Hardware and protocol claims are
+based on the evidence linked in the issues and documentation; features that
+have not been tested on a specific model are labelled experimental or
+read-only rather than presented as verified.
 
-## Missing your mouse?
-
-ATK Control is built to grow across the ATK/VXE family. If your mouse is not
-listed, or a receiver is not recognised, send a **read-only device report**:
-
-1. Open **Device → Missing your ATK/VXE mouse? → Save support report**.
-2. Review the generated `.md` file.
-3. Attach it to a [mouse support request](https://github.com/NasirA1991/atk-control/issues/new?template=device-report.yml).
-
-From a terminal this is:
-
-```bash
-atkctl support
-atkctl scan --all   # if the mouse is not detected at all
-```
-
-A normal report includes the device identity and every setting ATK Control can
-read. If no supported configuration interface can be opened, the same command
-writes a **discovery report** instead: it lists every ATK/VXE HID interface and
-its report descriptor, without opening the device for writing. Neither report
-includes the full RF identifier, USB serial number or host name, and nothing is
-uploaded automatically. Raw register bytes are **opt-in**: enable *Include raw
-registers* in the save dialog, or run `atkctl support --raw`, only when
-maintainers ask for them. [More about device reports](docs/DEVICE_REPORTS.md).
-
-![Device and support report](docs/screenshots/device.png)
-
-**Not yet exposed:** macro recording, complex keyboard-shortcut assignments,
-receiver pairing, factory reset, direction calibration and configuration
-import/export. Those remain in ATK HUB. Existing macro or shortcut button
-assignments are preserved and shown as *Custom / unsupported* unless you
-explicitly reset all button mappings.
-
-## Contributing and security
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the evidence required before enabling
-write support for a new model, and [SECURITY.md](SECURITY.md) for private
-vulnerability reporting. Recent changes are in [CHANGELOG.md](CHANGELOG.md).
-
-## Firmware
-
-ATK Control reads the firmware version when the mouse is awake and the receiver
-forwards the query. It does **not** flash firmware itself. Use **Device →
-Firmware → Firmware updates in ATK HUB** for that; your settings stay on the
-mouse.
-
-Firmware reporting is best-effort: if the version is briefly unavailable after
-wake, move the mouse or refresh. Some receivers take a moment to forward the
-query, and some combinations may not report it at all.
-
-## Privacy
-
-ATK Control has no network client code. It does not phone home, does not upload
-device data, and does not require an account. Settings are stored on the mouse;
-window preferences are a small JSON file in `~/.config/atk-control/`.
-
-Support reports are only created when you ask for one. Raw register bytes are
-omitted unless you opt in, and the app never uploads anything. Review the file
-before attaching it to a public issue.
-
-The only browser action is opening the ATK HUB URL in your default browser
-when you explicitly choose **Open ATK HUB**. That is a local desktop action,
-not a background network request.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
-
-ATK Control is an independent project and is not affiliated with ATK or VXE.
-It is developed with AI assistance; hardware writes are verified on real
-devices where the supported-device table says so.
+Firmware is not modified or distributed by this project. ATK HUB is the vendor
+tool for firmware updates and for features not implemented here.
