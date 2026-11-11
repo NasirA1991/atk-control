@@ -198,6 +198,13 @@ intentionally vendor-wide because receivers expose several interfaces. See
 Do not `chmod 777` the device or run the app with `sudo`. If permissions still
 fail, check `ls -l /dev/hidraw*` and the troubleshooting guide.
 
+## Runtime behaviour
+
+With the window hidden, the tray polls battery every 30 seconds, full state
+every 5 minutes and receiver liveness every 5 seconds. The main window is
+created only when opened. On the development system, idle CPU was roughly
+0.07–0.13%; actual usage depends on the desktop, receiver and tray visibility.
+
 ## Verify the installation
 
 ```bash

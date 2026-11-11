@@ -30,4 +30,4 @@ supported hardware and quick installation. These guides go into detail.
 - Raw register data is opt-in and should only be shared when a maintainer asks
   for it.
 - The application never needs root. See the
-  [security section](../README.md#security-permissions-and-privacy).
+  [security section](../README.md#security-and-permissions).
