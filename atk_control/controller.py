@@ -33,6 +33,13 @@ logger = logging.getLogger(__name__)
 BUTTON_ADDRESSES = (0x0060, 0x0068, 0x0070)
 BUTTON_NAMES = ("Left", "Right", "Middle", "Back", "Forward", "Bottom")
 
+
+def button_address(index: int) -> int:
+    """Physical register address for a button slot, independent of read success."""
+    if not 0 <= index < len(BUTTON_NAMES):
+        raise ValueError("button index out of range")
+    return BUTTON_ADDRESSES[index // 2] + (index % 2) * 4
+
 BUTTON_CLASS_LABELS = {
     0x00: "Disabled",
     0x01: "Mouse button",
@@ -314,23 +321,38 @@ class Controller:
         return profile + 1
 
     def _read_buttons(self, include_bottom: bool = True) -> list[Button]:
+        """Return all button slots without collapsing unreadable records.
+
+        Button writes use the physical slot index.  Dropping a corrupt record
+        would shift every later button and make a remap land on the wrong
+        physical button, so invalid records become disabled placeholders.
+        """
         buttons: list[Button] = []
         for group_index, address in enumerate(BUTTON_ADDRESSES):
             raw = self._read_optional(address, 8)
-            if raw is None or len(raw) < 8:
-                return []
             for slot in range(2):
-                record = raw[slot * 4:(slot + 1) * 4]
-                if len(record) < 4:
-                    return []
-                key_class, value1, value2, check = record
-                valid = (key_class + value1 + value2 + check) & 0xFF == 0x55
                 index = group_index * 2 + slot
                 if index >= len(BUTTON_NAMES):
                     continue
                 if index == 5 and not include_bottom:
                     continue
+                if raw is None or len(raw) < 8:
+                    buttons.append(Button(
+                        name=BUTTON_NAMES[index],
+                        action="Unreadable",
+                        readable=False,
+                    ))
+                    continue
+                record = raw[slot * 4:(slot + 1) * 4]
+                key_class, value1, value2, check = record
+                valid = (key_class + value1 + value2 + check) & 0xFF == 0x55
                 if not valid:
+                    buttons.append(Button(
+                        name=BUTTON_NAMES[index],
+                        action="Unreadable",
+                        raw=" ".join(f"{byte:02x}" for byte in record),
+                        readable=False,
+                    ))
                     continue
                 buttons.append(
                     Button(
@@ -417,8 +439,16 @@ class Controller:
             percent = battery.get("percent")
             charging = battery.get("charging")
             voltage = battery.get("millivolts")
-            state.battery = percent if isinstance(percent, int) else None
-            state.charging = charging if isinstance(charging, bool) else None
+            if (
+                isinstance(percent, int)
+                and isinstance(charging, bool)
+                and protocol.battery_is_plausible(percent, charging)
+            ):
+                state.battery = percent
+                state.charging = charging
+            else:
+                state.battery = None
+                state.charging = None
             state.voltage_mv = voltage if isinstance(voltage, int) else None
         except ProtocolError:
             pass
@@ -504,8 +534,16 @@ class Controller:
             percent = battery.get("percent")
             charging = battery.get("charging")
             voltage = battery.get("millivolts")
-            state.battery = percent if isinstance(percent, int) else None
-            state.charging = charging if isinstance(charging, bool) else None
+            if (
+                isinstance(percent, int)
+                and isinstance(charging, bool)
+                and protocol.battery_is_plausible(percent, charging)
+            ):
+                state.battery = percent
+                state.charging = charging
+            else:
+                state.battery = None
+                state.charging = None
             state.voltage_mv = voltage if isinstance(voltage, int) else None
         except ProtocolError:
             pass
@@ -724,8 +762,13 @@ class Controller:
             raise ProtocolError("This mouse has no bottom button")
         if not self.state.buttons:
             raise ProtocolError("Button assignments are not readable on this mouse")
+        if index < len(self.state.buttons) and not self.state.buttons[index].readable:
+            raise ProtocolError(
+                f"The {BUTTON_NAMES[index]} button record is unreadable; "
+                "restore defaults before remapping it"
+            )
         key_class, value1, value2, label = BUTTON_ACTIONS[action]
-        address = 0x0060 + index * 4
+        address = button_address(index)
         packed = pack_button_record(key_class, value1, value2)
         self.transport.write_eeprom(address, packed)
         time.sleep(0.04)
@@ -750,7 +793,7 @@ class Controller:
         indices = list(range(len(self.state.buttons)))
         snapshot = []
         for index in indices:
-            address = 0x0060 + index * 4
+            address = button_address(index)
             snapshot.append((address, self.transport.read_eeprom(address, 4)))
         applied = 0
         try:
@@ -759,7 +802,7 @@ class Controller:
                     continue
                 key_class, value1, value2, _label = BUTTON_ACTIONS[action]
                 packed = pack_button_record(key_class, value1, value2)
-                address = 0x0060 + index * 4
+                address = button_address(index)
                 self.transport.write_eeprom(address, packed)
                 applied += 1
                 time.sleep(0.03)

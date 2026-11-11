@@ -116,10 +116,6 @@ POLLING_CODES: tuple[tuple[int, int], ...] = (
 POLLING_FROM_CODE = dict(POLLING_CODES)
 POLLING_TO_CODE = {hz: code for code, hz in POLLING_CODES}
 
-LIFT_OFF_CODES: tuple[tuple[int, int], ...] = ((1, 7), (4, 10), (11, 17))
-LIFT_OFF_MM_TO_CODE = {mm: code for code, mm in LIFT_OFF_CODES}
-LIFT_OFF_LABELS = {7: "Low", 10: "Medium", 17: "High"}
-
 SLEEP_STEP_SECONDS = 10
 DEFAULT_SLEEP_OPTIONS = (30, 60, 120, 180, 300, 600, 1200, 1800)
 DEFAULT_DEBOUNCE_OPTIONS = (0, 1, 2, 4, 8, 15, 20)
@@ -314,6 +310,11 @@ class DeviceInfo:
     interface: str = ""
     bcd_device: str = ""
     accessible: bool = True
+    descriptor: bytes = b""
+    supported: bool = True
+    unsupported_reason: str = ""
+    usage_pages: tuple[int, ...] = ()
+    report_ids: tuple[int, ...] = ()
 
     @property
     def hidraw_name(self) -> str:
@@ -362,12 +363,78 @@ def _is_config_descriptor(descriptor: bytes) -> bool:
     )
 
 
-def discover(vendor_ids: tuple[int, ...] = SUPPORTED_VIDS) -> list[DeviceInfo]:
-    """Find COMPX configuration collections under /sys/class/hidraw."""
+def _descriptor_items(descriptor: bytes):
+    """Yield (type, tag, data) for short HID descriptor items."""
+    index = 0
+    while index < len(descriptor):
+        prefix = descriptor[index]
+        if prefix == 0xFE:
+            if index + 2 >= len(descriptor):
+                return
+            size = descriptor[index + 1]
+            end = index + 3 + size
+            if end > len(descriptor):
+                return
+            yield 0, 0, descriptor[index + 3:end]
+            index = end
+            continue
+        size_code = prefix & 0x03
+        size = 4 if size_code == 3 else size_code
+        end = index + 1 + size
+        if end > len(descriptor):
+            return
+        yield (prefix >> 2) & 0x03, (prefix >> 4) & 0x0F, descriptor[index + 1:end]
+        index = end
+
+
+def _descriptor_usage_pages(descriptor: bytes) -> tuple[int, ...]:
+    pages = []
+    for item_type, tag, data in _descriptor_items(descriptor):
+        if item_type == 1 and tag == 0 and len(data) >= 2:
+            page = int.from_bytes(data, "little")
+            if page >= 0xFF00:
+                pages.append(page)
+    return tuple(dict.fromkeys(pages))
+
+
+def _descriptor_report_ids(descriptor: bytes) -> tuple[int, ...]:
+    ids = []
+    for item_type, tag, data in _descriptor_items(descriptor):
+        if item_type == 1 and tag == 8 and len(data) == 1:
+            ids.append(data[0])
+    return tuple(dict.fromkeys(ids))
+
+
+def _unsupported_descriptor_reason(descriptor: bytes) -> str:
+    if not descriptor:
+        return "no readable report descriptor"
+    pages = _descriptor_usage_pages(descriptor)
+    if b"\x06\x02\xff" not in descriptor:
+        if pages:
+            shown = ", ".join(f"0x{page:04x}" for page in pages)
+            return f"vendor usage page {shown} instead of 0xff02"
+        return "no vendor usage page"
+    if b"\x85\x08" not in descriptor:
+        return "report ID 8 not present"
+    if b"\x95\x10" not in descriptor:
+        return "16-byte report count not present"
+    return "unexpected descriptor layout"
+
+
+def discover_all(
+    vendor_ids: tuple[int, ...] = SUPPORTED_VIDS,
+    base: Path | str | None = None,
+) -> list[DeviceInfo]:
+    """List every ATK/VXE hidraw interface, including unsupported ones.
+
+    The diagnostic path deliberately returns interfaces that do not expose the
+    16-byte ``0xff02`` configuration collection. That is what lets a mouse with a
+    newer protocol produce a useful support report instead of disappearing.
+    """
     found: list[DeviceInfo] = []
-    base = Path("/sys/class/hidraw")
+    root = Path(base) if base is not None else Path("/sys/class/hidraw")
     try:
-        entries = sorted(base.iterdir())
+        entries = sorted(root.iterdir())
     except OSError:
         return found
 
@@ -385,8 +452,7 @@ def discover(vendor_ids: tuple[int, ...] = SUPPORTED_VIDS) -> list[DeviceInfo]:
         if vendor not in vendor_ids:
             continue
         descriptor = _read_descriptor(sysdev)
-        if not _is_config_descriptor(descriptor):
-            continue
+        supported = _is_config_descriptor(descriptor)
         bcd = ""
         # The hidraw node sits under a HID device node; the USB device with
         # bcdDevice is two levels above the interface directory.
@@ -406,16 +472,34 @@ def discover(vendor_ids: tuple[int, ...] = SUPPORTED_VIDS) -> list[DeviceInfo]:
                 path=path,
                 vendor_id=vendor,
                 product_id=product,
-                product_name=uevent.get("HID_NAME", "ATK/VXE mouse").strip(),
+                product_name=uevent.get("HID_NAME", "ATK/VXE HID interface").strip(),
                 interface=os.path.basename(os.path.realpath(sysdev / "device")),
                 bcd_device=bcd,
                 accessible=os.access(path, os.R_OK | os.W_OK),
+                descriptor=descriptor,
+                supported=supported,
+                unsupported_reason="" if supported else _unsupported_descriptor_reason(descriptor),
+                usage_pages=_descriptor_usage_pages(descriptor),
+                report_ids=_descriptor_report_ids(descriptor),
             )
         )
     # A receiver and the directly cabled mouse can both be present; the worker
     # handles preference, but a stable order keeps the CLI predictable.
-    found.sort(key=lambda item: (item.is_receiver, item.vendor_id, item.product_id, item.path))
+    found.sort(
+        key=lambda item: (
+            not item.supported,
+            item.is_receiver,
+            item.vendor_id,
+            item.product_id,
+            item.path,
+        )
+    )
     return found
+
+
+def discover(vendor_ids: tuple[int, ...] = SUPPORTED_VIDS) -> list[DeviceInfo]:
+    """Find COMPX configuration collections under /sys/class/hidraw."""
+    return [info for info in discover_all(vendor_ids) if info.supported]
 
 
 class CompxTransport:

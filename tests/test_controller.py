@@ -110,6 +110,11 @@ class _ColorReadFailure(FakeTransport):
         return super().read_eeprom(addr, length)
 
 
+class _BadBattery(FakeTransport):
+    def read_battery(self):
+        return {"percent": 255, "charging": False, "millivolts": 3980}
+
+
 class ControllerTests(unittest.TestCase):
     def setUp(self) -> None:
         info = DeviceInfo(
@@ -153,6 +158,30 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(state.profile, 2)
         self.assertEqual(len(state.buttons), 5)
         self.assertEqual(state.buttons[0].action, "Left click")
+
+    def test_corrupt_button_record_preserves_slots_and_addresses(self) -> None:
+        # Middle is slot 2.  Its bad checksum must not hide Back/Forward or
+        # shift their write addresses.
+        put(self.fake.mem, 0x0068, b"\x01\x20\x00\x00")
+        state = self.ctl.read_full()
+        self.assertEqual(len(state.buttons), 5)
+        self.assertFalse(state.buttons[2].readable)
+        self.assertEqual(state.buttons[2].action, "Unreadable")
+        self.assertEqual(state.buttons[3].action_id, "back")
+        with self.assertRaises(protocol.ProtocolError):
+            self.ctl.set_button_action(2, "back")
+        self.assertEqual(self.ctl.set_button_action(3, "forward"), "Forward")
+        self.assertIn((0x006C, controller.pack_button_record(1, 16, 0)), self.fake.writes)
+        self.assertNotIn((0x0068, controller.pack_button_record(1, 16, 0)), self.fake.writes)
+
+    def test_invalid_battery_reading_is_discarded(self) -> None:
+        bad = _BadBattery()
+        ctl = controller.Controller(self.ctl.info)
+        ctl.transport = bad
+        state = ctl.read_full()
+        self.assertIsNone(state.battery)
+        self.assertIsNone(state.charging)
+        self.assertEqual(state.voltage_mv, 3980)
 
     def test_polling_and_dpi_writes(self) -> None:
         self.assertEqual(self.ctl.set_polling(4000), 4000)
