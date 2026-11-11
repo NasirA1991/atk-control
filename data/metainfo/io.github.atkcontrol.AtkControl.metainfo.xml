@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.7.0" date="2026-11-11">
+      <description>
+        <p>Adds experimental full settings support for the ATK Dragonfly A9 Pro Max 2.0 family over the newer 0xFF05 64-byte protocol: DPI stages and colours, polling, lift-off distance, buttons, lighting, profiles, Motion Sync, ripple, angle snap, debounce and sleep. The protocol was implemented from public reverse engineering; it has not yet been validated on physical A9 hardware, and Bluetooth has no configuration channel.</p>
+      </description>
+    </release>
     <release version="0.6.1" date="2026-11-11">
       <description>
         <p>Adds experimental battery-only support for the ATK Dragonfly A9 Pro Max 2.0 family. The app reads charge level and voltage from the newer 0xFF05 64-byte protocol and keeps every settings page disabled. Also labels these devices as battery-only in scan and support reports.</p>

@@ -300,10 +300,42 @@ if __name__ == "__main__":
 
 
 class _FakeV2Transport:
-    def __init__(self, battery=None):
-        self.battery = battery or {"percent": 64, "charging": True, "millivolts": 4020}
+    def __init__(self):
         self.opened = False
         self.closed = False
+        self.battery = {"percent": 64, "charging": True, "millivolts": None}
+        self.config = bytearray(18)
+        self.config[2] = 0
+        self.config[5] = 0
+        self.config[6] = 0
+        self.config[7] = 0
+        self.config[8] = 0
+        self.config[9:11] = (120).to_bytes(2, "little")
+        self.config[11] = 0
+        self.dpi = bytearray(66)
+        self.dpi[0] = 0
+        self.dpi[1] = 4
+        for index, (x, y, color) in enumerate((
+            (1600, 1600, "#ff0000"), (3200, 3200, "#00ff00"),
+            (6400, 6400, "#0000ff"), (12800, 12800, "#ffffff"),
+        )):
+            self._put_stage(index, x, y, color)
+        self.sensor = 0
+        self.light = bytes((2, 170, 15))
+        self.buttons = bytearray(30)
+        for index, action in enumerate((
+            (1, 0, 0, 0), (1, 0, 1, 0), (1, 0, 2, 0),
+            (1, 0, 3, 0), (1, 0, 4, 0), (10, 0, 0, 0),
+        )):
+            self.buttons[index * 5:index * 5 + 5] = bytes(action) + b"\0"
+        self.identity = (2, 1)
+
+    def _put_stage(self, index, x, y, color):
+        offset = 2 + index * 8
+        self.dpi[offset:offset + 2] = x.to_bytes(2, "little")
+        self.dpi[offset + 2:offset + 4] = y.to_bytes(2, "little")
+        r, g, b = bytes.fromhex(color.lstrip("#"))
+        self.dpi[offset + 4:offset + 7] = bytes((b, g, r))
 
     def open(self):
         self.opened = True
@@ -311,10 +343,77 @@ class _FakeV2Transport:
     def close(self):
         self.closed = True
 
+    def read_identity(self):
+        return self.identity
+
+    def read_version(self):
+        return "1.03"
+
+    def read_config(self):
+        return bytes(self.config)
+
+    def read_dpi(self):
+        return bytes(self.dpi)
+
+    def read_sensor_mode(self):
+        return self.sensor
+
+    def read_lighting(self):
+        return self.light
+
+    def read_buttons(self):
+        return bytes(self.buttons)
+
     def read_battery(self):
         if isinstance(self.battery, Exception):
             raise self.battery
         return dict(self.battery)
+
+    def read_online(self):
+        return True
+
+    def set_rate(self, hertz):
+        code = protocol.V2_RATE_TO_CODE[hertz]
+        self.config[2] = code
+        return hertz
+
+    def set_dpi(self, stage, x, y, color, active):
+        self._put_stage(stage, x, y, color)
+        if active:
+            self.dpi[0] = stage
+
+    def set_lod(self, level):
+        self.config[5] = level - 1
+
+    def set_motion_sync(self, enabled):
+        self.config[6] = int(enabled)
+
+    def set_angle_snap(self, enabled):
+        self.config[7] = int(enabled)
+
+    def set_ripple(self, enabled):
+        self.config[8] = int(enabled)
+
+    def set_debounce(self, milliseconds):
+        self.config[11] = milliseconds
+
+    def set_sleep(self, seconds):
+        self.config[9:11] = seconds.to_bytes(2, "little")
+
+    def set_sensor_mode(self, code):
+        self.sensor = code
+
+    def set_lighting(self, mode, brightness, speed):
+        self.light = bytes((mode, brightness, speed))
+
+    def set_profile(self, index):
+        self.config[0] = index - 1
+
+    def set_button(self, index, action):
+        self.buttons[index * 5:index * 5 + 5] = bytes(action) + b"\0"
+
+    def reset(self):
+        self.buttons = bytearray(30)
 
 
 class V2ControllerTests(unittest.TestCase):
@@ -328,33 +427,94 @@ class V2ControllerTests(unittest.TestCase):
         session.transport = _FakeV2Transport()
         return session
 
-    def test_read_full_is_battery_only(self) -> None:
+    def test_full_reads_settings(self) -> None:
         session = self._controller()
         state = session.open()
         self.assertTrue(session.transport.opened)
-        self.assertTrue(state.telemetry_only)
-        self.assertTrue(state.read_only)
-        self.assertEqual(state.battery, 64)
-        self.assertTrue(state.charging)
+        self.assertFalse(state.telemetry_only)
+        self.assertFalse(state.read_only)
         self.assertEqual(state.model_name, "ATK Dragonfly A9 Pro Max 2.0")
-        self.assertEqual(state.polling_rate, 0)
-        self.assertFalse(state.supports_button_remap)
-        self.assertFalse(state.supports_lighting)
+        self.assertEqual(state.sensor, "PAW3395Ultra")
+        self.assertEqual(state.firmware, "1.03")
+        self.assertEqual(state.dpi, 1600)
+        self.assertEqual(state.stage_count, 4)
+        self.assertEqual(state.polling_rate, 1000)
+        self.assertEqual(state.profile, 1)
+        self.assertEqual(state.lod_code, 1)
+        self.assertEqual(state.sleep_seconds, 120)
+        self.assertEqual(len(state.buttons), 6)
+        self.assertEqual(state.buttons[2].action_id, "middle")
+        self.assertTrue(state.supports_button_remap)
+        self.assertTrue(state.supports_lighting)
+        self.assertFalse(state.supports_angle)
+        self.assertFalse(state.supports_stage_count)
+        self.assertGreaterEqual(state.battery, 0)
 
-    def test_read_live_updates_battery(self) -> None:
+    def test_read_live_updates_battery_and_config(self) -> None:
         session = self._controller()
         session.read_full()
-        session.transport.battery = {"percent": 55, "charging": False, "millivolts": 3900}
+        session.transport.battery = {"percent": 55, "charging": False, "millivolts": None}
+        session.transport.config[2] = protocol.V2_RATE_TO_CODE[8000]
         state = session.read_live()
         self.assertEqual(state.battery, 55)
         self.assertFalse(state.charging)
-        self.assertEqual(state.voltage_mv, 3900)
+        self.assertEqual(state.polling_rate, 8000)
+
+    def test_polling_write(self) -> None:
+        session = self._controller()
+        session.read_full()
+        self.assertEqual(session.set_polling(8000), 8000)
+        self.assertEqual(session.state.polling_rate, 8000)
+
+    def test_dpi_write_and_active_stage(self) -> None:
+        session = self._controller()
+        session.read_full()
+        self.assertEqual(session.set_stage_dpi(1, 3200, 3200), (3200, 3200))
+        self.assertEqual(session.set_active_stage(1), 1)
+        self.assertEqual(session.state.active_stage, 1)
+        self.assertEqual(session.state.dpi, 3200)
+
+    def test_button_remap_and_reset(self) -> None:
+        session = self._controller()
+        session.read_full()
+        self.assertEqual(session.set_button_action(2, "back"), "Back")
+        self.assertEqual(session.state.buttons[2].action_id, "back")
+        session.reset_buttons()
+        self.assertEqual(session.state.buttons[2].action_id, "middle")
+
+    def test_lighting_and_profile(self) -> None:
+        session = self._controller()
+        session.read_full()
+        self.assertEqual(session.set_led_mode(1, 2, 1)[0], 1)
+        self.assertEqual(session.set_led_mode(0, 0, 0)[0], 0)
+        self.assertEqual(session.set_profile(3), 3)
+        self.assertEqual(session.state.profile, 3)
 
     def test_online_status_reports_failure(self) -> None:
         session = self._controller()
+        session.transport.read_online = lambda: False
+        self.assertFalse(session.online_status())
+        session.transport.read_online = lambda: True
         self.assertTrue(session.online_status())
-        session.transport.battery = protocol.ProtocolError("asleep")
-        self.assertIsNone(session.online_status())
+
+    def test_unknown_v2_is_read_only(self) -> None:
+        session = self._controller()
+        session.transport.identity = (9, 9)
+        state = session.read_full()
+        self.assertTrue(state.read_only)
+        self.assertTrue(state.telemetry_only)
+        self.assertFalse(state.supports_button_remap)
+
+    def test_missing_identity_does_not_fall_back_to_usb_id(self) -> None:
+        session = self._controller()
+
+        def no_identity():
+            raise protocol.ProtocolError("identity unavailable")
+
+        session.transport.read_identity = no_identity
+        state = session.read_full()
+        self.assertTrue(state.read_only)
+        self.assertTrue(state.telemetry_only)
 
     def test_factory_picks_v2(self) -> None:
         info = DeviceInfo("/dev/hidraw-test", 0x373B, 0x11DC, "NK dongle")
@@ -362,3 +522,7 @@ class V2ControllerTests(unittest.TestCase):
         self.assertIsInstance(controller.controller_for(info), controller.V2Controller)
         info.protocol = "v1"
         self.assertIsInstance(controller.controller_for(info), controller.Controller)
+
+
+if __name__ == "__main__":
+    unittest.main()

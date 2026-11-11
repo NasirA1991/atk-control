@@ -91,40 +91,75 @@ class BcdTests(unittest.TestCase):
         self.assertIsNone(protocol.decode_pair(1, 2))
 
 
-class V2BatteryTests(unittest.TestCase):
-    def test_request_shape(self) -> None:
-        packet = protocol.build_v2_battery_request(True)
-        self.assertEqual(len(packet), 64)
-        self.assertEqual(packet[0], 8)
-        self.assertEqual(packet[2], 0x72)
-        self.assertEqual(packet[5], 1)
-        self.assertEqual(packet[6], 7)
-        self.assertEqual(packet[7], 1)
-        self.assertEqual(protocol.build_v2_battery_request(False)[5], 0)
+class V2FrameTests(unittest.TestCase):
+    def test_frame_layout_and_checksum(self) -> None:
+        frame = protocol.build_v2_frame(1, 3, 1, b"\x04", target=protocol.V2_TARGET_MOUSE)
+        self.assertEqual(len(frame), 64)
+        self.assertEqual(frame[0], 8)
+        self.assertEqual(frame[2], protocol.V2_MARKER)
+        self.assertEqual(frame[3], 3)
+        self.assertEqual(frame[5], protocol.V2_TARGET_MOUSE)
+        self.assertEqual(frame[6], 1)
+        self.assertEqual(frame[7], 1)
+        self.assertEqual(frame[8], 4)
+        self.assertEqual(frame[1], sum(frame[2:]) & 0xFF)
 
-    def test_decode_charging_reply(self) -> None:
-        raw = bytes.fromhex("08 72 00 3b 00 07 01 5a 10 0e") + bytes(55)
-        data = protocol.decode_v2_battery(raw)
-        assert data is not None
-        self.assertEqual(data["percent"], 90)
-        self.assertIs(data["charging"], True)
-        self.assertEqual(data["millivolts"], 3600)
+    def test_decode_reply(self) -> None:
+        raw = bytes((8, protocol.V2_MARKER, 0, 7, 1, 1, 1, 4)) + bytes(57)
+        self.assertEqual(protocol.decode_v2_reply(raw, 1), b"\x04")
+        self.assertIsNone(protocol.decode_v2_reply(raw, 2))
 
-    def test_decode_stripped_report_id(self) -> None:
-        raw = bytes.fromhex("72 00 05 00 07 01 32 10 0e") + bytes(55)
-        data = protocol.decode_v2_battery(raw)
-        assert data is not None
-        self.assertEqual(data["percent"], 50)
-        self.assertIs(data["charging"], False)
-
-    def test_rejects_invalid_percent_and_foreign_frame(self) -> None:
-        bad = bytes.fromhex("08 72 00 05 00 07 01 65 10 0e") + bytes(55)
-        self.assertIsNone(protocol.decode_v2_battery(bad))
-        self.assertIsNone(protocol.decode_v2_battery(b"\x08\x04" + bytes(20)))
+    def test_error_reply_raises(self) -> None:
+        raw = bytes((8, protocol.V2_MARKER, 255, 0, 1, 1, 0)) + bytes(58)
+        with self.assertRaises(protocol.ProtocolError):
+            protocol.decode_v2_reply(raw, 1)
 
 
-if __name__ == "__main__":
-    unittest.main()
+class _RecordingV2(protocol.V2Transport):
+    def __init__(self):
+        super().__init__("/dev/null", wireless=True)
+        self.calls = []
+
+    def _command(self, command, param_length, command_length, data=b"", target=None):
+        if target is None:
+            target = protocol.V2_TARGET_MOUSE
+        self.calls.append((command, param_length, command_length, data, target))
+        if command == protocol.V2_CMD_READ_MEMORY:
+            count = data[2]
+            return b"\0\0\0" + bytes((data[0] + i) & 0xFF for i in range(count))
+        if command == protocol.V2_CMD_READ_CONFIG:
+            config = bytearray(18)
+            config[2] = 4
+            return bytes(config)
+        return b""
+
+
+class V2TransportCommandTests(unittest.TestCase):
+    def test_read_memory_chunks_and_target(self) -> None:
+        transport = _RecordingV2()
+        data = transport.read_memory(1, 12)
+        self.assertEqual(len(data), 12)
+        self.assertEqual(len(transport.calls), 2)
+        self.assertEqual(transport.calls[0][3], b"\x01\x00\x0a")
+        self.assertEqual(transport.calls[1][3], b"\x0b\x00\x02")
+        self.assertTrue(all(call[4] == protocol.V2_TARGET_MOUSE for call in transport.calls))
+
+    def test_setters_build_expected_payloads(self) -> None:
+        transport = _RecordingV2()
+        transport.set_rate(8000)
+        self.assertEqual(transport.calls[-2][0], protocol.V2_CMD_SET_RATE)
+        self.assertEqual(transport.calls[-2][3], b"\x04")
+        transport.set_dpi(0, 1600, 1600, "#ff0000", True)
+        self.assertEqual(
+            transport.calls[-1][3],
+            bytes((0, 0x40, 0x06, 0x40, 0x06, 0, 0, 0xFF, 0, 1)),
+        )
+        transport.set_profile(1)
+        self.assertEqual(transport.calls[-1][3], b"\x00")
+        transport.set_button(2, (1, 0, 2, 0))
+        self.assertEqual(transport.calls[-1][3], bytes((2, 1, 0, 2, 0)))
+        transport.set_lighting(2, 170, 15)
+        self.assertEqual(transport.calls[-1][3], bytes((2, 170, 15)))
 
 
 class DiscoveryTests(unittest.TestCase):
@@ -192,3 +227,7 @@ class DiscoveryTests(unittest.TestCase):
             found = protocol.discover_all(base=root)
         self.assertEqual(len(found), 1)
         self.assertFalse(found[0].supported)
+
+
+if __name__ == "__main__":
+    unittest.main()

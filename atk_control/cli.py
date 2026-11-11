@@ -43,7 +43,7 @@ class _PersistingController:
         "remove_last_stage", "set_led_mode",
     }
 
-    def __init__(self, inner: Controller) -> None:
+    def __init__(self, inner: Controller | V2Controller) -> None:
         self._inner = inner
 
     def __getattr__(self, name):
@@ -86,8 +86,6 @@ def _open(path: str | None = None) -> Controller | V2Controller:
             else:
                 errors.append(f"{info.product_name}: {exc}")
             continue
-        if isinstance(controller, V2Controller):
-            return controller
         return _PersistingController(controller)  # type: ignore[return-value]
     if errors:
         raise ProtocolError(errors[0])
@@ -110,7 +108,7 @@ def _print_scan(all_devices: bool = False) -> int:
         access = "read/write" if info.accessible else "no permission"
         kind = "receiver" if info.is_receiver else "HID"
         if info.supported and info.protocol == "v2":
-            status = "supported (battery-only)"
+            status = "supported (0xFF05)"
         elif info.supported:
             status = "supported"
         else:
@@ -182,7 +180,7 @@ def _status(controller: Controller | V2Controller, as_json: bool) -> int:
     )
     print(f"Firmware   : {firmware}")
     if state.telemetry_only:
-        print("Settings   : not available (0xff05 battery-only protocol)")
+        print("Settings   : read-only (unverified 0xff05 device)")
         return 0
     print(f"DPI        : {state.dpi} x {state.dpi_y}  (stage {state.active_stage + 1}/{state.stage_count})")
     print(f"Polling    : {state.polling_rate} Hz")
@@ -410,12 +408,6 @@ def main(argv: list[str] | None = None) -> int:
         if controller is None:
             raise ProtocolError("no controller was opened")
         if args.command in ("report", "support"):
-            if args.command == "support" and isinstance(controller, V2Controller):
-                return _write_discovery(
-                    args,
-                    "0xff05 battery-only device; the report descriptor is needed "
-                    "to map its settings protocol",
-                )
             state = controller.read_full()
             raw = controller.collect_raw_registers() if getattr(args, "raw", False) else None
             text = diagnostics.report_text(
@@ -434,13 +426,6 @@ def main(argv: list[str] | None = None) -> int:
                 print(text)
                 print(f"\nSupport request: {config.SUPPORT_URL}")
             return 0
-        if isinstance(controller, V2Controller) and args.command not in read_only_commands:
-            print(
-                "atkctl: this mouse exposes battery telemetry only; its 0xff05 "
-                "settings protocol is not supported yet.",
-                file=sys.stderr,
-            )
-            return 4
         if controller.state.read_only and args.command not in read_only_commands:
             print(
                 "atkctl: this mouse is recognized but not in the supported model "
@@ -463,13 +448,6 @@ def main(argv: list[str] | None = None) -> int:
                 args.count,
                 bool(getattr(args, "json", False)),
             )
-        if not isinstance(controller, Controller):
-            print(
-                "atkctl: this mouse exposes battery telemetry only; its 0xff05 "
-                "settings protocol is not supported yet.",
-                file=sys.stderr,
-            )
-            return 4
         if args.command == "polling":
             return _set_and_print("Polling", f"{controller.set_polling(args.hz)} Hz")
         if args.command == "dpi":
@@ -533,7 +511,7 @@ def main(argv: list[str] | None = None) -> int:
             controller.close()
 
 
-def _set_lod(controller: Controller, value: str) -> int:
+def _set_lod(controller: Controller | V2Controller, value: str) -> int:
     text = value.lower()
     choices = controller.caps.lift_off_choices
     if text in ("low", "medium", "high"):

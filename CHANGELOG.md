@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.0 — 2026-11-11
+
+- Added experimental **full settings** support for the ATK Dragonfly A9 Pro Max
+  2.0 family (`373b:11dc` dongle, `373b:1264` cable) and other known
+  `0xFF05` devices. Supported controls: DPI stages and colours, polling rate,
+  lift-off distance, button remapping/reset, lighting, profiles, Motion Sync,
+  ripple, angle snap, debounce and sleep. Sensor rotation and DPI-stage
+  add/remove are not exposed by the protocol.
+- The implementation is a clean-room reimplementation of the public
+  `Kamrulhasan12345/atk-hub-linux` protocol observations and the
+  `noosxe/atk-tool` v2 work. It does not copy code from either project; the
+  reference repository has no declared license.
+- Unknown `0xFF05` identities remain read-only. Settings are written directly
+  to the active profile; the v1 profile-bounce commit is not needed.
+- This has **not been validated on physical A9 hardware**. The 125-test suite
+  covers the frame checksum, command payloads, DPI/button/lighting setters and
+  unknown-device fallback; v1 MAD R+ and VXE R1 Pro behaviour is regression
+  tested separately. Bluetooth has no configuration channel.
+
 ## 0.6.1 — 2026-11-11
 
 - Added experimental **battery-only** support for the ATK Dragonfly A9 Pro Max

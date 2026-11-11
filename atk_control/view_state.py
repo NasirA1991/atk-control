@@ -18,7 +18,7 @@ def state_signature(state: MouseState) -> tuple:
     """
     return (
         state.battery, state.charging, state.wired, state.read_only,
-        state.telemetry_only,
+        state.telemetry_only, state.protocol,
         state.model_name, state.brand, state.sensor, state.firmware,
         state.usb_bcd, state.cid, state.mid, state.receiver_name,
         state.receiver_pid, state.dpi, state.dpi_y, tuple(state.stages),
@@ -32,5 +32,5 @@ def state_signature(state: MouseState) -> tuple:
         state.supports_angle, state.supports_performance_mode,
         state.supports_sensor_max, state.supports_button_remap,
         state.supports_lighting,
-        state.supports_stage_colors,
+        state.supports_stage_colors, state.supports_stage_count,
     )

@@ -973,29 +973,51 @@ class Controller:
         self.state.profile = current
 
 
-class V2Controller:
-    """Read-only telemetry session for 0xff05 (A9 Pro Max 2.0 class) mice.
+V2_BUTTON_ACTIONS: dict[str, tuple[int, int, int, int]] = {
+    "left": (1, 0, 0, 0),
+    "right": (1, 0, 1, 0),
+    "middle": (1, 0, 2, 0),
+    "back": (1, 0, 3, 0),
+    "forward": (1, 0, 4, 0),
+    "dpi_cycle": (10, 0, 0, 0),
+    "dpi_up": (11, 0, 0, 0),
+    "dpi_down": (12, 0, 0, 0),
+    "disabled": (255, 0, 0, 0),
+}
+V2_BUTTON_LABELS = {
+    "left": "Left click", "right": "Right click", "middle": "Middle click",
+    "back": "Back", "forward": "Forward", "dpi_cycle": "DPI cycle",
+    "dpi_up": "DPI up", "dpi_down": "DPI down", "disabled": "Disabled",
+}
+V2_BUTTON_IDS = {value: key for key, value in V2_BUTTON_ACTIONS.items()}
 
-    Only the battery query is implemented.  Keeping this a separate class
-    avoids exposing v1 EEPROM writes that the newer firmware would reject or
-    misinterpret.
+
+class V2Controller:
+    """Full controller for 0xff05 (A9 Pro Max 2.0 class) mice.
+
+    The 0xff05 protocol uses a 64-byte request/response frame with a checksum
+    and a command header.  It is not compatible with the v1 EEPROM commands.
+    This controller implements the documented settings surface and keeps the
+    same MouseState shape used by the rest of the application.
     """
 
     def __init__(self, info: DeviceInfo, debug: bool = False) -> None:
         self.info = info
+        self.debug = debug
         self.transport = V2Transport(info.path, wireless=info.is_receiver, debug=debug)
-        self.model = devices.model_for(
-            None, None, info.vendor_id, info.product_id, info.product_name
-        )
+        self.model: devices.Model | None = None
         self.receiver = devices.receiver_for(info.product_id, info.product_name)
         self.caps = devices.capabilities_for(
-            model=self.model, receiver=self.receiver, usb_name=info.product_name
+            model=None, receiver=self.receiver, usb_name=info.product_name
         )
         self.state = MouseState(
             vendor_id=info.vendor_id,
             product_id=info.product_id,
             usb_name=info.product_name,
             usb_bcd=protocol.format_bcd(info.bcd_device),
+            via_receiver=info.is_receiver,
+            wired=not info.is_receiver,
+            protocol="v2",
             read_only=True,
             telemetry_only=True,
         )
@@ -1020,32 +1042,50 @@ class V2Controller:
     def is_receiver(self) -> bool:
         return self.info.is_receiver
 
-    def _identity(self) -> MouseState:
-        model_name = self.model.name if self.model else devices.fallback_name(self.info.product_name)
-        return MouseState(
-            vendor_id=self.info.vendor_id,
-            product_id=self.info.product_id,
-            usb_name=self.info.product_name,
-            model_name=model_name,
-            brand=self.model.brand if self.model else "ATK",
-            sensor="",
-            firmware="",
-            usb_bcd=protocol.format_bcd(self.info.bcd_device),
-            via_receiver=self.info.is_receiver,
-            receiver_name=self.receiver.name if self.receiver else "",
-            receiver_pid=self.receiver.product_id if self.receiver else None,
-            wired=not self.info.is_receiver,
-            read_only=True,
-            telemetry_only=True,
-            polling_rate=0,
-            stage_count=0,
+    @staticmethod
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+            raise ProtocolError(message)
+
+    def _identity(self) -> tuple[int | None, int | None, str]:
+        cid: int | None = None
+        mid: int | None = None
+        firmware = ""
+        try:
+            cid, mid = self.transport.read_identity()
+        except ProtocolError:
+            logger.debug("v2 identity command failed", exc_info=True)
+        try:
+            firmware = self.transport.read_version()
+        except ProtocolError:
+            logger.debug("v2 firmware command failed", exc_info=True)
+        return cid, mid, firmware
+
+    def _set_model(self, cid: int | None, mid: int | None) -> None:
+        self.model = devices.v2_model_for(
+            cid, mid, self.info.vendor_id, self.info.product_id, self.info.product_name
         )
+        self.receiver = devices.receiver_for(self.info.product_id, self.info.product_name)
+        self.caps = devices.capabilities_for(
+            model=self.model,
+            receiver=self.receiver,
+            sensor_name=self.model.sensor if self.model else None,
+            usb_name=self.info.product_name,
+        )
+        # A9 Pro Max 2.0 is a direct 8 kHz device; a cable still advertises the
+        # same report-rate table even though it has no receiver descriptor.
+        if self.model is not None and self.receiver is None:
+            self.caps.receiver = devices.Receiver(0, "USB cable", self.model.max_polling)
+            self.caps.polling_rates = [hz for hz in (125, 250, 500, 1000, 2000, 4000, 8000)
+                                       if hz <= self.model.max_polling]
 
     def _apply_battery(self, state: MouseState) -> None:
-        battery = self.transport.read_battery()
+        try:
+            battery = self.transport.read_battery()
+        except ProtocolError:
+            return
         percent = battery.get("percent")
         charging = battery.get("charging")
-        voltage = battery.get("millivolts")
         if (
             isinstance(percent, int)
             and isinstance(charging, bool)
@@ -1053,32 +1093,365 @@ class V2Controller:
         ):
             state.battery = percent
             state.charging = charging
+        voltage = battery.get("millivolts")
         state.voltage_mv = voltage if isinstance(voltage, int) else None
 
+    def _apply_config(self, state: MouseState, config: bytes) -> None:
+        if len(config) < 12:
+            return
+        state.profile = config[0] + 1
+        state.polling_rate = protocol.V2_CODE_TO_RATE.get(config[2], 1000)
+        state.lod_code = config[5] + 1
+        state.lod_mm = lod_mm(state.lod_code)
+        state.motion_sync = bool(config[6])
+        state.angle_enabled = bool(config[7])
+        state.straight_line = bool(config[7])
+        state.ripple_control = bool(config[8])
+        state.sleep_seconds = int.from_bytes(config[9:11], "little")
+        state.debounce_ms = config[11]
+
+    def _apply_dpi(self, state: MouseState, raw: bytes) -> None:
+        if len(raw) < 2:
+            return
+        count = max(1, min(8, raw[1]))
+        stages: list[tuple[int, int]] = []
+        colors: list[str] = []
+        for index in range(count):
+            offset = 2 + index * 8
+            if offset + 7 > len(raw):
+                break
+            stages.append((
+                int.from_bytes(raw[offset:offset + 2], "little"),
+                int.from_bytes(raw[offset + 2:offset + 4], "little"),
+            ))
+            colors.append(f"#{raw[offset + 6]:02x}{raw[offset + 5]:02x}{raw[offset + 4]:02x}")
+        if not stages:
+            return
+        count = len(stages)
+        active = min(raw[0], count - 1)
+        state.stages = stages
+        state.stage_colors = colors
+        state.stage_count = count
+        state.active_stage = active
+        state.dpi, state.dpi_y = stages[active]
+
+    def _apply_lighting(self, state: MouseState, raw: bytes) -> None:
+        if len(raw) < 3:
+            return
+        state.led_mode = protocol.V2_CODE_TO_LIGHT_MODE.get(raw[0], 0)
+        if state.led_mode == 0:
+            state.led_brightness = 0
+            state.led_speed = 0
+            return
+        state.led_brightness = min(
+            range(3), key=lambda index: abs(protocol.V2_LIGHT_BRIGHTNESS[index] - raw[1])
+        )
+        state.led_speed = min(
+            range(3), key=lambda index: abs(protocol.V2_LIGHT_SPEED[index] - raw[2])
+        )
+
+    def _apply_sensor_mode(self, state: MouseState, raw: int) -> None:
+        state.sensor_mode = protocol.V2_CODE_TO_SENSOR_MODE.get(raw, 0)
+        state.performance_mode = state.sensor_mode != 0
+
+    def _read_buttons(self, state: MouseState) -> None:
+        try:
+            raw = self.transport.read_buttons()
+        except ProtocolError:
+            return
+        buttons: list[Button] = []
+        for index in range(6):
+            offset = index * 5
+            if offset + 5 > len(raw):
+                break
+            record = raw[offset:offset + 5]
+            action = (record[0], record[1], record[2], record[3])
+            action_id = V2_BUTTON_IDS.get(action, "")
+            label = V2_BUTTON_LABELS.get(action_id, "Custom / unsupported")
+            buttons.append(Button(
+                name=BUTTON_NAMES[index],
+                action=label,
+                raw=" ".join(f"{value:02x}" for value in record),
+                action_id=action_id,
+                readable=action != (0, 0, 0, 0),
+            ))
+        if buttons:
+            state.buttons = buttons
+
+    def _apply_flags(self, state: MouseState) -> None:
+        model = self.model
+        state.read_only = model is None
+        state.telemetry_only = model is None
+        state.supports_angle = False
+        state.supports_performance_mode = bool(model and model.performance_mode)
+        state.supports_sensor_max = bool(model and model.sensor_max)
+        state.supports_button_remap = bool(model and model.button_remap)
+        state.supports_lighting = bool(model and model.dpi_lighting)
+        state.supports_stage_colors = bool(model and model.stage_colors)
+        state.supports_stage_count = False
+        self.read_only = state.read_only
+
     def read_full(self) -> MouseState:
-        state = self._identity()
+        cid, mid, firmware = self._identity()
+        self._set_model(cid, mid)
+        state = MouseState(
+            vendor_id=self.info.vendor_id,
+            product_id=self.info.product_id,
+            usb_name=self.info.product_name,
+            cid=cid,
+            mid=mid,
+            model_name=self.model.name if self.model else devices.fallback_name(self.info.product_name),
+            brand=self.model.brand if self.model else "ATK",
+            sensor=self.model.sensor if self.model else "Unknown sensor",
+            firmware=firmware,
+            usb_bcd=protocol.format_bcd(self.info.bcd_device),
+            via_receiver=self.info.is_receiver,
+            receiver_name=self.receiver.name if self.receiver else "",
+            receiver_pid=self.receiver.product_id if self.receiver else None,
+            wired=not self.info.is_receiver,
+            protocol="v2",
+        )
+        self._apply_flags(state)
+
+        try:
+            self._apply_config(state, self.transport.read_config())
+        except ProtocolError:
+            logger.debug("v2 config read failed", exc_info=True)
+        try:
+            self._apply_dpi(state, self.transport.read_dpi())
+        except ProtocolError:
+            logger.debug("v2 DPI read failed", exc_info=True)
+        try:
+            self._apply_sensor_mode(state, self.transport.read_sensor_mode())
+        except ProtocolError:
+            logger.debug("v2 sensor mode read failed", exc_info=True)
+        try:
+            self._apply_lighting(state, self.transport.read_lighting())
+        except ProtocolError:
+            logger.debug("v2 lighting read failed", exc_info=True)
+        self._read_buttons(state)
         self._apply_battery(state)
-        state.receiver_online = True if state.via_receiver else None
+        try:
+            state.receiver_online = self.transport.read_online() if self.info.is_receiver else True
+        except ProtocolError:
+            state.receiver_online = None
+        self.caps.performance_mode = self.caps.performance_mode or state.supports_performance_mode
         self.state = state
         return state
 
     def read_live(self) -> MouseState:
         if not self.state.model_name:
             return self.read_full()
-        self._apply_battery(self.state)
-        return self.state
+        state = self.state
+        self._apply_battery(state)
+        try:
+            self._apply_config(state, self.transport.read_config())
+        except ProtocolError:
+            pass
+        return state
 
     def online_status(self) -> bool | None:
         try:
+            if self.is_receiver:
+                return self.transport.read_online()
             self.transport.read_battery()
             return True
         except ProtocolError:
             return None
 
+    def set_polling(self, hertz: int) -> int:
+        self._require(not self.read_only, "This 0xFF05 device is not in the verified model table")
+        actual = self.transport.set_rate(hertz)
+        self._require(actual == hertz, f"The mouse kept {actual} Hz")
+        self.state.polling_rate = actual
+        return actual
+
+    def set_active_stage(self, index: int) -> int:
+        self._require(not self.read_only, "DPI stages are read-only on this 0xFF05 device")
+        self._require(0 <= index < self.state.stage_count, "DPI stage out of range")
+        x, y = self.state.stages[index]
+        color = self.state.stage_colors[index] if index < len(self.state.stage_colors) else "#ffffff"
+        self.transport.set_dpi(index, x, y, color, True)
+        self._reload_dpi()
+        self._require(self.state.active_stage == index, "The mouse did not switch DPI stage")
+        return index
+
+    def _reload_dpi(self) -> None:
+        self._apply_dpi(self.state, self.transport.read_dpi())
+
+    def set_stage_dpi(self, index: int, x: int, y: int | None = None) -> tuple[int, int]:
+        self._require(not self.read_only, "DPI stages are read-only on this 0xFF05 device")
+        self._require(0 <= index < self.state.stage_count, "DPI stage out of range")
+        y = x if y is None else y
+        self._require(x in self.caps.dpi_options and y in self.caps.dpi_options, "Unsupported DPI value")
+        color = self.state.stage_colors[index] if index < len(self.state.stage_colors) else "#ffffff"
+        self.transport.set_dpi(index, x, y, color, index == self.state.active_stage)
+        self._reload_dpi()
+        stage = self.state.stages[index]
+        self._require(stage == (x, y), "The mouse did not retain the DPI settings")
+        return stage
+
+    def set_stage_color(self, index: int, color: str) -> str:
+        self._require(not self.read_only, "DPI colours are read-only on this 0xFF05 device")
+        self._require(0 <= index < self.state.stage_count, "DPI stage out of range")
+        if len(color) != 7 or not color.startswith("#"):
+            raise ProtocolError("Colour must be #rrggbb")
+        x, y = self.state.stages[index]
+        self.transport.set_dpi(index, x, y, color, index == self.state.active_stage)
+        self._reload_dpi()
+        actual = self.state.stage_colors[index]
+        self._require(actual.lower() == color.lower(), "The mouse did not retain the stage colour")
+        return actual
+
+    def set_lift_off_code(self, code: int) -> int:
+        self._require(not self.read_only, "Lift-off distance is read-only on this 0xFF05 device")
+        self._require(code in (1, 2, 3), "Unsupported lift-off code")
+        self.transport.set_lod(code)
+        config = self.transport.read_config()
+        actual = config[5] + 1
+        self._require(actual == code, "The mouse did not retain the lift-off setting")
+        self.state.lod_code = actual
+        self.state.lod_mm = lod_mm(actual)
+        return actual
+
+    def set_debounce(self, milliseconds: int) -> int:
+        self._require(not self.read_only, "Debounce is read-only on this 0xFF05 device")
+        self._require(milliseconds in self.caps.debounce_options, "Unsupported debounce value")
+        self.transport.set_debounce(milliseconds)
+        actual = self.transport.read_config()[11]
+        self._require(actual == milliseconds, "The mouse did not retain the debounce setting")
+        self.state.debounce_ms = actual
+        return actual
+
+    def set_motion_sync(self, enabled: bool) -> bool:
+        self._require(not self.read_only, "Motion Sync is read-only on this 0xFF05 device")
+        self.transport.set_motion_sync(enabled)
+        actual = bool(self.transport.read_config()[6])
+        self._require(actual == enabled, "The mouse did not retain Motion Sync")
+        self.state.motion_sync = actual
+        return actual
+
+    def set_sleep(self, seconds: int) -> int:
+        self._require(not self.read_only, "The sleep timer is read-only on this 0xFF05 device")
+        self._require(seconds in self.caps.sleep_options, "Unsupported sleep timer")
+        self.transport.set_sleep(seconds)
+        actual = int.from_bytes(self.transport.read_config()[9:11], "little")
+        self._require(actual == seconds, "The mouse did not retain the sleep timer")
+        self.state.sleep_seconds = actual
+        return actual
+
+    def set_straight_line(self, enabled: bool) -> bool:
+        self._require(not self.read_only, "Angle snap is read-only on this 0xFF05 device")
+        self.transport.set_angle_snap(enabled)
+        actual = bool(self.transport.read_config()[7])
+        self._require(actual == enabled, "The mouse did not retain angle snap")
+        self.state.straight_line = actual
+        self.state.angle_enabled = actual
+        return actual
+
+    def set_ripple(self, enabled: bool) -> bool:
+        self._require(not self.read_only, "Ripple control is read-only on this 0xFF05 device")
+        self.transport.set_ripple(enabled)
+        actual = bool(self.transport.read_config()[8])
+        self._require(actual == enabled, "The mouse did not retain ripple control")
+        self.state.ripple_control = actual
+        return actual
+
+    def set_angle(self, degrees: int, enabled: bool) -> tuple[int, bool]:
+        raise ProtocolError("Sensor rotation is not exposed by the 0xFF05 protocol")
+
+    def set_sensor_mode(self, mode: int) -> int:
+        self._require(not self.read_only, "Sensor mode is read-only on this 0xFF05 device")
+        self._require(mode in (0, 1, 2), "Sensor mode must be Basic, Competitive or Competitive MAX")
+        self.transport.set_sensor_mode(protocol.V2_SENSOR_MODE_TO_CODE[mode])
+        actual = protocol.V2_CODE_TO_SENSOR_MODE.get(self.transport.read_sensor_mode(), 0)
+        self._require(actual == mode, "The mouse did not retain the sensor mode")
+        self.state.sensor_mode = actual
+        self.state.performance_mode = actual != 0
+        return actual
+
+    def set_performance_mode(self, enabled: bool) -> bool:
+        return self.set_sensor_mode(1 if enabled else 0) != 0
+
+    def set_button_action(self, index: int, action: str) -> str:
+        self._require(not self.read_only, "Button remapping is read-only on this 0xFF05 device")
+        self._require(0 <= index < len(BUTTON_NAMES), "Button index out of range")
+        self._require(action in V2_BUTTON_ACTIONS, "Unsupported button action")
+        if index == 5 and self.model is not None and not self.model.bottom_button:
+            raise ProtocolError("This mouse has no bottom button")
+        self.transport.set_button(index, V2_BUTTON_ACTIONS[action])
+        self._read_buttons(self.state)
+        actual = self.state.buttons[index].action_id if index < len(self.state.buttons) else ""
+        self._require(actual == action, "The mouse did not retain the button assignment")
+        return V2_BUTTON_LABELS[action]
+
+    def reset_buttons(self) -> None:
+        self._require(not self.read_only, "Button remapping is read-only on this 0xFF05 device")
+        self._require(bool(self.state.buttons), "Button assignments are not readable on this mouse")
+        snapshot = [button.action_id for button in self.state.buttons]
+        applied = 0
+        try:
+            for index, action in enumerate(DEFAULT_BUTTON_ACTIONS):
+                if index >= len(self.state.buttons):
+                    continue
+                self.transport.set_button(index, V2_BUTTON_ACTIONS[action])
+                applied += 1
+            self._read_buttons(self.state)
+            for index, action in enumerate(DEFAULT_BUTTON_ACTIONS):
+                if index < len(self.state.buttons):
+                    self._require(
+                        self.state.buttons[index].action_id == action,
+                        f"The mouse did not retain the default for button {index + 1}",
+                    )
+        except ProtocolError as exc:
+            for button_index, action_id in enumerate(snapshot):
+                if action_id in V2_BUTTON_ACTIONS:
+                    try:
+                        self.transport.set_button(button_index, V2_BUTTON_ACTIONS[action_id])
+                    except ProtocolError:
+                        break
+            self._read_buttons(self.state)
+            raise ProtocolError(
+                f"Button reset stopped after {applied} change(s); review the assignments. ({exc})"
+            ) from exc
+
+    def add_stage(self) -> int:
+        raise ProtocolError("This 0xFF05 firmware does not expose a DPI stage-count command")
+
+    def remove_last_stage(self) -> int:
+        raise ProtocolError("This 0xFF05 firmware does not expose a DPI stage-count command")
+
+    def set_led_mode(self, mode: int, brightness: int, speed: int) -> tuple[int, int, int]:
+        self._require(not self.read_only, "Lighting is read-only on this 0xFF05 device")
+        self._require(mode in (0, 1, 2), "LED mode must be off, steady or breathing")
+        self._require(brightness in (0, 1, 2), "Invalid brightness")
+        self._require(speed in (0, 1, 2), "Invalid LED speed")
+        raw_mode = protocol.V2_LIGHT_MODE_TO_CODE[mode]
+        raw_brightness = 0 if mode == 0 else protocol.V2_LIGHT_BRIGHTNESS[brightness]
+        raw_speed = 0 if mode == 0 else protocol.V2_LIGHT_SPEED[speed]
+        self.transport.set_lighting(raw_mode, raw_brightness, raw_speed)
+        raw = self.transport.read_lighting()
+        actual_mode = protocol.V2_CODE_TO_LIGHT_MODE.get(raw[0], 0)
+        self._require(actual_mode == mode, "The mouse did not retain the lighting mode")
+        self._apply_lighting(self.state, raw)
+        return self.state.led_mode or 0, self.state.led_brightness or 0, self.state.led_speed or 0
+
+    def set_profile(self, profile: int) -> int:
+        self._require(not self.read_only, "Profiles are read-only on this 0xFF05 device")
+        self._require(1 <= profile <= 4, "Profile must be between 1 and 4")
+        self.transport.set_profile(profile)
+        actual = self.transport.read_config()[0] + 1
+        self._require(actual == profile, f"The mouse kept profile {actual}")
+        self.state.profile = actual
+        return actual
+
     def commit_settings(self) -> None:
+        # The 0xff05 protocol writes the active profile directly; no v1 profile
+        # bounce is needed.
         return
 
-    def collect_raw_registers(self) -> dict[int, bytes | None]:
+    def collect_raw_registers(self, start: int = 0, end: int = 0,
+                              include_disabled: bool = True) -> dict[int, bytes | None]:
         return {}
 
 

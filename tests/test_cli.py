@@ -155,48 +155,55 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class _FakeV2Transport:
-    def open(self):
-        return None
+class _V2Stub:
+    path = "/dev/hidraw-a9"
+    state = MouseState(
+        model_name="ATK Dragonfly A9 Pro Max 2.0", brand="ATK",
+        cid=2, mid=1, sensor="PAW3395Ultra", firmware="1.03",
+        dpi=1600, dpi_y=1600, stage_count=4, active_stage=0,
+        polling_rate=1000, profile=1, battery=71,
+        protocol="v2", read_only=False, telemetry_only=False,
+    )
+    caps = devices.default_capabilities()
+
+    def read_full(self):
+        return self.state
+
+    def read_live(self):
+        return self.state
+
+    def set_polling(self, hertz):
+        self.state.polling_rate = hertz
+        return hertz
+
+    def set_profile(self, profile):
+        self.state.profile = profile
+        return profile
 
     def close(self):
-        return None
-
-    def read_battery(self):
-        return {"percent": 71, "charging": False, "millivolts": 3960}
+        pass
 
 
 class V2CliTests(unittest.TestCase):
-    def _controller(self):
-        from atk_control.controller import V2Controller
-        info = DeviceInfo(
-            "/dev/hidraw-a9", 0x373B, 0x11DC,
-            "MADLIONS NK mouse 8K NANO dongle", "0003", "0201",
-            True, b"", "v2", True,
-        )
-        ctl = V2Controller(info)
-        ctl.transport = _FakeV2Transport()
-        return ctl
-
-    def test_status_explains_battery_only(self) -> None:
+    def test_status_reports_full_settings(self) -> None:
         out = io.StringIO()
-        with patch("atk_control.cli._open", return_value=self._controller()):
+        with patch("atk_control.cli._open", return_value=_V2Stub()):
             with contextlib.redirect_stdout(out):
                 self.assertEqual(cli.main(["status"]), 0)
         text = out.getvalue()
         self.assertIn("A9 Pro Max 2.0", text)
         self.assertIn("71%", text)
-        self.assertIn("battery-only", text)
-        self.assertNotIn("DPI        :", text)
+        self.assertIn("DPI        : 1600 x 1600", text)
+        self.assertIn("Polling    : 1000 Hz", text)
+        self.assertNotIn("not available", text)
 
-    def test_write_is_refused_for_v2(self) -> None:
-        err = io.StringIO()
-        with patch("atk_control.cli._open", return_value=self._controller()):
-            with contextlib.redirect_stderr(err):
-                self.assertEqual(cli.main(["polling", "1000"]), 4)
-        self.assertIn("battery telemetry only", err.getvalue())
+    def test_write_is_allowed_for_known_v2(self) -> None:
+        ctl = _V2Stub()
+        with patch("atk_control.cli._open", return_value=ctl):
+            self.assertEqual(cli.main(["polling", "8000"]), 0)
+        self.assertEqual(ctl.state.polling_rate, 8000)
 
-    def test_scan_labels_v2_as_battery_only(self) -> None:
+    def test_scan_labels_v2_as_ff05(self) -> None:
         info = DeviceInfo(
             "/dev/hidraw-a9", 0x373B, 0x11DC, "NK dongle",
             supported=True, protocol="v2",
@@ -205,18 +212,16 @@ class V2CliTests(unittest.TestCase):
         with patch("atk_control.cli.discover_all", return_value=[info]):
             with contextlib.redirect_stdout(out):
                 self.assertEqual(cli.main(["scan", "--all"]), 0)
-        self.assertIn("supported (battery-only)", out.getvalue())
+        self.assertIn("supported (0xFF05)", out.getvalue())
 
 
 class V2SupportReportTests(unittest.TestCase):
-    def test_support_uses_discovery_report_for_v2(self) -> None:
-        from atk_control.controller import V2Controller
+    def test_support_writes_normal_device_report(self) -> None:
         info = DeviceInfo(
             "/dev/hidraw-a9", 0x373B, 0x11DC, "NK dongle",
             "0003", "0201", True, b"", "v2", True,
         )
-        ctl = V2Controller(info)
-        ctl.transport = _FakeV2Transport()
+        ctl = _V2Stub()
         out = io.StringIO()
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / "a9.md"
@@ -224,5 +229,5 @@ class V2SupportReportTests(unittest.TestCase):
                     patch("atk_control.cli.discover_all", return_value=[info]):
                 with contextlib.redirect_stdout(out):
                     self.assertEqual(cli.main(["support", "-o", str(target)]), 0)
-            self.assertIn("Discovery report saved", out.getvalue())
-            self.assertIn("ATK Control discovery report", target.read_text())
+            self.assertIn("Support report saved", out.getvalue())
+            self.assertIn("# ATK Control device report", target.read_text())

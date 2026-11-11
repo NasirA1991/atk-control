@@ -1438,7 +1438,16 @@ class MainWindow(Adw.ApplicationWindow):
             and self._state.cid is not None
             and self._state.mid is not None
         ):
-            model = devices.MODEL_BY_CIDMID.get((self._state.cid, self._state.mid))
+            if self._state.protocol == "v2":
+                model = devices.v2_model_for(
+                    self._state.cid,
+                    self._state.mid,
+                    self._state.vendor_id,
+                    self._state.product_id,
+                    self._state.usb_name,
+                )
+            else:
+                model = devices.MODEL_BY_CIDMID.get((self._state.cid, self._state.mid))
         receiver = None
         if self._state is not None and self._state.via_receiver and self._state.receiver_pid:
             receiver = devices.receiver_for(self._state.receiver_pid, self._state.receiver_name)
@@ -1525,12 +1534,18 @@ class MainWindow(Adw.ApplicationWindow):
             return
         self._last_state_signature = signature
         telemetry = bool(state.telemetry_only)
-        self.notice.set_reveal_child(bool(state.read_only))
+        self.notice.set_reveal_child(bool(state.read_only or state.protocol == "v2"))
         if telemetry:
             self.notice_label.set_text(
                 "Experimental battery-only support: this mouse uses the newer 0xFF05 "
                 "protocol. Charge state is available, but settings are disabled until "
                 "the protocol is mapped. Save a report from the Device page to help."
+            )
+        elif state.protocol == "v2":
+            self.notice_label.set_text(
+                "Experimental 0xFF05 support. Read and write commands follow the "
+                "public ATK Hub protocol, but this exact firmware has not been "
+                "validated on hardware yet. Keep a copy of your settings."
             )
         elif state.read_only:
             self.notice_label.set_text(
@@ -1753,8 +1768,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.dpi_active_note.set_text(
             f"{caps.sensor.name} · {caps.sensor.min_dpi:,}–{caps.sensor.max_dpi:,} DPI"
         )
-        self.add_stage_button.set_sensitive(state.stage_count < 8)
-        self.remove_stage_button.set_sensitive(state.stage_count > 1)
+        can_change_count = bool(state.supports_stage_count)
+        self.add_stage_button.set_sensitive(can_change_count and state.stage_count < 8)
+        self.remove_stage_button.set_sensitive(can_change_count and state.stage_count > 1)
         step = 10 if caps.sensor.family == "ultra" and caps.sensor.max_dpi <= 42000 else 50
         for index, row in enumerate(self.dpi_rows):
             visible = index < state.stage_count
