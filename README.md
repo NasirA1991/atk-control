@@ -27,7 +27,7 @@ It is a native alternative to ATK HUB for everyday settings, with a tray
 battery indicator and a CLI for scripting. ATK HUB remains the vendor tool for
 firmware updates and the features listed under [Limitations](#limitations).
 
-**Start here:** [Supported devices](#supported-devices) ·
+**Start here:** [Supported hardware](#supported-hardware) ·
 [Quick start](#quick-start) · [Features](#features) · [CLI](#cli) ·
 [Troubleshooting](#troubleshooting) · [Documentation](#documentation)
 
@@ -36,25 +36,40 @@ firmware updates and the features listed under [Limitations](#limitations).
 <sub>Overview using demo data. The interface follows the system light or dark
 theme.</sub>
 
-## Supported devices
+## Supported hardware
 
-Support is model-specific. A family name does not mean every variant has been
-tested on hardware, and “full settings” only refers to the features exposed by
-that model's firmware.
+Only models tested on physical hardware count as verified. A family name does
+not mean every variant has been tested, and “full settings” refers only to the
+features exposed by that model's firmware.
 
-| Device family | Status | What to expect |
+### Tested hardware
+
+| Device | Receiver | Status |
 | --- | --- | --- |
-| **MAD R family** — MAD R+, MAD R, MAD R MAJOR, MAD R MAJOR+ | **Verified on MAD R+** | Full settings and 8K receiver support tested on MAD R+. Other family members are recognized but were not individually tested. |
-| **VXE R1 family** — R1 Pro, R1, R1 Pro Max | **Verified on R1 Pro** | Full settings tested on R1 Pro with 1K and 4K receivers. Other family members are recognized but were not individually tested. |
-| **ATK A9 Pro Max 2.0** — 373b:11dc dongle / 373b:1264 wired | **Experimental** | 0xFF05 settings for DPI, polling, lift-off, buttons, lighting and profiles. No physical hardware test; rotation and adding/removing DPI stages are not supported. Bluetooth has no configuration interface. |
-| **Other known models** — ATK X1 Pro Max, ATK A9 Plus NearLink, VXE R1 Ultra | Recognized | Settings controls are exposed from the model database, but these exact models have not been hardware-tested. |
-| **26 additional ATK/VXE models** — F1, X1, Z1, U2, A9, VXE R1 SE/R1S+, V3, X3 families | **Read-only** | The model and sensor are recognized so reports are useful, but writes stay disabled until the transport is verified. |
-| **Other ATK/VXE mice** | **Read-only** | Detected interfaces can produce a discovery report. Unmapped protocols are never opened for writing. |
+| **ATK MAD R+** | 8K | **Verified** |
+| **VXE R1 Pro** | 1K, 4K | **Verified** |
+| **ATK Dragonfly A9 Pro Max 2.0** | Wired, 8K dongle | **Experimental** |
 
-**Verified** means the exact model was tested with ATK Control. **Experimental**
-means the protocol is implemented but has not been tested on that hardware.
-**Read-only** means recognition and reporting work, but settings writes are
-deliberately blocked.
+**Verified** means the exact model was tested with ATK Control.
+**Experimental** means the protocol is implemented but has not been tested on
+that hardware. The A9 uses USB `373b:11dc` (8K dongle) or `373b:1264`
+(wired), and supports no rotation, DPI stage count changes or Bluetooth
+configuration.
+
+### Other recognized hardware
+
+| Hardware | Status | Notes |
+| --- | --- | --- |
+| Other MAD R family models (MAD R, MAD R MAJOR, MAD R MAJOR+) | Recognized | Not individually tested |
+| Other VXE R1 family models (R1, R1 Pro Max) | Recognized | Not individually tested |
+| ATK X1 Pro Max, ATK A9 Plus NearLink, VXE R1 Ultra | Recognized | Not individually tested |
+| 26 additional ATK/VXE models | **Read-only** | Model and sensor recognized; writes disabled until verified |
+| Other ATK/VXE mice | **Read-only** | Discovery reports only |
+
+**Recognized** hardware uses its model entry; some controls may be unavailable.
+**Read-only** hardware can be identified and reported, but settings writes are
+deliberately blocked. The read-only catalog covers selected F1, X1, Z1, U2, A9,
+VXE R1 SE/R1S+, V3 and X3 models.
 
 Receiver support matters as much as the mouse model:
 
@@ -226,7 +241,7 @@ JSON output, exit codes and more examples.
 - Support is model-specific. A listed family does not mean every variant has
   been verified on hardware.
 - Polling is capped by the receiver and model; see
-  [Supported devices](#supported-devices).
+  [Supported hardware](#supported-hardware).
 - The ATK A9 Pro Max 2.0 `0xFF05` path is experimental. It has no rotation
   control and no way to add or remove stages. Settings work over the dongle or
   USB cable; Bluetooth exposes no configuration interface.
