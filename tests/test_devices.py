@@ -39,6 +39,20 @@ class ModelTests(unittest.TestCase):
                                         sensor_name=None, usb_name="Compx Mystery Mouse")
         self.assertEqual(caps.name, "Mystery Mouse")
 
+    def test_experimental_catalog_entry(self) -> None:
+        model = devices.model_for(2, 36, 0x373B, 0x1014)
+        self.assertIsNotNone(model)
+        assert model is not None
+        self.assertEqual(model.name, "ATK F1 Pro")
+        self.assertEqual(model.sensor, "PAW3950")
+        self.assertTrue(model.experimental)
+
+    def test_core26k_sensor(self) -> None:
+        sensor = devices.SENSORS["CORE26K"]
+        self.assertEqual(sensor.min_dpi, 50)
+        self.assertEqual(sensor.max_dpi, 26000)
+        self.assertIn(26000, sensor.options())
+
 
 class CapabilityTests(unittest.TestCase):
     def test_8k_receiver(self) -> None:

@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from atk_control import cli, devices
-from atk_control.protocol import DeviceInfo, DeviceNotFound
+from atk_control.protocol import DeviceInfo, DeviceNotFound, ProtocolError
 from atk_control.state import MouseState
 
 
@@ -149,6 +149,27 @@ class CliTests(unittest.TestCase):
             self.assertTrue(target.exists())
             self.assertIn("# ATK Control discovery report", target.read_text())
         self.assertIn("Discovery report saved", out.getvalue())
+
+
+    def test_read_only_wrapper_rejects_writes(self) -> None:
+        inner = _FakeController()
+        inner.read_only = True
+        inner.set_polling = lambda hertz: hertz
+        wrapped = cli._PersistingController(inner)
+        with self.assertRaises(ProtocolError):
+            wrapped.set_polling(1000)
+
+    def test_status_labels_experimental_model(self) -> None:
+        ctl = _FakeController()
+        ctl.state = MouseState(
+            model_name="ATK F1 Pro", experimental=True, read_only=True,
+            cid=2, mid=36, polling_rate=1000,
+        )
+        out = io.StringIO()
+        with patch("atk_control.cli._open", return_value=ctl):
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(cli.main(["status"]), 0)
+        self.assertIn("experimental / read-only", out.getvalue())
 
 
 if __name__ == "__main__":

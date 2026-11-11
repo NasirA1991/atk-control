@@ -35,6 +35,7 @@ class MouseState:
     wired: bool = False
     read_only: bool = False
     telemetry_only: bool = False
+    experimental: bool = False
     protocol: str = "v1"
 
     # Telemetry

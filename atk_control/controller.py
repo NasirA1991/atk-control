@@ -389,7 +389,7 @@ class Controller:
         self.model = devices.model_for(
             cid, mid, self.info.vendor_id, self.info.product_id, self.info.product_name
         )
-        self.read_only = self.model is None
+        self.read_only = self.model is None or self.model.experimental
         # Use the identified sensor's DPI family while decoding stages.  The
         # conservative default would decode a PAW3950 Ultra stage incorrectly.
         self.caps = devices.capabilities_for(
@@ -424,7 +424,8 @@ class Controller:
             receiver_name=self.receiver.name if self.receiver else "",
             receiver_pid=self.receiver.product_id if self.receiver else None,
             wired=not self.info.is_receiver,
-            read_only=self.model is None,
+            read_only=self.read_only,
+            experimental=bool(self.model and self.model.experimental),
             dpi=stages[active][0],
             dpi_y=stages[active][1],
             stages=stages,

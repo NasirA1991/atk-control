@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0 — 2026-11-11
+
+- Added an **experimental device catalog** derived from the public ATK HUB
+  device list. Twenty-six ATK F1/X1/Z1/U2/A9 and VXE R1 SE/R1S+/V3/X3
+  identities are now recognized by CID/MID, together with the CORE26K sensor
+  (50–26,000 DPI). These models are deliberately **read-only**: identity,
+  battery and readable settings are shown, but every write is rejected until
+  the transport and commands are verified on that hardware.
+- The UI explains why a catalog model is read-only, disables settings pages,
+  and points at the report workflow. `atkctl status` labels the state and
+  `atkctl` rejects writes with a clear error. This is recognition, not a claim
+  of full support.
+- Kept the catalog separate from verified models so a shared receiver or a
+  CID/MID collision cannot silently enable unsafe writes. Promotion to full
+  support still requires a device report and hardware testing.
+
 ## 0.7.0 — 2026-11-11
 
 - Added experimental **full settings** support for the ATK Dragonfly A9 Pro Max

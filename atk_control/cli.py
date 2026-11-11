@@ -50,6 +50,10 @@ class _PersistingController:
         value = getattr(self._inner, name)
         if name in self.WRITE_METHODS:
             def persist(*args, **kwargs):
+                if getattr(self._inner, "read_only", False):
+                    raise ProtocolError(
+                        "this mouse is read-only until its transport is verified"
+                    )
                 result = value(*args, **kwargs)
                 self._inner.commit_settings()
                 return result
@@ -179,6 +183,8 @@ def _status(controller: Controller | V2Controller, as_json: bool) -> int:
         "not forwarded by the receiver" if state.via_receiver else "unknown"
     )
     print(f"Firmware   : {firmware}")
+    if state.experimental:
+        print("Support    : experimental / read-only (model recognized, protocol unverified)")
     if state.telemetry_only:
         print("Settings   : read-only (unverified 0xff05 device)")
         return 0

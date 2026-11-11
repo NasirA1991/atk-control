@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.8.0" date="2026-11-11">
+      <description>
+        <p>Adds an experimental, read-only device catalog with twenty-six ATK and VXE identities from the public ATK HUB device list, plus CORE26K sensor support. Recognized catalog models show identity, battery and readable settings but reject writes until their transport is verified. This is recognition, not a claim of full support.</p>
+      </description>
+    </release>
     <release version="0.7.0" date="2026-11-11">
       <description>
         <p>Adds experimental full settings support for the ATK Dragonfly A9 Pro Max 2.0 family over the newer 0xFF05 64-byte protocol: DPI stages and colours, polling, lift-off distance, buttons, lighting, profiles, Motion Sync, ripple, angle snap, debounce and sleep. The protocol was implemented from public reverse engineering; it has not yet been validated on physical A9 hardware, and Bluetooth has no configuration channel.</p>

@@ -18,7 +18,7 @@ def state_signature(state: MouseState) -> tuple:
     """
     return (
         state.battery, state.charging, state.wired, state.read_only,
-        state.telemetry_only, state.protocol,
+        state.telemetry_only, state.experimental, state.protocol,
         state.model_name, state.brand, state.sensor, state.firmware,
         state.usb_bcd, state.cid, state.mid, state.receiver_name,
         state.receiver_pid, state.dpi, state.dpi_y, tuple(state.stages),
