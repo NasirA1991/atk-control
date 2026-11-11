@@ -351,25 +351,34 @@ does not appear, use ATK HUB for firmware information and updates.
 
 ## Supported devices
 
-The protocol is shared across the current ATK/VXE mouse family. Model and
-capabilities are selected from the mouse's own CID/MID identity, not just the
-USB product id, because receivers are shared between models.
+Model and capabilities are selected from the mouse's own CID/MID identity, not
+just the USB product ID, because receivers are shared between models.
 
-| Model | Link | Status |
-|---|---|---|
-| **MAD R +** | 8K dongle (`373b:1040`) | **Verified on hardware** — battery, polling to 8000 Hz, DPI stages and colours, Motion Sync, ripple, straight-line correction, LOD, debounce, sleep, sensor mode, DPI LED, profiles and button reads; button remap and MAX are enabled from ATK HUB protocol evidence; DPI and profile commits survive power cycles |
-| MAD R, MAD R MAJOR, MAD R MAJOR+ | cable / 8K dongle | Same protocol and capability family; not individually tested |
-| **VXE R1 Pro** | 1K / 4K receiver (`3554:f58a` / `3554:f505`) | **Verified on hardware** — polling up to 4K, DPI stages/colours and add/remove, Motion Sync, ripple, straight-line, LOD, debounce, sleep, sensor modes including MAX, DPI LED, button remapping, firmware reporting and settings that survive power cycles |
-| VXE R1, VXE R1 Pro Max | cable / receiver | Model entries and receiver ceilings included; not individually tested |
-| **ATK Dragonfly A9 Pro Max 2.0** | 8K dongle (`373b:11dc`) / cable (`373b:1264`) | **Experimental settings** — DPI stages and colours, polling, LOD, buttons, lighting, profiles, Motion Sync, ripple, angle snap, debounce and sleep use the newer `0xFF05` 64-byte protocol. Not yet tested on physical A9 hardware; Bluetooth has no configuration channel |
-| Other ATK/VXE mice | any | Detected read-only until a model entry is added. `0xFF05` devices with a report 8/63-byte collection are detected; only known identities enable experimental settings |
+| Family | Models | Connection | Status |
+|---|---|---|---|
+| **MAD R** | MAD R +, MAD R, MAD R MAJOR, MAD R MAJOR+ | 8K dongle `373b:1040` or cable | **Verified** on MAD R+ |
+| **VXE R1** | VXE R1 Pro, VXE R1, VXE R1 Pro Max | 4K `3554:f505`, 1K `3554:f58a`, or cable | **Verified** on R1 Pro |
+| **A9 Pro Max 2.0** | ATK Dragonfly A9 Pro Max 2.0 | 8K dongle `373b:11dc` or cable `373b:1264` | **Experimental** |
+| **Other ATK/VXE** | — | any supported receiver or cable | **Read-only** |
 
-The MAD R + is an 8K-receiver mouse; that is the configuration verified here.
-When more than one receiver is connected, the **Device → Configuration devices**
-card lets you switch between them. If the selected mouse is unplugged, switched
-off or asleep, ATK Control detects the offline receiver and tries the other
-detected mouse automatically, updating the tray and window to the one that
-answers.
+**Verified** means the core controls were exercised on that hardware.
+**Experimental** means full settings are implemented but not yet tested on the
+model. **Read-only** means detection and support reports only.
+
+**Full settings** cover battery, DPI stages and colours, polling, LOD, button
+remapping, lighting, profiles, Motion Sync, ripple, straight-line correction,
+debounce, sleep and sensor modes. Exact polling ceilings and feature
+availability depend on the model and receiver. Other models in a verified
+family share the protocol but were not tested individually.
+
+The A9 Pro Max 2.0 uses the newer `0xFF05` 64-byte protocol: angle snap replaces
+straight-line correction, and Bluetooth has no configuration channel. Unknown
+`0xFF05` mice with report 8 / 63-byte collections are detected for reports and
+telemetry, but stay read-only until their identity is known.
+
+With more than one receiver connected, choose the active mouse in
+**Device → Configuration devices**. If it goes offline, ATK Control tries the
+other detected mouse automatically and updates the tray and window.
 
 ## Missing your mouse?
 
