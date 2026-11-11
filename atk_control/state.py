@@ -34,6 +34,7 @@ class MouseState:
     receiver_online: bool | None = None
     wired: bool = False
     read_only: bool = False
+    telemetry_only: bool = False
 
     # Telemetry
     battery: int | None = None

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.1 — 2026-11-11
+
+- Added experimental **battery-only** support for the ATK Dragonfly A9 Pro Max
+  2.0 (`373b:11dc` dongle, `373b:1264` cable) and other `0xFF05` devices with
+  a 64-byte report 8 collection. Charge level and voltage are read with the
+  newer battery query; DPI, buttons, lighting and profiles remain disabled.
+  This was implemented from the reporter's discovery report and the public v2
+  reverse engineering in `noosxe/atk-tool` PR #15; it has not been tested on
+  physical A9 hardware yet.
+- `atkctl scan --all` labels these devices `supported (battery-only)`, and
+  `atkctl support` writes a discovery report so the descriptor is captured.
+
 ## 0.6.0 — 2026-11-11
 
 - Added a discovery report for unrecognised ATK/VXE devices. `atkctl support`

@@ -12,7 +12,13 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import devices, diagnostics
-from .controller import BUTTON_ACTIONS, DEFAULT_BUTTON_ACTIONS, Controller
+from .controller import (
+    BUTTON_ACTIONS,
+    DEFAULT_BUTTON_ACTIONS,
+    Controller,
+    V2Controller,
+    controller_for,
+)
 from .protocol import DeviceInfo, DeviceNotFound, PermissionDenied, ProtocolError, discover
 from .state import Button, MouseState
 
@@ -64,7 +70,7 @@ class DeviceWorker:
         self._report_path: str | None = None
         self._report_include_raw = False
         self._state = MouseState()
-        self._controller: Controller | None = None
+        self._controller: Controller | V2Controller | None = None
         self._connected = False
         self._last_link_error: str | None = None
         self._last_link_key: tuple[bool, str | None] | None = None
@@ -213,7 +219,7 @@ class DeviceWorker:
         errors: list[str] = []
         switched_from = preferred
         for info in candidates:
-            controller = Controller(info)
+            controller = controller_for(info)
             try:
                 state = controller.open()
             except PermissionDenied:
@@ -283,7 +289,14 @@ class DeviceWorker:
                 had_pending = bool(self._pending)
                 self._pending.clear()
             if had_pending:
-                self._toast("This model is not in the supported database yet; settings are read-only.")
+                if getattr(controller.state, "telemetry_only", False):
+                    self._toast(
+                        "Battery-only support for this protocol; settings are not available yet."
+                    )
+                else:
+                    self._toast(
+                        "This model is not in the supported database yet; settings are read-only."
+                    )
             return
         with self._lock:
             pending = list(self._pending.values())

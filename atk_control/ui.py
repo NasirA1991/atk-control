@@ -680,6 +680,8 @@ class MainWindow(Adw.ApplicationWindow):
     def _select_page(self, page: str) -> None:
         if page not in self.nav_buttons:
             return
+        if not self.nav_buttons[page].get_sensitive():
+            return
         self.stack.set_visible_child_name(page)
         for key, button in self.nav_buttons.items():
             if key == page:
@@ -765,6 +767,7 @@ class MainWindow(Adw.ApplicationWindow):
         more.add_css_class("pill")
         more.set_halign(Gtk.Align.START)
         more.connect("clicked", lambda *_: self._select_page("performance"))
+        self.overview_more = more
         body.append(more)
         root.append(quick)
         return page
@@ -1521,12 +1524,25 @@ class MainWindow(Adw.ApplicationWindow):
             self._refresh_devices_if_changed(state)
             return
         self._last_state_signature = signature
+        telemetry = bool(state.telemetry_only)
         self.notice.set_reveal_child(bool(state.read_only))
-        if state.read_only:
+        if telemetry:
+            self.notice_label.set_text(
+                "Experimental battery-only support: this mouse uses the newer 0xFF05 "
+                "protocol. Charge state is available, but settings are disabled until "
+                "the protocol is mapped. Save a report from the Device page to help."
+            )
+        elif state.read_only:
             self.notice_label.set_text(
                 "Recognized ATK/VXE device, but this model is not in the supported "
                 "database yet. Settings are read-only — save a report from the Device page."
             )
+        for key in ("buttons", "performance", "dpi", "lighting"):
+            button = self.nav_buttons.get(key)
+            if button is not None:
+                button.set_sensitive(not telemetry)
+        if telemetry and self.stack.get_visible_child_name() not in ("overview", "device"):
+            self._select_page("overview")
         self.stack.set_sensitive(True)
         self._loading = True
         try:
@@ -1564,15 +1580,22 @@ class MainWindow(Adw.ApplicationWindow):
             self.battery_big.set_text(str(max(0, min(100, state.battery))))
             self.battery_suffix.set_text("%")
         self.battery_rail.set_state(state.battery, state.charging)
-        if state.charging:
+        if state.battery is None:
+            self.hero_charging.set_text("NO TELEMETRY")
+        elif state.charging:
             self.hero_charging.set_text("CHARGING")
         elif state.wired:
             self.hero_charging.set_text("USB POWER")
         else:
             self.hero_charging.set_text("ON BATTERY")
         self.hero_model.set_text(state.connected_name)
-        firmware = state.firmware or ("not reported" if state.via_receiver else "unknown")
-        self.hero_sub.set_text(f"{state.sensor} · FW {firmware} · {state.cid or '?'}, {state.mid or '?'}")
+        if state.telemetry_only:
+            self.hero_sub.set_text("Battery-only support · newer 0xFF05 protocol")
+        else:
+            firmware = state.firmware or ("not reported" if state.via_receiver else "unknown")
+            self.hero_sub.set_text(
+                f"{state.sensor} · FW {firmware} · {state.cid or '?'}, {state.mid or '?'}"
+            )
         link = state.link_label
         if state.wired:
             link_badge = "USB"
@@ -1595,14 +1618,22 @@ class MainWindow(Adw.ApplicationWindow):
             f"{state.battery}%" if state.battery is not None else "—"
         )
         self.sidebar_link.set_text(f"{link}\nFW {state.firmware or 'n/a'}")
-        self.metric_values["dpi"].set_text(f"{state.dpi:,}")
-        self.metric_values["polling"].set_text(f"{state.polling_rate:,} Hz")
-        self.metric_values["profile"].set_text(
-            f"{state.profile}/4" if state.profile else "—"
-        )
+        if state.telemetry_only:
+            for key in ("dpi", "polling", "profile"):
+                self.metric_values[key].set_text("—")
+        else:
+            self.metric_values["dpi"].set_text(f"{state.dpi:,}")
+            self.metric_values["polling"].set_text(f"{state.polling_rate:,} Hz")
+            self.metric_values["profile"].set_text(
+                f"{state.profile}/4" if state.profile else "—"
+            )
         self._set_switch(self.dash_motion, state.motion_sync, self.dash_motion_row)
         self._set_switch(self.dash_ripple, state.ripple_control, self.dash_ripple_row)
         self._set_switch(self.dash_line, state.straight_line, self.dash_line_row)
+        for row in (self.dash_motion_row, self.dash_ripple_row, self.dash_line_row):
+            row.set_visible(not state.telemetry_only)
+        self.overview_more.set_sensitive(not state.telemetry_only)
+        self.overview_more.set_visible(not state.telemetry_only)
 
     @staticmethod
     def _set_switch(switch: Gtk.Switch, value: bool | None, row: Gtk.Widget | None = None) -> None:

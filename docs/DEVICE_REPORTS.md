@@ -26,7 +26,9 @@ If ATK Control cannot open a supported configuration interface, it writes a
 every ATK/VXE HID interface, its USB ID, vendor usage pages, report IDs and
 raw HID report descriptor. It does not open an unknown device for writing.
 `atkctl scan --all` prints the same candidate interfaces without writing a
-file.
+file. For an experimental battery-only `0xFF05` device, `atkctl support` also
+returns this discovery report so the descriptor is captured alongside the
+battery result.
 
 `atkctl report` prints the same content to the terminal instead. If a
 maintainer asks for raw bytes, add `--raw` (and review the result):
