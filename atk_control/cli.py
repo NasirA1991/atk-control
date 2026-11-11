@@ -87,7 +87,10 @@ def _open(path: str | None = None) -> Controller:
         return _PersistingController(controller)  # type: ignore[return-value]
     if errors:
         raise ProtocolError(errors[0])
-    raise DeviceNotFound("No ATK/VXE mouse or receiver found. Check the udev rule.")
+    raise DeviceNotFound(
+        "No supported ATK/VXE mouse or receiver found. "
+        "Run `atkctl scan --all` to inspect unrecognised HID interfaces."
+    )
 
 
 def _print_scan(all_devices: bool = False) -> int:
