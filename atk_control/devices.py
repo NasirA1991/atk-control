@@ -31,6 +31,7 @@ SENSORS: dict[str, Sensor] = {
     "PAW3950": Sensor("PAW3950", "step50", 50, 36000),
     "PAW3950Ultra": Sensor("PAW3950Ultra", "ultra", 10, 42000),
     "PAW3950DM": Sensor("PAW3950DM", "step50", 50, 36000),
+    "PAW3395Ultra": Sensor("PAW3395Ultra", "step50", 100, 30000),
     "PAW3311": Sensor("PAW3311", "step50", 200, 15000),
     "PAW3315": Sensor("PAW3315", "step50", 200, 16000),
 }
@@ -92,14 +93,6 @@ MODELS: tuple[Model, ...] = (
           usb_ids=((0x373B, 0x1017),)),
     Model(2, 83, "ATK A9 Plus NearLink", "ATK", "PAW3395", 1000),
     Model(2, 114, "VXE R1 Ultra", "VXE", "PAW3395", 8000),
-    # A9 Pro Max 2.0 / Dragonfly generation uses the 0xFF05 64-byte
-    # protocol. Only battery telemetry is implemented, so every settings
-    # capability stays off and the UI treats it as telemetry-only.
-    Model(0, 0, "ATK Dragonfly A9 Pro Max 2.0", "ATK", "Unknown sensor", 8000,
-          angle_supported=False, dpi_lighting=False, stage_colors=False,
-          performance_mode=False, sensor_max=False, button_remap=False,
-          bottom_button=False,
-          usb_ids=((0x373B, 0x11DC), (0x373B, 0x1264))),
 )
 
 MODEL_BY_CIDMID: dict[tuple[int, int], Model] = {(m.cid, m.mid): m for m in MODELS}
@@ -108,6 +101,29 @@ for _model in MODELS:
     for _usb in _model.usb_ids:
         MODEL_BY_USB[_usb] = _model
 
+# The A9 Pro Max 2.0 generation uses the 0xff05 protocol.  Its identity table
+# overlaps CID/MID values used by older mice, so it must be looked up
+# separately from the v1 table.
+V2_MODELS: tuple[Model, ...] = (
+    Model(2, 1, "ATK Dragonfly A9 Pro Max 2.0", "ATK", "PAW3395Ultra", 8000,
+          angle_supported=False, dpi_lighting=True, stage_colors=True,
+          performance_mode=True, sensor_max=True, button_remap=True,
+          bottom_button=True,
+          usb_ids=((0x373B, 0x11DC), (0x373B, 0x1264))),
+    Model(2, 14, "ATK Dragonfly A9 Pro Max 2.0", "ATK", "PAW3950Ultra", 8000,
+          angle_supported=False, dpi_lighting=True, stage_colors=True,
+          performance_mode=True, sensor_max=True, button_remap=True,
+          bottom_button=True,
+          usb_ids=((0x373B, 0x11DC), (0x373B, 0x1264))),
+    Model(2, 27, "ATK Dragonfly A9 Pro Max 2.0", "ATK", "PAW3950DM", 8000,
+          angle_supported=False, dpi_lighting=True, stage_colors=True,
+          performance_mode=True, sensor_max=True, button_remap=True,
+          bottom_button=True,
+          usb_ids=((0x373B, 0x11DC), (0x373B, 0x1264))),
+)
+V2_MODEL_BY_CIDMID: dict[tuple[int, int], Model] = {
+    (model.cid, model.mid): model for model in V2_MODELS
+}
 
 @dataclass(frozen=True)
 class Receiver:
@@ -128,6 +144,16 @@ def receiver_for(product_id: int, usb_name: str = "") -> Receiver | None:
         name=name,
         max_polling=RECEIVER_CEILINGS.get(product_id, 1000),
     )
+
+
+def v2_model_for(cid: int | None, mid: int | None,
+                 vendor_id: int, product_id: int,
+                 usb_name: str = "") -> Model | None:
+    if cid is None or mid is None:
+        # The dongle can be paired with another mouse.  Require the identity
+        # command before enabling writes; the USB ID alone is not proof.
+        return None
+    return V2_MODEL_BY_CIDMID.get((cid, mid))
 
 
 def model_for(cid: int | None, mid: int | None,

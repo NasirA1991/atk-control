@@ -35,6 +35,7 @@ class MouseState:
     wired: bool = False
     read_only: bool = False
     telemetry_only: bool = False
+    protocol: str = "v1"
 
     # Telemetry
     battery: int | None = None
@@ -79,6 +80,7 @@ class MouseState:
     supports_button_remap: bool = False
     supports_lighting: bool = False
     supports_stage_colors: bool = False
+    supports_stage_count: bool = True
 
     @property
     def connected_name(self) -> str:

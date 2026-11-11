@@ -30,12 +30,36 @@ CHECKSUM_TOTAL = 0x55
 MAX_EEPROM_CHUNK = 10
 
 # The A9 Pro Max 2.0 / Dragonfly generation uses a second vendor collection
-# (usage page 0xff05) with 64-byte numbered reports. Only the battery command
-# has been reverse-engineered publicly, so this path is telemetry-only.
+# (usage page 0xff05) with 64-byte numbered reports.  The command map below is
+# reimplemented from the public ATK Hub protocol notes.
 V2_REPORT_ID = 0x08
 V2_FRAME_SIZE = 64
 V2_MARKER = 0x72
 V2_BATTERY_CMD = 0x07
+V2_TARGET_DONGLE = 0
+V2_TARGET_MOUSE = 1
+V2_READ_CHUNK = 10
+
+V2_CMD_SET_RATE = 0x01
+V2_CMD_SET_DPI = 0x02
+V2_CMD_SET_LOD = 0x03
+V2_CMD_SET_BUTTON = 0x05
+V2_CMD_READ_CONFIG = 0x09
+V2_CMD_SET_PROFILE = 0x0A
+V2_CMD_SET_ANGLE = 0x0B
+V2_CMD_SET_RIPPLE = 0x0C
+V2_CMD_SET_MOTION_SYNC = 0x0D
+V2_CMD_READ_CHARGING = 0x0F
+V2_CMD_RESET = 0x13
+V2_CMD_SET_LIGHT = 0x14
+V2_CMD_SET_SLEEP = 0x15
+V2_CMD_READ_MEMORY = 0x17
+V2_CMD_SET_DEBOUNCE = 0x16
+V2_CMD_READ_IDENTITY = 0x4A
+V2_CMD_READ_FIRMWARE = 0x1C
+V2_CMD_SET_SENSOR_MODE = 0x1F
+V2_CMD_READ_DONGLE_VERSION = 0x88
+V2_CMD_READ_ONLINE = 0x81
 
 CMD_READ_EEPROM = 0x08
 CMD_WRITE_EEPROM = 0x07
@@ -197,42 +221,55 @@ def report_is_valid(report_id: int, payload: bytes) -> bool:
     )
 
 
-def build_v2_battery_request(wireless: bool = True) -> bytes:
-    """Build the 64-byte 0xff05 battery query, including its report id."""
-    packet = bytearray(V2_FRAME_SIZE)
-    packet[0] = V2_REPORT_ID
-    packet[2] = V2_MARKER
-    packet[5] = 1 if wireless else 0
-    packet[6] = V2_BATTERY_CMD
-    packet[7] = 0x01
-    return bytes(packet)
+V2_RATE_TO_CODE = {1000: 0, 500: 1, 250: 2, 125: 3, 8000: 4, 4000: 5, 2000: 6}
+V2_CODE_TO_RATE = {code: hz for hz, code in V2_RATE_TO_CODE.items()}
+V2_SENSOR_MODE_TO_CODE = {0: 0, 1: 4, 2: 5}
+V2_CODE_TO_SENSOR_MODE = {code: mode for mode, code in V2_SENSOR_MODE_TO_CODE.items()}
+V2_LIGHT_MODE_TO_CODE = {0: 0, 1: 2, 2: 1}  # UI: off, steady, breathing
+V2_CODE_TO_LIGHT_MODE = {code: mode for mode, code in V2_LIGHT_MODE_TO_CODE.items()}
+V2_LIGHT_BRIGHTNESS = (85, 170, 255)
+V2_LIGHT_SPEED = (10, 15, 20)
 
 
-def decode_v2_battery(raw: bytes) -> dict[str, int | bool | None] | None:
-    """Decode a 0xff05 battery reply; return None for unrelated frames."""
+def build_v2_frame(command: int, param_length: int, command_length: int,
+                   data: bytes = b"", target: int = V2_TARGET_DONGLE) -> bytes:
+    """Build a complete 64-byte 0xff05 report, including the report id."""
+    if not 0 <= command <= 0xFF:
+        raise ValueError("command must be a byte")
+    if not 0 <= param_length <= 0xFF or not 0 <= command_length <= 0xFF:
+        raise ValueError("length must be a byte")
+    if target not in (V2_TARGET_DONGLE, V2_TARGET_MOUSE):
+        raise ValueError("invalid v2 target")
+    if len(data) > 56:
+        raise ValueError("v2 data is limited to 56 bytes")
+    frame = bytearray(V2_FRAME_SIZE - 1)
+    frame[1] = V2_MARKER
+    frame[2] = param_length
+    frame[4] = target
+    frame[5] = command
+    frame[6] = command_length
+    frame[7:7 + len(data)] = data
+    frame[0] = sum(frame[1:]) & 0xFF
+    return bytes((V2_REPORT_ID,)) + bytes(frame)
+
+
+def decode_v2_reply(raw: bytes, command: int) -> bytes | None:
+    """Return the data bytes of a matching 0xff05 reply, or None."""
     if not raw:
         return None
-    if raw[0] == V2_REPORT_ID:
-        data = raw
-    elif raw[0] == V2_MARKER:
-        # Some hidraw stacks strip the numbered report id.
-        data = bytes((V2_REPORT_ID,)) + raw
-    else:
+    data = raw
+    if data[0] == V2_REPORT_ID:
+        data = data[1:]
+    elif data[0] != V2_MARKER:
         return None
-    if len(data) < 10 or data[1] != V2_MARKER:
+    if len(data) < 7 or data[0] != V2_MARKER:
         return None
-    if data[5] != V2_BATTERY_CMD or data[6] != 0x01:
+    if data[4] != command:
         return None
-    percent = data[7]
-    charge_code = data[3]
-    if not 0 <= percent <= 100 or charge_code not in (0x3B, 0x05):
-        return None
-    millivolts = data[8] | (data[9] << 8)
-    return {
-        "percent": percent,
-        "charging": charge_code == 0x3B,
-        "millivolts": millivolts if millivolts > 0 else None,
-    }
+    if data[1] == 0xFF:
+        raise ProtocolError(f"device rejected command 0x{command:02x}")
+    length = min(data[5], len(data) - 6)
+    return bytes(data[6:6 + length])
 
 
 def decode_report(raw: bytes) -> bytes | None:
@@ -803,26 +840,192 @@ class V2Transport(CompxTransport):
         if self.debug:
             print(">>", report.hex(" "))
 
-    def read_battery(self) -> dict[str, int | bool | None]:
-        last: Exception | None = None
+    def _command(self, command: int, param_length: int, command_length: int,
+                 data: bytes = b"", target: int | None = None) -> bytes:
+        if target is None:
+            target = V2_TARGET_MOUSE if self.wireless else V2_TARGET_DONGLE
+        last: ProtocolError | None = None
         for _attempt in range(3):
             self.drain(0.01)
-            self._write_report(build_v2_battery_request(self.wireless))
+            self._write_report(
+                build_v2_frame(command, param_length, command_length,
+                               data, target=target)
+            )
             deadline = time.monotonic() + self.timeout
             while time.monotonic() < deadline:
                 raw = self._read_report(max(0.0, deadline - time.monotonic()))
                 if raw is None:
                     break
-                data = decode_v2_battery(raw)
-                if data is not None:
-                    return data
+                payload = decode_v2_reply(raw, command)
+                if payload is not None:
+                    return payload
             last = ProtocolError(
-                "the mouse did not answer the 0xff05 battery query "
+                f"the mouse did not answer v2 command 0x{command:02x} "
                 "(asleep, out of range, or another app owns it)"
             )
         if last is None:
             raise ProtocolError("no reply was received")
         raise last
+
+    def read_memory(self, address: int, length: int) -> bytes:
+        if not 0 <= address <= 0xFFFF:
+            raise ValueError("address out of range")
+        if not 1 <= length <= 0x200:
+            raise ValueError("length must be 1-512")
+        out = bytearray()
+        while len(out) < length:
+            count = min(V2_READ_CHUNK, length - len(out))
+            payload = self._command(
+                V2_CMD_READ_MEMORY, 10, 13,
+                (address + len(out)).to_bytes(2, "little") + bytes((count,)),
+            )
+            chunk = payload[3:3 + count]
+            if len(chunk) != count:
+                raise ProtocolError(
+                    f"short v2 memory reply at 0x{address + len(out):04x}"
+                )
+            out.extend(chunk)
+        return bytes(out)
+
+    def read_identity(self) -> tuple[int, int]:
+        payload = self._command(V2_CMD_READ_IDENTITY, 8, 6)
+        if len(payload) < 3:
+            raise ProtocolError("short v2 identity reply")
+        cid = payload[1]
+        # The firmware returns a u32 LE here, but only the low byte is used
+        # by the model table.
+        mid = payload[2]
+        return cid, mid
+
+    def read_version(self) -> str:
+        payload = self._command(V2_CMD_READ_FIRMWARE, 5, 3)
+        if len(payload) < 3:
+            raise ProtocolError("short v2 firmware reply")
+        return ".".join(str(part) for part in payload[:3])
+
+    def read_config(self) -> bytes:
+        payload = self._command(V2_CMD_READ_CONFIG, 20, 18)
+        if len(payload) < 18:
+            raise ProtocolError("short v2 configuration reply")
+        return payload
+
+    def read_dpi(self) -> bytes:
+        return self.read_memory(1, 66)
+
+    def read_sensor_mode(self) -> int:
+        payload = self.read_memory(74, 1)
+        return payload[0] if payload else 0
+
+    def read_lighting(self) -> bytes:
+        payload = self.read_memory(76, 3)
+        if len(payload) < 3:
+            raise ProtocolError("short v2 lighting reply")
+        return payload
+
+    def read_buttons(self) -> bytes:
+        payload = self.read_memory(82, 30)
+        if len(payload) < 30:
+            raise ProtocolError("short v2 button reply")
+        return payload
+
+    def read_battery(self) -> dict[str, int | bool | None]:
+        payload = self._command(V2_BATTERY_CMD, 2, 1)
+        if not payload:
+            raise ProtocolError("short v2 battery reply")
+        charge = self._command(V2_CMD_READ_CHARGING, 2, 1)
+        if not charge:
+            raise ProtocolError("short v2 charging reply")
+        return {
+            "percent": payload[0],
+            "charging": charge[0] in (1, 0x3B),
+            "millivolts": None,
+        }
+
+    def read_dongle_version(self) -> str:
+        payload = self._command(
+            V2_CMD_READ_DONGLE_VERSION, 5, 3, target=V2_TARGET_DONGLE
+        )
+        if len(payload) < 3:
+            raise ProtocolError("short v2 dongle reply")
+        return ".".join(str(part) for part in payload[:3])
+
+    def read_online(self) -> bool:
+        payload = self._command(
+            V2_CMD_READ_ONLINE, 3, 1, target=V2_TARGET_DONGLE
+        )
+        return bool(payload and payload[0])
+
+    def set_rate(self, hertz: int) -> int:
+        code = V2_RATE_TO_CODE.get(hertz)
+        if code is None:
+            raise ValueError("unsupported v2 polling rate")
+        self._command(V2_CMD_SET_RATE, 3, 1, bytes((code,)))
+        config = self.read_config()
+        return V2_CODE_TO_RATE.get(config[2], hertz)
+
+    def set_dpi(self, stage: int, x: int, y: int, color: str, active: bool) -> None:
+        if not 0 <= stage <= 7:
+            raise ValueError("stage out of range")
+        rgb = (255, 255, 255)
+        if color.startswith("#") and len(color) == 7:
+            try:
+                rgb = tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))  # type: ignore[assignment]
+            except ValueError:
+                rgb = (255, 255, 255)
+        data = bytes((stage,)) + x.to_bytes(2, "little") + y.to_bytes(2, "little")
+        data += bytes((rgb[2], rgb[1], rgb[0], 0, 1 if active else 0))
+        self._command(V2_CMD_SET_DPI, 12, 10, data)
+
+    def set_lod(self, level: int) -> None:
+        if not 1 <= level <= 3:
+            raise ValueError("LOD level out of range")
+        self._command(V2_CMD_SET_LOD, 4, 2, bytes((0, level - 1)))
+
+    def set_motion_sync(self, enabled: bool) -> None:
+        self._command(V2_CMD_SET_MOTION_SYNC, 3, 1, bytes((1 if enabled else 0,)))
+
+    def set_angle_snap(self, enabled: bool) -> None:
+        self._command(V2_CMD_SET_ANGLE, 3, 1, bytes((1 if enabled else 0,)))
+
+    def set_ripple(self, enabled: bool) -> None:
+        self._command(V2_CMD_SET_RIPPLE, 3, 1, bytes((1 if enabled else 0,)))
+
+    def set_debounce(self, milliseconds: int) -> None:
+        self._command(V2_CMD_SET_DEBOUNCE, 3, 1, bytes((milliseconds & 0xFF,)))
+
+    def set_sleep(self, seconds: int) -> None:
+        if not 0 <= seconds <= 0xFFFF:
+            raise ValueError("sleep out of range")
+        self._command(V2_CMD_SET_SLEEP, 5, 2, seconds.to_bytes(2, "little"))
+
+    def set_sensor_mode(self, code: int) -> None:
+        if code not in (0, 4, 5):
+            raise ValueError("unsupported v2 sensor mode")
+        self._command(V2_CMD_SET_SENSOR_MODE, 3, 1, bytes((code,)))
+
+    def set_lighting(self, mode: int, brightness: int, speed: int) -> None:
+        if mode not in (0, 1, 2):
+            raise ValueError("unsupported v2 lighting mode")
+        if mode == 0:
+            if brightness != 0 or speed != 0:
+                raise ValueError("lighting off must use zero brightness and speed")
+        elif brightness not in V2_LIGHT_BRIGHTNESS or speed not in V2_LIGHT_SPEED:
+            raise ValueError("unsupported v2 lighting value")
+        self._command(V2_CMD_SET_LIGHT, 6, 3, bytes((mode, brightness, speed)))
+
+    def set_profile(self, index: int) -> None:
+        if not 1 <= index <= 4:
+            raise ValueError("profile out of range")
+        self._command(V2_CMD_SET_PROFILE, 3, 1, bytes((index - 1,)))
+
+    def set_button(self, index: int, action: tuple[int, int, int, int]) -> None:
+        if not 0 <= index <= 5:
+            raise ValueError("button index out of range")
+        data = bytes((index,)) + bytes(action)
+        self._command(V2_CMD_SET_BUTTON, 8, 5, data)
+
+    def reset(self) -> None:
+        self._command(V2_CMD_RESET, 2, 1)
 
 
 def format_bcd(value: str) -> str:

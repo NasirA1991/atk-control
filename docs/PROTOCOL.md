@@ -18,6 +18,34 @@ commands `0x04`, `0x10` and `0x12`.
 
 The app verifies every reply checksum and reads every write back.
 
+## 0xFF05 / 64-byte protocol
+
+Newer devices (ATK Dragonfly A9 Pro Max 2.0 family) expose a vendor usage page
+`0xff05` collection with report ID `8` and a 63-byte report. The 64-byte frame
+including the report ID is:
+
+```
+08 <checksum> 72 <param_len> <sn> <target> <command> <cmd_len> <data...>
+```
+
+`checksum` is `sum(frame[2:]) & 0xff`. `target` is `1` for the mouse behind a
+receiver and `0` for the dongle itself or a wired mouse. Replies use
+`08 72 <status> <sn> <target> <command> <len> <data...>`; status `0xff` is an
+error. Read memory uses command `0x17` in chunks of at most 10 bytes. Identity
+is command `0x4a`, config `0x09`, firmware `0x1c`, battery `0x07`, charging
+`0x0f` and receiver online `0x81`.
+
+Settings are written directly to the active profile (no v1 profile bounce).
+Commands used by the app include DPI (`0x02`), polling (`0x01`), LOD (`0x03`),
+buttons (`0x05`), profile (`0x0a`), angle snap (`0x0b`), ripple (`0x0c`),
+Motion Sync (`0x0d`), lighting (`0x14`), sleep (`0x15`), debounce (`0x16`) and
+sensor mode (`0x1f`). The protocol has no sensor-rotation command and no
+DPI-stage count command. Unknown identities are discovered but never written.
+
+This was reimplemented from the public `atk-hub-linux` and `atk-tool` protocol
+observations; neither source is copied. It has not been validated on physical
+A9 hardware yet. Bluetooth exposes no configuration collection.
+
 ## Registers used
 
 | Address | Meaning |

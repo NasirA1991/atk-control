@@ -16,3 +16,4 @@ venv/
 *.pkg.tar.*
 pkg/
 src/
+flatpak-repo/

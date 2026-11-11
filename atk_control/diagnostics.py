@@ -74,7 +74,7 @@ def _candidate_lines(interfaces) -> list[str]:
         kind = "receiver" if info.is_receiver else "HID interface"
         access = "read/write" if info.accessible else "no permission"
         if info.supported and info.protocol == "v2":
-            status = "supported (battery-only)"
+            status = "supported (0xFF05)"
         elif info.supported:
             status = "supported"
         else:
