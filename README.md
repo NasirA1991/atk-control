@@ -347,6 +347,7 @@ full contents and privacy rules.
 
 | Document | Contents |
 | --- | --- |
+| [Documentation index](docs/README.md) | All guides, grouped for users and contributors |
 | [Installation](docs/INSTALLATION.md) | AUR, Flatpak, AppImage, source, dependencies, udev and uninstall |
 | [CLI reference](docs/CLI.md) | Every command, JSON output, exit codes and scripting examples |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Detection, permissions, tray, persistence and packaging problems |

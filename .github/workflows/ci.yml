@@ -19,6 +19,8 @@ jobs:
           sudo apt-get install -y python3-dbus python3-cairo python3-coverage appstream desktop-file-utils
       - name: Verify version sources agree
         run: python3 scripts/check_versions.py
+      - name: Check documentation links and versions
+        run: python3 scripts/check_docs.py
       - name: Unit tests with coverage
         run: |
           python3 -m coverage run --source=atk_control -m unittest discover -s tests -v
