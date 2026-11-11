@@ -92,6 +92,14 @@ MODELS: tuple[Model, ...] = (
           usb_ids=((0x373B, 0x1017),)),
     Model(2, 83, "ATK A9 Plus NearLink", "ATK", "PAW3395", 1000),
     Model(2, 114, "VXE R1 Ultra", "VXE", "PAW3395", 8000),
+    # A9 Pro Max 2.0 / Dragonfly generation uses the 0xFF05 64-byte
+    # protocol. Only battery telemetry is implemented, so every settings
+    # capability stays off and the UI treats it as telemetry-only.
+    Model(0, 0, "ATK Dragonfly A9 Pro Max 2.0", "ATK", "Unknown sensor", 8000,
+          angle_supported=False, dpi_lighting=False, stage_colors=False,
+          performance_mode=False, sensor_max=False, button_remap=False,
+          bottom_button=False,
+          usb_ids=((0x373B, 0x11DC), (0x373B, 0x1264))),
 )
 
 MODEL_BY_CIDMID: dict[tuple[int, int], Model] = {(m.cid, m.mid): m for m in MODELS}

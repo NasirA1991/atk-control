@@ -19,6 +19,7 @@ from .protocol import (
     DeviceInfo,
     DeviceNotFound,
     ProtocolError,
+    V2Transport,
     decode_pair,
     pack_dpi_stage,
     pack_pair,
@@ -970,3 +971,119 @@ class Controller:
                     logger.exception("could not restore profile %d after failed commit", current)
             raise
         self.state.profile = current
+
+
+class V2Controller:
+    """Read-only telemetry session for 0xff05 (A9 Pro Max 2.0 class) mice.
+
+    Only the battery query is implemented.  Keeping this a separate class
+    avoids exposing v1 EEPROM writes that the newer firmware would reject or
+    misinterpret.
+    """
+
+    def __init__(self, info: DeviceInfo, debug: bool = False) -> None:
+        self.info = info
+        self.transport = V2Transport(info.path, wireless=info.is_receiver, debug=debug)
+        self.model = devices.model_for(
+            None, None, info.vendor_id, info.product_id, info.product_name
+        )
+        self.receiver = devices.receiver_for(info.product_id, info.product_name)
+        self.caps = devices.capabilities_for(
+            model=self.model, receiver=self.receiver, usb_name=info.product_name
+        )
+        self.state = MouseState(
+            vendor_id=info.vendor_id,
+            product_id=info.product_id,
+            usb_name=info.product_name,
+            usb_bcd=protocol.format_bcd(info.bcd_device),
+            read_only=True,
+            telemetry_only=True,
+        )
+        self.read_only = True
+
+    def open(self) -> MouseState:
+        self.transport.open()
+        try:
+            return self.read_full()
+        except Exception:
+            self.transport.close()
+            raise
+
+    def close(self) -> None:
+        self.transport.close()
+
+    @property
+    def path(self) -> str:
+        return self.info.path
+
+    @property
+    def is_receiver(self) -> bool:
+        return self.info.is_receiver
+
+    def _identity(self) -> MouseState:
+        model_name = self.model.name if self.model else devices.fallback_name(self.info.product_name)
+        return MouseState(
+            vendor_id=self.info.vendor_id,
+            product_id=self.info.product_id,
+            usb_name=self.info.product_name,
+            model_name=model_name,
+            brand=self.model.brand if self.model else "ATK",
+            sensor="",
+            firmware="",
+            usb_bcd=protocol.format_bcd(self.info.bcd_device),
+            via_receiver=self.info.is_receiver,
+            receiver_name=self.receiver.name if self.receiver else "",
+            receiver_pid=self.receiver.product_id if self.receiver else None,
+            wired=not self.info.is_receiver,
+            read_only=True,
+            telemetry_only=True,
+            polling_rate=0,
+            stage_count=0,
+        )
+
+    def _apply_battery(self, state: MouseState) -> None:
+        battery = self.transport.read_battery()
+        percent = battery.get("percent")
+        charging = battery.get("charging")
+        voltage = battery.get("millivolts")
+        if (
+            isinstance(percent, int)
+            and isinstance(charging, bool)
+            and protocol.battery_is_plausible(percent, charging)
+        ):
+            state.battery = percent
+            state.charging = charging
+        state.voltage_mv = voltage if isinstance(voltage, int) else None
+
+    def read_full(self) -> MouseState:
+        state = self._identity()
+        self._apply_battery(state)
+        state.receiver_online = True if state.via_receiver else None
+        self.state = state
+        return state
+
+    def read_live(self) -> MouseState:
+        if not self.state.model_name:
+            return self.read_full()
+        self._apply_battery(self.state)
+        return self.state
+
+    def online_status(self) -> bool | None:
+        try:
+            self.transport.read_battery()
+            return True
+        except ProtocolError:
+            return None
+
+    def commit_settings(self) -> None:
+        return
+
+    def collect_raw_registers(self) -> dict[int, bytes | None]:
+        return {}
+
+
+def controller_for(info: DeviceInfo, debug: bool = False) -> Controller | V2Controller:
+    """Open the right controller for the discovered protocol generation."""
+    if info.protocol == "v2":
+        return V2Controller(info, debug=debug)
+    return Controller(info, debug=debug)

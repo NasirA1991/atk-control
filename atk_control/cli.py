@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 
 from . import config, devices, diagnostics
-from .controller import BUTTON_ACTION_ORDER, Controller
+from .controller import BUTTON_ACTION_ORDER, Controller, V2Controller, controller_for
 from .logging_setup import configure as configure_logging
 from .protocol import (
     DeviceNotFound,
@@ -57,7 +57,7 @@ class _PersistingController:
         return value
 
 
-def _open(path: str | None = None) -> Controller:
+def _open(path: str | None = None) -> Controller | V2Controller:
     candidates = discover()
     if path:
         candidates = [c for c in candidates if c.path == path]
@@ -65,7 +65,7 @@ def _open(path: str | None = None) -> Controller:
             raise ProtocolError(f"{path} is not an ATK/VXE configuration interface")
     errors: list[str] = []
     for info in candidates:
-        controller = Controller(info)
+        controller = controller_for(info)
         try:
             controller.open()
         except PermissionDenied as exc:
@@ -86,6 +86,8 @@ def _open(path: str | None = None) -> Controller:
             else:
                 errors.append(f"{info.product_name}: {exc}")
             continue
+        if isinstance(controller, V2Controller):
+            return controller
         return _PersistingController(controller)  # type: ignore[return-value]
     if errors:
         raise ProtocolError(errors[0])
@@ -107,7 +109,12 @@ def _print_scan(all_devices: bool = False) -> int:
     for info in candidates:
         access = "read/write" if info.accessible else "no permission"
         kind = "receiver" if info.is_receiver else "HID"
-        status = "supported" if info.supported else f"unsupported: {info.unsupported_reason}"
+        if info.supported and info.protocol == "v2":
+            status = "supported (battery-only)"
+        elif info.supported:
+            status = "supported"
+        else:
+            status = f"unsupported: {info.unsupported_reason}"
         print(f"{info.path}  {info.vendor_id:04x}:{info.product_id:04x}  "
               f"{kind:8}  {info.product_name}  [{access}]  {status}")
     return 0
@@ -147,7 +154,7 @@ def _caps_text(caps: devices.Capabilities) -> str:
     return "\n".join(lines)
 
 
-def _status(controller: Controller, as_json: bool) -> int:
+def _status(controller: Controller | V2Controller, as_json: bool) -> int:
     state = controller.read_full()
     caps = controller.caps
     if as_json:
@@ -174,6 +181,9 @@ def _status(controller: Controller, as_json: bool) -> int:
         "not forwarded by the receiver" if state.via_receiver else "unknown"
     )
     print(f"Firmware   : {firmware}")
+    if state.telemetry_only:
+        print("Settings   : not available (0xff05 battery-only protocol)")
+        return 0
     print(f"DPI        : {state.dpi} x {state.dpi_y}  (stage {state.active_stage + 1}/{state.stage_count})")
     print(f"Polling    : {state.polling_rate} Hz")
     print(f"Motion sync: {_onoff(state.motion_sync)}")
@@ -208,7 +218,7 @@ def _battery_text(state: MouseState) -> str:
     return text
 
 
-def _battery(controller: Controller, as_json: bool) -> int:
+def _battery(controller: Controller | V2Controller, as_json: bool) -> int:
     state = controller.read_live()
     if as_json:
         print(json.dumps(_battery_dict(state), ensure_ascii=False))
@@ -217,7 +227,7 @@ def _battery(controller: Controller, as_json: bool) -> int:
     return 0
 
 
-def _watch(controller: Controller, interval: float, count: int | None,
+def _watch(controller: Controller | V2Controller, interval: float, count: int | None,
            as_json: bool) -> int:
     seen = 0
     while count is None or seen < count:
@@ -386,7 +396,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "scan":
         return _print_scan(bool(getattr(args, "all", False)))
 
-    controller: Controller | None = None
+    controller: Controller | V2Controller | None = None
     try:
         try:
             controller = _open(args.device)
@@ -397,6 +407,40 @@ def main(argv: list[str] | None = None) -> int:
         read_only_commands = {
             None, "status", "caps", "battery", "watch", "report", "support",
         }
+        if controller is None:
+            raise ProtocolError("no controller was opened")
+        if args.command in ("report", "support"):
+            if args.command == "support" and isinstance(controller, V2Controller):
+                return _write_discovery(
+                    args,
+                    "0xff05 battery-only device; the report descriptor is needed "
+                    "to map its settings protocol",
+                )
+            state = controller.read_full()
+            raw = controller.collect_raw_registers() if getattr(args, "raw", False) else None
+            text = diagnostics.report_text(
+                state, controller.path, controller.caps, raw_registers=raw
+            )
+            if args.command == "support" and not args.output:
+                args.output = diagnostics.default_filename()
+            if args.output:
+                path = diagnostics.write_report(
+                    args.output, state, controller.path, controller.caps,
+                    raw_registers=raw,
+                )
+                print(f"Support report saved to {path}")
+                print(f"Attach it to: {config.SUPPORT_URL}")
+            else:
+                print(text)
+                print(f"\nSupport request: {config.SUPPORT_URL}")
+            return 0
+        if isinstance(controller, V2Controller) and args.command not in read_only_commands:
+            print(
+                "atkctl: this mouse exposes battery telemetry only; its 0xff05 "
+                "settings protocol is not supported yet.",
+                file=sys.stderr,
+            )
+            return 4
         if controller.state.read_only and args.command not in read_only_commands:
             print(
                 "atkctl: this mouse is recognized but not in the supported model "
@@ -419,6 +463,13 @@ def main(argv: list[str] | None = None) -> int:
                 args.count,
                 bool(getattr(args, "json", False)),
             )
+        if not isinstance(controller, Controller):
+            print(
+                "atkctl: this mouse exposes battery telemetry only; its 0xff05 "
+                "settings protocol is not supported yet.",
+                file=sys.stderr,
+            )
+            return 4
         if args.command == "polling":
             return _set_and_print("Polling", f"{controller.set_polling(args.hz)} Hz")
         if args.command == "dpi":
@@ -466,25 +517,6 @@ def main(argv: list[str] | None = None) -> int:
             speed = {"slow": 0, "medium": 1, "fast": 2}[args.speed]
             result = controller.set_led_mode(mode, brightness, speed)
             return _set_and_print("DPI LED", f"mode {result[0]}, brightness {result[1]}, speed {result[2]}")
-        if args.command in ("report", "support"):
-            state = controller.read_full()
-            raw = controller.collect_raw_registers() if getattr(args, "raw", False) else None
-            text = diagnostics.report_text(
-                state, controller.path, controller.caps, raw_registers=raw
-            )
-            if args.command == "support" and not args.output:
-                args.output = diagnostics.default_filename()
-            if args.output:
-                path = diagnostics.write_report(
-                    args.output, state, controller.path, controller.caps,
-                    raw_registers=raw,
-                )
-                print(f"Support report saved to {path}")
-                print(f"Attach it to: {config.SUPPORT_URL}")
-            else:
-                print(text)
-                print(f"\nSupport request: {config.SUPPORT_URL}")
-            return 0
         parser.print_help()
         return 0
     except PermissionDenied as exc:

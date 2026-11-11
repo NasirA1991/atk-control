@@ -297,3 +297,68 @@ class ControllerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _FakeV2Transport:
+    def __init__(self, battery=None):
+        self.battery = battery or {"percent": 64, "charging": True, "millivolts": 4020}
+        self.opened = False
+        self.closed = False
+
+    def open(self):
+        self.opened = True
+
+    def close(self):
+        self.closed = True
+
+    def read_battery(self):
+        if isinstance(self.battery, Exception):
+            raise self.battery
+        return dict(self.battery)
+
+
+class V2ControllerTests(unittest.TestCase):
+    def _controller(self):
+        info = DeviceInfo(
+            "/dev/hidraw-test", 0x373B, 0x11DC,
+            "MADLIONS NK mouse 8K NANO dongle", "0003", "0201",
+            True, b"", "v2", True,
+        )
+        session = controller.V2Controller(info)
+        session.transport = _FakeV2Transport()
+        return session
+
+    def test_read_full_is_battery_only(self) -> None:
+        session = self._controller()
+        state = session.open()
+        self.assertTrue(session.transport.opened)
+        self.assertTrue(state.telemetry_only)
+        self.assertTrue(state.read_only)
+        self.assertEqual(state.battery, 64)
+        self.assertTrue(state.charging)
+        self.assertEqual(state.model_name, "ATK Dragonfly A9 Pro Max 2.0")
+        self.assertEqual(state.polling_rate, 0)
+        self.assertFalse(state.supports_button_remap)
+        self.assertFalse(state.supports_lighting)
+
+    def test_read_live_updates_battery(self) -> None:
+        session = self._controller()
+        session.read_full()
+        session.transport.battery = {"percent": 55, "charging": False, "millivolts": 3900}
+        state = session.read_live()
+        self.assertEqual(state.battery, 55)
+        self.assertFalse(state.charging)
+        self.assertEqual(state.voltage_mv, 3900)
+
+    def test_online_status_reports_failure(self) -> None:
+        session = self._controller()
+        self.assertTrue(session.online_status())
+        session.transport.battery = protocol.ProtocolError("asleep")
+        self.assertIsNone(session.online_status())
+
+    def test_factory_picks_v2(self) -> None:
+        info = DeviceInfo("/dev/hidraw-test", 0x373B, 0x11DC, "NK dongle")
+        info.protocol = "v2"
+        self.assertIsInstance(controller.controller_for(info), controller.V2Controller)
+        info.protocol = "v1"
+        self.assertIsInstance(controller.controller_for(info), controller.Controller)

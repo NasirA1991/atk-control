@@ -91,6 +91,38 @@ class BcdTests(unittest.TestCase):
         self.assertIsNone(protocol.decode_pair(1, 2))
 
 
+class V2BatteryTests(unittest.TestCase):
+    def test_request_shape(self) -> None:
+        packet = protocol.build_v2_battery_request(True)
+        self.assertEqual(len(packet), 64)
+        self.assertEqual(packet[0], 8)
+        self.assertEqual(packet[2], 0x72)
+        self.assertEqual(packet[5], 1)
+        self.assertEqual(packet[6], 7)
+        self.assertEqual(packet[7], 1)
+        self.assertEqual(protocol.build_v2_battery_request(False)[5], 0)
+
+    def test_decode_charging_reply(self) -> None:
+        raw = bytes.fromhex("08 72 00 3b 00 07 01 5a 10 0e") + bytes(55)
+        data = protocol.decode_v2_battery(raw)
+        assert data is not None
+        self.assertEqual(data["percent"], 90)
+        self.assertIs(data["charging"], True)
+        self.assertEqual(data["millivolts"], 3600)
+
+    def test_decode_stripped_report_id(self) -> None:
+        raw = bytes.fromhex("72 00 05 00 07 01 32 10 0e") + bytes(55)
+        data = protocol.decode_v2_battery(raw)
+        assert data is not None
+        self.assertEqual(data["percent"], 50)
+        self.assertIs(data["charging"], False)
+
+    def test_rejects_invalid_percent_and_foreign_frame(self) -> None:
+        bad = bytes.fromhex("08 72 00 05 00 07 01 65 10 0e") + bytes(55)
+        self.assertIsNone(protocol.decode_v2_battery(bad))
+        self.assertIsNone(protocol.decode_v2_battery(b"\x08\x04" + bytes(20)))
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -109,19 +141,30 @@ class DiscoveryTests(unittest.TestCase):
         (device / "bcdDevice").write_text("0110\n", encoding="ascii")
         return device
 
-    def test_unsupported_ff05_interface_is_listed(self) -> None:
+    def test_v2_ff05_interface_is_supported_for_telemetry(self) -> None:
+        descriptor = bytes.fromhex("0605ff09028508953f7508")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self._interface(root, "hidraw-a9", descriptor, 0x373B, 0x11DC)
+            found = protocol.discover_all(base=root)
+        self.assertEqual(len(found), 1)
+        info = found[0]
+        self.assertTrue(info.supported)
+        self.assertEqual(info.protocol, "v2")
+        self.assertEqual(info.unsupported_reason, "")
+        self.assertEqual(info.usage_pages, (0xFF05,))
+        self.assertEqual(info.report_ids, (8,))
+        self.assertIn("373b:11dc", f"{info.vendor_id:04x}:{info.product_id:04x}")
+
+    def test_incomplete_ff05_interface_is_explained(self) -> None:
         descriptor = bytes.fromhex("0605ff0902850895407508")
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             self._interface(root, "hidraw-a9", descriptor)
             found = protocol.discover_all(base=root)
         self.assertEqual(len(found), 1)
-        info = found[0]
-        self.assertFalse(info.supported)
-        self.assertIn("0xff05", info.unsupported_reason)
-        self.assertEqual(info.usage_pages, (0xFF05,))
-        self.assertEqual(info.report_ids, (8,))
-        self.assertIn("373b:1216", f"{info.vendor_id:04x}:{info.product_id:04x}")
+        self.assertFalse(found[0].supported)
+        self.assertIn("63-byte", found[0].unsupported_reason)
 
     def test_supported_ff02_interface_remains_supported(self) -> None:
         descriptor = bytes.fromhex("0602ff09028508951075088102")

@@ -73,7 +73,12 @@ def _candidate_lines(interfaces) -> list[str]:
     for info in interfaces:
         kind = "receiver" if info.is_receiver else "HID interface"
         access = "read/write" if info.accessible else "no permission"
-        status = "supported" if info.supported else f"unsupported: {info.unsupported_reason}"
+        if info.supported and info.protocol == "v2":
+            status = "supported (battery-only)"
+        elif info.supported:
+            status = "supported"
+        else:
+            status = f"unsupported: {info.unsupported_reason}"
         lines.append(
             f"- `{_node_name(info.path)}` — {info.vendor_id:04x}:{info.product_id:04x}"
             f" — {info.product_name or 'unnamed interface'} — {kind} — {access}"

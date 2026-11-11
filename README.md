@@ -361,7 +361,8 @@ USB product id, because receivers are shared between models.
 | MAD R, MAD R MAJOR, MAD R MAJOR+ | cable / 8K dongle | Same protocol and capability family; not individually tested |
 | **VXE R1 Pro** | 1K / 4K receiver (`3554:f58a` / `3554:f505`) | **Verified on hardware** — polling up to 4K, DPI stages/colours and add/remove, Motion Sync, ripple, straight-line, LOD, debounce, sleep, sensor modes including MAX, DPI LED, button remapping, firmware reporting and settings that survive power cycles |
 | VXE R1, VXE R1 Pro Max | cable / receiver | Model entries and receiver ceilings included; not individually tested |
-| Other ATK/VXE mice | any | Detected read-only until a model entry is added |
+| **ATK Dragonfly A9 Pro Max 2.0** | 8K dongle (`373b:11dc`) / cable (`373b:1264`) | **Experimental battery-only** — charge level and voltage use the newer `0xFF05` 64-byte protocol; DPI, buttons, lighting and profiles are not supported yet |
+| Other ATK/VXE mice | any | Detected read-only until a model entry is added; `0xFF05` devices with report 8/63-byte collections are offered battery-only telemetry |
 
 The MAD R + is an 8K-receiver mouse; that is the configuration verified here.
 When more than one receiver is connected, the **Device → Configuration devices**

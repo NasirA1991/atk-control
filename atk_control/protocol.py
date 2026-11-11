@@ -29,6 +29,14 @@ WIRE_SIZE = 17
 CHECKSUM_TOTAL = 0x55
 MAX_EEPROM_CHUNK = 10
 
+# The A9 Pro Max 2.0 / Dragonfly generation uses a second vendor collection
+# (usage page 0xff05) with 64-byte numbered reports. Only the battery command
+# has been reverse-engineered publicly, so this path is telemetry-only.
+V2_REPORT_ID = 0x08
+V2_FRAME_SIZE = 64
+V2_MARKER = 0x72
+V2_BATTERY_CMD = 0x07
+
 CMD_READ_EEPROM = 0x08
 CMD_WRITE_EEPROM = 0x07
 CMD_BATTERY = 0x04
@@ -64,6 +72,7 @@ RECEIVER_CEILINGS: dict[int, int] = {
     0x11A7: 8000,
     0x11C8: 8000,
     0x11CD: 8000,
+    0x11DC: 8000,  # ATK A9 Pro Max 2.0 8K NANO dongle
     0x11CE: 8000,
     0x11D8: 8000,
     0x11D9: 8000,
@@ -98,6 +107,7 @@ RECEIVER_NAMES: dict[int, str] = {
     0x101B: "ATK 8K Dongle",
     0x10C9: "ATK NearLink Dongle",
     0x11A9: "ATK 4K Dongle",
+    0x11DC: "ATK 8K NANO Dongle",
     0xF58A: "VXE 1K Dongle",
     0xF58D: "VXE 4K Dongle",
     0xF58E: "VXE 1K Dongle",
@@ -185,6 +195,44 @@ def report_is_valid(report_id: int, payload: bytes) -> bool:
         and len(payload) >= PAYLOAD_SIZE
         and checksum(bytes(payload[:15])) == payload[15]
     )
+
+
+def build_v2_battery_request(wireless: bool = True) -> bytes:
+    """Build the 64-byte 0xff05 battery query, including its report id."""
+    packet = bytearray(V2_FRAME_SIZE)
+    packet[0] = V2_REPORT_ID
+    packet[2] = V2_MARKER
+    packet[5] = 1 if wireless else 0
+    packet[6] = V2_BATTERY_CMD
+    packet[7] = 0x01
+    return bytes(packet)
+
+
+def decode_v2_battery(raw: bytes) -> dict[str, int | bool | None] | None:
+    """Decode a 0xff05 battery reply; return None for unrelated frames."""
+    if not raw:
+        return None
+    if raw[0] == V2_REPORT_ID:
+        data = raw
+    elif raw[0] == V2_MARKER:
+        # Some hidraw stacks strip the numbered report id.
+        data = bytes((V2_REPORT_ID,)) + raw
+    else:
+        return None
+    if len(data) < 10 or data[1] != V2_MARKER:
+        return None
+    if data[5] != V2_BATTERY_CMD or data[6] != 0x01:
+        return None
+    percent = data[7]
+    charge_code = data[3]
+    if not 0 <= percent <= 100 or charge_code not in (0x3B, 0x05):
+        return None
+    millivolts = data[8] | (data[9] << 8)
+    return {
+        "percent": percent,
+        "charging": charge_code == 0x3B,
+        "millivolts": millivolts if millivolts > 0 else None,
+    }
 
 
 def decode_report(raw: bytes) -> bytes | None:
@@ -311,6 +359,7 @@ class DeviceInfo:
     bcd_device: str = ""
     accessible: bool = True
     descriptor: bytes = b""
+    protocol: str = "v1"
     supported: bool = True
     unsupported_reason: str = ""
     usage_pages: tuple[int, ...] = ()
@@ -405,10 +454,27 @@ def _descriptor_report_ids(descriptor: bytes) -> tuple[int, ...]:
     return tuple(dict.fromkeys(ids))
 
 
+def _is_v2_config_descriptor(descriptor: bytes) -> bool:
+    if not descriptor:
+        return False
+    # Usage Page (Vendor 0xff05), Report ID 8, 63-byte in/out payload.
+    return (
+        b"\x06\x05\xff" in descriptor
+        and b"\x85\x08" in descriptor
+        and b"\x95\x3f" in descriptor
+    )
+
+
 def _unsupported_descriptor_reason(descriptor: bytes) -> str:
     if not descriptor:
         return "no readable report descriptor"
     pages = _descriptor_usage_pages(descriptor)
+    if b"\x06\x05\xff" in descriptor:
+        if b"\x85\x08" not in descriptor:
+            return "report ID 8 not present"
+        if b"\x95\x3f" not in descriptor:
+            return "63-byte report count not present for 0xff05"
+        return "unexpected 0xff05 descriptor layout"
     if b"\x06\x02\xff" not in descriptor:
         if pages:
             shown = ", ".join(f"0x{page:04x}" for page in pages)
@@ -452,7 +518,10 @@ def discover_all(
         if vendor not in vendor_ids:
             continue
         descriptor = _read_descriptor(sysdev)
-        supported = _is_config_descriptor(descriptor)
+        v1_supported = _is_config_descriptor(descriptor)
+        v2_supported = _is_v2_config_descriptor(descriptor)
+        supported = v1_supported or v2_supported
+        device_protocol = "v1" if v1_supported else ("v2" if v2_supported else "")
         bcd = ""
         # The hidraw node sits under a HID device node; the USB device with
         # bcdDevice is two levels above the interface directory.
@@ -477,6 +546,7 @@ def discover_all(
                 bcd_device=bcd,
                 accessible=os.access(path, os.R_OK | os.W_OK),
                 descriptor=descriptor,
+                protocol=device_protocol,
                 supported=supported,
                 unsupported_reason="" if supported else _unsupported_descriptor_reason(descriptor),
                 usage_pages=_descriptor_usage_pages(descriptor),
@@ -488,6 +558,7 @@ def discover_all(
     found.sort(
         key=lambda item: (
             not item.supported,
+            item.protocol != "v1",
             item.is_receiver,
             item.vendor_id,
             item.product_id,
@@ -710,6 +781,48 @@ class CompxTransport:
             "status": data[0],
             "rf_id": bytes((data[3], data[2], data[1])).hex(" ").upper(),
         }
+
+
+class V2Transport(CompxTransport):
+    """Hidraw transport for 0xff05 devices (64-byte numbered reports)."""
+
+    def __init__(self, path: str, wireless: bool = False,
+                 timeout: float = 0.6, debug: bool = False) -> None:
+        super().__init__(path, timeout=timeout, debug=debug)
+        self.wireless = wireless
+
+    def _write_report(self, report: bytes) -> None:
+        if self.fd < 0:
+            raise ProtocolError("device is not open")
+        try:
+            written = os.write(self.fd, report)
+        except OSError as exc:
+            raise ProtocolError(f"write failed: {exc}") from exc
+        if written not in (len(report), len(report) - 1):
+            raise ProtocolError(f"short HID write ({written} bytes)")
+        if self.debug:
+            print(">>", report.hex(" "))
+
+    def read_battery(self) -> dict[str, int | bool | None]:
+        last: Exception | None = None
+        for _attempt in range(3):
+            self.drain(0.01)
+            self._write_report(build_v2_battery_request(self.wireless))
+            deadline = time.monotonic() + self.timeout
+            while time.monotonic() < deadline:
+                raw = self._read_report(max(0.0, deadline - time.monotonic()))
+                if raw is None:
+                    break
+                data = decode_v2_battery(raw)
+                if data is not None:
+                    return data
+            last = ProtocolError(
+                "the mouse did not answer the 0xff05 battery query "
+                "(asleep, out of range, or another app owns it)"
+            )
+        if last is None:
+            raise ProtocolError("no reply was received")
+        raise last
 
 
 def format_bcd(value: str) -> str:

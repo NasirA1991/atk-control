@@ -56,7 +56,7 @@ class WorkerSafetyTests(unittest.TestCase):
             lambda message: toasts.append(message),
         )
         worker._preferred_path = one.path
-        with patch("atk_control.worker.discover", return_value=[one, two]),              patch("atk_control.worker.Controller", FakeController):
+        with patch("atk_control.worker.discover", return_value=[one, two]),              patch("atk_control.worker.controller_for", FakeController):
             self.assertTrue(worker._connect())
         self.assertEqual(asked, [one.path, two.path])
         self.assertEqual(worker._preferred_path, two.path)
