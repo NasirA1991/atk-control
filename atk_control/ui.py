@@ -1534,12 +1534,20 @@ class MainWindow(Adw.ApplicationWindow):
             return
         self._last_state_signature = signature
         telemetry = bool(state.telemetry_only)
+        experimental = bool(state.experimental)
         self.notice.set_reveal_child(bool(state.read_only or state.protocol == "v2"))
         if telemetry:
             self.notice_label.set_text(
                 "Experimental battery-only support: this mouse uses the newer 0xFF05 "
                 "protocol. Charge state is available, but settings are disabled until "
                 "the protocol is mapped. Save a report from the Device page to help."
+            )
+        elif experimental:
+            self.notice_label.set_text(
+                "Experimental model recognition: ATK HUB lists this mouse, but its "
+                "transport and write commands have not been verified. Detection and "
+                "telemetry are read-only. Save a report from the Device page to help "
+                "promote it to full support."
             )
         elif state.protocol == "v2":
             self.notice_label.set_text(
@@ -1552,11 +1560,12 @@ class MainWindow(Adw.ApplicationWindow):
                 "Recognized ATK/VXE device, but this model is not in the supported "
                 "database yet. Settings are read-only — save a report from the Device page."
             )
+        locked = telemetry or experimental
         for key in ("buttons", "performance", "dpi", "lighting"):
             button = self.nav_buttons.get(key)
             if button is not None:
-                button.set_sensitive(not telemetry)
-        if telemetry and self.stack.get_visible_child_name() not in ("overview", "device"):
+                button.set_sensitive(not locked)
+        if locked and self.stack.get_visible_child_name() not in ("overview", "device"):
             self._select_page("overview")
         self.stack.set_sensitive(True)
         self._loading = True

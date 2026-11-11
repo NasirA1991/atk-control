@@ -88,9 +88,14 @@ class _ProfileCommitFailure(FakeTransport):
         self.profile = profile
 
 
+class _ExperimentalIdentity(FakeTransport):
+    def read_identity(self):
+        return 2, 36
+
+
 class _UnverifiedIdentity(FakeTransport):
     def read_identity(self):
-        return 2, 49
+        return 9, 9
 
 
 class _ButtonFailure(FakeTransport):
@@ -204,7 +209,14 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(self.ctl.set_angle(-15, True), (-15, True))
 
     def test_unverified_model_rejects_button_and_max_writes(self) -> None:
-        ctl = controller.Controller(self.ctl.info)
+        info = DeviceInfo(
+            path="/dev/hidraw-test",
+            vendor_id=0x9999,
+            product_id=0x9999,
+            product_name="Unknown mouse",
+            bcd_device="0000",
+        )
+        ctl = controller.Controller(info)
         ctl.transport = _UnverifiedIdentity()
         ctl.read_full()
         self.assertFalse(ctl.state.supports_button_remap)
@@ -293,6 +305,23 @@ class ControllerTests(unittest.TestCase):
     def test_bad_dpi_value_is_rejected(self) -> None:
         with self.assertRaises(protocol.ProtocolError):
             self.ctl.set_stage_dpi(0, 12345, 12345)
+
+
+    def test_experimental_catalog_model_is_read_only(self) -> None:
+        info = DeviceInfo(
+            path="/dev/hidraw-test",
+            vendor_id=0x373B,
+            product_id=0x1014,
+            product_name="ATK F1 Pro",
+            bcd_device="0112",
+        )
+        ctl = controller.Controller(info)
+        ctl.transport = _ExperimentalIdentity()
+        state = ctl.read_full()
+        self.assertEqual(state.model_name, "ATK F1 Pro")
+        self.assertTrue(state.experimental)
+        self.assertTrue(state.read_only)
+        self.assertTrue(ctl.read_only)
 
 
 if __name__ == "__main__":

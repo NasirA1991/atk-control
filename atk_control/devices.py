@@ -34,6 +34,7 @@ SENSORS: dict[str, Sensor] = {
     "PAW3395Ultra": Sensor("PAW3395Ultra", "step50", 100, 30000),
     "PAW3311": Sensor("PAW3311", "step50", 200, 15000),
     "PAW3315": Sensor("PAW3315", "step50", 200, 16000),
+    "CORE26K": Sensor("CORE26K", "step50", 50, 26000),
 }
 
 UNKNOWN_SENSOR = Sensor("Unknown sensor", "step50", 50, 30000)
@@ -55,6 +56,9 @@ class Model:
     button_remap: bool = False
     bottom_button: bool = True
     usb_ids: tuple[tuple[int, int], ...] = ()
+    # Experimental entries are recognized from the public ATK HUB catalog but
+    # have not been hardware-validated by this project. They stay read-only.
+    experimental: bool = False
 
     @property
     def sensor_profile(self) -> Sensor:
@@ -95,9 +99,54 @@ MODELS: tuple[Model, ...] = (
     Model(2, 114, "VXE R1 Ultra", "VXE", "PAW3395", 8000),
 )
 
-MODEL_BY_CIDMID: dict[tuple[int, int], Model] = {(m.cid, m.mid): m for m in MODELS}
+# Recognized from the ATK HUB device catalog (v3.2.27) but not validated on
+# hardware by this project.  Keep these read-only: the catalog records the
+# model/sensor, not proof that the unit uses the v1 16-byte transport or that
+# every write is safe.  Promote a model into MODELS only after a report and a
+# hardware test.  USB IDs are intentionally omitted for shared receivers; the
+# mouse identity (CID/MID) is the reliable key.
+EXPERIMENTAL_MODELS: tuple[Model, ...] = (
+    Model(2, 36, "ATK F1 Pro", "ATK", "PAW3950", 8000, experimental=True),
+    Model(2, 37, "ATK F1 Pro Max", "ATK", "PAW3950", 8000, experimental=True),
+    Model(2, 38, "ATK X1 Pro", "ATK", "PAW3950", 8000, experimental=True),
+    Model(2, 40, "ATK Z1 Pro", "ATK", "PAW3950", 8000, experimental=True),
+    Model(2, 41, "ATK Z1 Pro Max", "ATK", "PAW3950", 8000, experimental=True),
+    Model(2, 42, "ATK F1 Ultimate", "ATK", "PAW3950Ultra", 8000,
+          bottom_button=False, stage_colors=False, experimental=True),
+    Model(2, 43, "ATK X1 Ultra", "ATK", "PAW3950Ultra", 8000, experimental=True),
+    Model(2, 45, "ATK F1 Ultra", "ATK", "PAW3950Ultra", 8000,
+          bottom_button=False, stage_colors=False, experimental=True),
+    Model(2, 46, "ATK X1 Ultimate", "ATK", "PAW3950Ultra", 8000,
+          bottom_button=False, experimental=True),
+    Model(2, 50, "ATK F1 Extreme", "ATK", "PAW3950Ultra", 8000,
+          bottom_button=False, stage_colors=False, experimental=True),
+    Model(2, 53, "ATK Z1 Ultra", "ATK", "PAW3950Ultra", 8000, experimental=True),
+    Model(2, 64, "ATK U2 Mini", "ATK", "PAW3950", 8000, experimental=True),
+    Model(2, 65, "ATK U2 Ultimate", "ATK", "PAW3950Ultra", 8000, experimental=True),
+    Model(2, 66, "ATK U2 Ultra", "ATK", "PAW3950", 8000, experimental=True),
+    Model(2, 85, "ATK A9 Pro Max", "ATK", "PAW3395Ultra", 1000,
+          stage_colors=False, experimental=True),
+    Model(2, 87, "ATK A9 Ultra", "ATK", "PAW3950Ultra", 8000,
+          stage_colors=False, experimental=True),
+    Model(2, 99, "ATK A9", "ATK", "PAW3395SE", 1000,
+          stage_colors=False, experimental=True),
+    Model(2, 100, "ATK U2 Pro Max", "ATK", "PAW3395Ultra", 8000,
+          experimental=True),
+    Model(2, 29, "VXE R1 SE", "VXE", "PAW3395SE", 1000, experimental=True),
+    Model(2, 31, "VXE R1 SE+", "VXE", "PAW3395SE", 1000, experimental=True),
+    Model(2, 63, "VXE R1S+", "VXE", "PAW3311", 1000, experimental=True),
+    Model(2, 72, "VXE V3", "VXE", "PAW3311", 1000, experimental=True),
+    Model(2, 73, "VXE V3 Pro", "VXE", "PAW3395SE", 1000, experimental=True),
+    Model(2, 121, "VXE X3", "VXE", "PAW3315", 1000, experimental=True),
+    Model(2, 122, "VXE X3 Pro", "VXE", "PAW3395SE", 1000, experimental=True),
+    Model(2, 123, "VXE X3 Turbo", "VXE", "PAW3395SE", 1000, experimental=True),
+)
+
+MODEL_BY_CIDMID: dict[tuple[int, int], Model] = {
+    (m.cid, m.mid): m for m in MODELS + EXPERIMENTAL_MODELS
+}
 MODEL_BY_USB: dict[tuple[int, int], Model] = {}
-for _model in MODELS:
+for _model in MODELS + EXPERIMENTAL_MODELS:
     for _usb in _model.usb_ids:
         MODEL_BY_USB[_usb] = _model
 

@@ -359,11 +359,21 @@ just the USB product ID, because receivers are shared between models.
 | **MAD R** | MAD R +, MAD R, MAD R MAJOR, MAD R MAJOR+ | 8K dongle `373b:1040` or cable | **Verified** on MAD R+ |
 | **VXE R1** | VXE R1 Pro, VXE R1, VXE R1 Pro Max | 4K `3554:f505`, 1K `3554:f58a`, or cable | **Verified** on R1 Pro |
 | **A9 Pro Max 2.0** | ATK Dragonfly A9 Pro Max 2.0 | 8K dongle `373b:11dc` or cable `373b:1264` | **Experimental** |
+| **ATK/VXE catalog** | 26 F1/X1/Z1/U2/A9 and VXE R1 SE/R1S+/V3/X3 IDs | v1 receiver or cable | **Experimental · read-only** |
 | **Other ATK/VXE** | — | any supported receiver or cable | **Read-only** |
 
 **Verified** means the core controls were exercised on that hardware.
 **Experimental** means full settings are implemented but not yet tested on the
-model. **Read-only** means detection and support reports only.
+model. **Experimental · read-only** means the model is recognized from the
+public ATK HUB catalog, but its transport and writes have not been verified;
+the app shows identity, battery and readable settings, and rejects writes.
+**Read-only** means detection and support reports only.
+
+The experimental catalog is deliberately conservative. It covers the F1, X1,
+Z1, U2, A9, VXE R1 SE/R1S+, V3 and X3 families, and adds the CORE26K sensor
+(50–26,000 DPI). A model is promoted to verified support only after a device
+report and hardware testing. If yours is listed but read-only, send a report;
+that is the evidence needed to enable writes safely.
 
 **Full settings** cover battery, DPI stages and colours, polling, LOD, button
 remapping, lighting, profiles, Motion Sync, ripple, straight-line correction,

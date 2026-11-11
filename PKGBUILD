@@ -1,7 +1,7 @@
 # Maintainer: Nasir A. <112448715+NasirA1991@users.noreply.github.com>
 # Local build: run `makepkg -si` inside this repository.
 pkgname=atk-control
-pkgver=0.7.0
+pkgver=0.8.0
 pkgrel=1
 pkgdesc="Native GTK4/libadwaita configuration tool for ATK/VXE gaming mice (MAD R, VXE R1)"
 arch=('any')

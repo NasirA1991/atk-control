@@ -293,6 +293,11 @@ class DeviceWorker:
                     self._toast(
                         "Battery-only support for this protocol; settings are not available yet."
                     )
+                elif getattr(controller.state, "experimental", False):
+                    self._toast(
+                        "Experimental model recognition: settings stay read-only until "
+                        "the transport is verified."
+                    )
                 else:
                     self._toast(
                         "This model is not in the supported database yet; settings are read-only."
