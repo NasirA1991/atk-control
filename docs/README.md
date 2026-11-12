@@ -11,6 +11,7 @@ supported hardware and quick installation. These guides go into detail.
 | [CLI reference](CLI.md) | Every command, JSON output, exit codes and scripting |
 | [Troubleshooting](TROUBLESHOOTING.md) | Detection, permissions, tray, persistence and packaging problems |
 | [Device support reports](DEVICE_REPORTS.md) | What to send, what is redacted and how to request support |
+| [Testing a mouse](TESTING.md) | Read-only verification, reversible write checks and the WSL2 caveat |
 
 ## For contributors
 

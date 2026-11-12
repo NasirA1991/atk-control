@@ -2,7 +2,7 @@ PREFIX ?= /usr
 DESTDIR ?=
 VERSION := $(shell python3 -c 'from atk_control.config import VERSION; print(VERSION)')
 
-.PHONY: all run demo test compile install uninstall appimage flatpak clean
+.PHONY: all run demo test verify compile install uninstall appimage flatpak clean
 
 all: run
 
@@ -14,6 +14,9 @@ demo:
 
 test:
 	python3 -m unittest discover -s tests -v
+
+verify:
+	./scripts/verify-device.sh
 
 compile:
 	python3 -m compileall -q atk_control

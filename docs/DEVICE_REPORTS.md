@@ -87,3 +87,8 @@ The ideal report includes:
 New models and receivers are added to the small device database only after the
 identity and register layout are understood. A report is enough to start; any
 write is tested against real hardware and verified by reading the value back.
+
+When a model is added, the issue is answered with the release that contains it
+and the checks that still need hardware. [Testing a mouse](TESTING.md) covers
+that follow-up: a read-only script that saves an attachable report, the expected
+values per model, and the reversible write checks to run one at a time.

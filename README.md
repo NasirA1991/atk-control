@@ -244,6 +244,7 @@ See [Device support reports](docs/DEVICE_REPORTS.md) for contents and privacy.
 | [CLI reference](docs/CLI.md) | Every command, JSON output, exit codes and scripting examples |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Detection, permissions, tray, persistence and packaging problems |
 | [Device support reports](docs/DEVICE_REPORTS.md) | What to send, what is redacted and how to open a support request |
+| [Testing a mouse](docs/TESTING.md) | Verify a supported model: read-only script, reversible write checks, WSL2 caveat |
 | [Protocol notes](docs/PROTOCOL.md) | v1 and v2 hardware protocol, registers and evidence (maintainers) |
 | [Contributing](CONTRIBUTING.md) | Development setup, tests and pull requests |
 | [Security](SECURITY.md) | Permission scope, local-only design and reporting vulnerabilities |

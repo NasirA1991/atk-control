@@ -29,6 +29,16 @@ jobs:
         run: python3 -m atk_control.cli --help >/dev/null
       - name: Byte-compile
         run: python3 -m compileall -q atk_control
+      - name: Syntax-check shell scripts
+        run: |
+          status=0
+          for script in install.sh uninstall.sh scripts/*.sh packaging/*/*.sh \
+                        packaging/appimage/AppRun packaging/flatpak/atkctl; do
+            [ -f "$script" ] || continue
+            head -n1 "$script" | grep -qE '^#!.*(bash|/sh)' || continue
+            bash -n "$script" || status=1
+          done
+          exit $status
       - name: Validate AppStream metadata
         run: appstreamcli validate --no-net data/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml
       - name: Validate desktop entry
