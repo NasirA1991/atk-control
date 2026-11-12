@@ -114,6 +114,11 @@ class V2FrameTests(unittest.TestCase):
         with self.assertRaises(protocol.ProtocolError):
             protocol.decode_v2_reply(raw, 1)
 
+    def test_unsolicited_event_is_not_a_reply(self) -> None:
+        # The status byte 0x73 marks a device event, not a command answer.
+        raw = bytes((8, protocol.V2_MARKER, protocol.V2_EVENT_STATUS, 0, 1, 1, 1, 9)) + bytes(57)
+        self.assertIsNone(protocol.decode_v2_reply(raw, 1))
+
 
 class _RecordingV2(protocol.V2Transport):
     def __init__(self):
@@ -160,6 +165,40 @@ class V2TransportCommandTests(unittest.TestCase):
         self.assertEqual(transport.calls[-1][3], bytes((2, 1, 0, 2, 0)))
         transport.set_lighting(2, 170, 15)
         self.assertEqual(transport.calls[-1][3], bytes((2, 170, 15)))
+
+
+class _BatteryV2(protocol.V2Transport):
+    def __init__(self, battery: bytes, charging: bytes) -> None:
+        super().__init__("/dev/null", wireless=True)
+        self._battery = battery
+        self._charging = charging
+
+    def _command(self, command, param_length, command_length, data=b"", target=None):
+        if command == protocol.V2_BATTERY_CMD:
+            return self._battery
+        if command == protocol.V2_CMD_READ_CHARGING:
+            return self._charging
+        return b""
+
+
+class V2BatteryTests(unittest.TestCase):
+    def test_voltage_is_read_from_the_battery_reply(self) -> None:
+        # R1 NK evidence: 52 c6 0f = 82 %, 4038 mV.
+        transport = _BatteryV2(bytes((82, 0xC6, 0x0F)), b"\x00")
+        self.assertEqual(
+            transport.read_battery(),
+            {"percent": 82, "charging": False, "millivolts": 4038},
+        )
+
+    def test_implausible_voltage_is_dropped(self) -> None:
+        transport = _BatteryV2(bytes((82, 0x00, 0x00)), b"\x3b")
+        battery = transport.read_battery()
+        self.assertIsNone(battery["millivolts"])
+        self.assertTrue(battery["charging"])
+
+    def test_short_battery_reply_has_no_voltage(self) -> None:
+        transport = _BatteryV2(bytes((76,)), b"\x00")
+        self.assertIsNone(transport.read_battery()["millivolts"])
 
 
 class DiscoveryTests(unittest.TestCase):

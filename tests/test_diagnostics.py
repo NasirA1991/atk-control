@@ -64,6 +64,17 @@ class DiagnosticsTests(unittest.TestCase):
     def test_default_filename(self) -> None:
         self.assertRegex(diagnostics.default_filename(), r"^atk-control-report-\d{8}-\d{4}\.md$")
 
+    def test_report_names_the_configuration_protocol(self) -> None:
+        state = self._state()
+        state.protocol = "v2"
+        self.assertIn(
+            "- Configuration protocol: 0xFF05", diagnostics.report_text(state)
+        )
+        state.protocol = "v1"
+        self.assertIn(
+            "- Configuration protocol: 0xFF02", diagnostics.report_text(state)
+        )
+
     def test_missing_os_release_does_not_break_report(self) -> None:
         with mock.patch(
             "atk_control.diagnostics.platform.freedesktop_os_release",

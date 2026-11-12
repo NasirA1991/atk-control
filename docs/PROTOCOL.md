@@ -31,9 +31,12 @@ including the report ID is:
 `checksum` is `sum(frame[2:]) & 0xff`. `target` is `1` for the mouse behind a
 receiver and `0` for the dongle itself or a wired mouse. Replies use
 `08 72 <status> <sn> <target> <command> <len> <data...>`; status `0xff` is an
-error. Read memory uses command `0x17` in chunks of at most 10 bytes. Identity
-is command `0x4a`, config `0x09`, firmware `0x1c`, battery `0x07`, charging
-`0x0f` and receiver online `0x81`.
+error and status `0x73` marks an unsolicited device event, which is ignored
+while a command is in flight. Read memory uses command `0x17` in chunks of at
+most 10 bytes. Identity is command `0x4a`, config `0x09`, firmware `0x1c`,
+battery `0x07`, charging `0x0f` and receiver online `0x81`. The battery reply is
+the charge percentage followed by the pack voltage in millivolts, little
+endian (`52 c6 0f` = 82 %, 4038 mV).
 
 Settings are written directly to the active profile (no v1 profile bounce).
 Commands used by the app include DPI (`0x02`), polling (`0x01`), LOD (`0x03`),
@@ -45,6 +48,23 @@ DPI-stage count command. Unknown identities are discovered but never written.
 This was reimplemented from the public `atk-hub-linux` and `atk-tool` protocol
 observations; neither source is copied. It has not been validated on physical
 A9 hardware yet. Bluetooth exposes no configuration collection.
+
+A VXE R1 NK (NearLink, CID/MID `2,8`, firmware `1.0.12`) was later mapped
+command-by-command by a reporter on the cable (`373b:124c`) and through the
+`373b:1216` NANO receiver. That mapping matches this section byte for byte:
+same frame, checksum, target rules, `0x4a` identity payload and per-command
+lengths, plus the same config, DPI, button, memory and lighting commands. Two
+firmware quirks are handled:
+
+- the DPI table size byte always reads `8` even when only a leading run of
+  slots is configured, so unused 0 DPI slots are trimmed before they reach the
+  UI;
+- a button slot written back to its own factory default reads as class `0`, not
+  as the explicit class-1 value, so class `0` is decoded as that slot's default
+  action when the model declares `normalizes_default_buttons`.
+
+That receiver also answers for an R1 S NK (`2,9`) and for other NearLink mice,
+so the model must come from CID/MID, never from the USB id.
 
 ## Registers used
 
@@ -63,6 +83,29 @@ A9 hardware yet. Bluetooth exposes no configuration collection.
 Polling codes: `08`=125, `04`=250, `02`=500, `01`=1000, `10`=2000,
 `20`=4000, `40`=8000 Hz.
 
+## Newer 0xFF02 identities
+
+An ATK A9 Ultimate (firmware `3.03`) was reported on the cable (`373b:11b6`)
+and through its 8K dongle (`373b:11d9`). Both links answered CID/MID `1,3`,
+which is a different CID family from the older `2,x` mice but the same
+`0xff02` register layout: the polling row decoded as 4000 Hz with four stages
+(2000/4000/8000/16000), `0x00a9` decoded as debounce 1 ms, Motion Sync on,
+sleep 300 s, straight-line and ripple off, `0x004c` as lighting off with
+brightness/speed 1, `0x002c` as unpacked stage colours and `0x0060` as the
+six standard button records.
+
+Two values do not match the older map and are treated as unconfirmed:
+
+- the sensor is not identified, so the DPI table is the conservative
+  50-30,000 step-50 range;
+- lift-off reads code `6`, outside the known 1 mm / 2 mm / 0.7 mm codes, so the
+  UI warns that the stored code is unmapped and only offers the verified
+  values.
+
+The wired link also proves the 1 kHz cable cap is only a default: the mouse
+itself reported 4000 Hz, so the wired ceiling is now
+`min(model.max_polling, max(1000, reported rate))`.
+
 ## Receiver identification
 
 Receivers use shared USB product IDs and answer for the paired mouse. The
@@ -70,8 +113,9 @@ mouse model therefore comes from CID/MID (`0x10`), resolved against the small
 model table in `atk_control/devices.py`. Unknown models are deliberately
 read-only.
 
-Receiver ceilings currently known to the app: `373b:1040` (MAD 8K) = 8000 Hz,
-`11a9`/`f505`/`f58d` = 4000 Hz, most 1K receivers = 1000 Hz.
+Receiver ceilings currently known to the app: `373b:1040` (MAD 8K) and
+`373b:11d9` (ATK 8K Wireless Dongle) = 8000 Hz, `11a9`/`f505`/`f58d` = 4000 Hz,
+most 1K receivers such as `373b:1216` = 1000 Hz.
 
 ## Hardware evidence
 

@@ -56,6 +56,10 @@ class Model:
     button_remap: bool = False
     bottom_button: bool = True
     usb_ids: tuple[tuple[int, int], ...] = ()
+    # Some firmware stores a factory-default button assignment as class 0
+    # instead of the explicit class-1 value.  Read that back as the slot's
+    # default action rather than "Custom / unsupported".
+    normalizes_default_buttons: bool = False
     # Experimental entries are recognized from the public ATK HUB catalog but
     # have not been hardware-validated by this project. They stay read-only.
     experimental: bool = False
@@ -96,6 +100,12 @@ MODELS: tuple[Model, ...] = (
     Model(2, 39, "ATK X1 Pro Max", "ATK", "PAW3950", 8000,
           usb_ids=((0x373B, 0x1017),)),
     Model(2, 83, "ATK A9 Plus NearLink", "ATK", "PAW3395", 1000),
+    # The A9 Ultimate answers CID/MID 1,3: a different CID family from the
+    # older 2,x mice, but on the same 0xff02 register layout.  The sensor is
+    # not identified yet, so the DPI table stays at the conservative
+    # 50-30,000 step-50 range that the unit's own stage records decode with.
+    Model(1, 3, "ATK A9 Ultimate", "ATK", "Unknown sensor", 8000,
+          button_remap=True, usb_ids=((0x373B, 0x11B6),)),
     Model(2, 114, "VXE R1 Ultra", "VXE", "PAW3395", 8000),
 )
 
@@ -169,6 +179,18 @@ V2_MODELS: tuple[Model, ...] = (
           performance_mode=True, sensor_max=True, button_remap=True,
           bottom_button=True,
           usb_ids=((0x373B, 0x11DC), (0x373B, 0x1264))),
+    # VXE R1 NK (NearLink) reuses CID/MID 2,8, which the v1 table maps to the
+    # older wired VXE R1 Pro, but it speaks 0xff05.  Its receiver (373b:1216)
+    # also answers for an R1 S NK (2,9) and for the A9 Plus, so the identity -
+    # never the USB id - picks the model.  The firmware reports a factory
+    # default button as class 0 and the mouse has no lighting, stage colours,
+    # rotation or performance-mode hardware.
+    Model(2, 8, "VXE R1 NK", "VXE", "PAW3395SE", 1000,
+          angle_supported=False, dpi_lighting=False, stage_colors=False,
+          performance_mode=False, sensor_max=False, button_remap=True,
+          bottom_button=True,
+          usb_ids=((0x373B, 0x1216), (0x373B, 0x124C)),
+          normalizes_default_buttons=True),
 )
 V2_MODEL_BY_CIDMID: dict[tuple[int, int], Model] = {
     (model.cid, model.mid): model for model in V2_MODELS
@@ -247,12 +269,7 @@ class Capabilities:
     profiles: bool
     bottom_button: bool
     dpi_options: list[int]
-
-    @property
-    def link_ceiling(self) -> int:
-        if self.receiver is not None:
-            return min(self.receiver.max_polling, self.model.max_polling if self.model else 8000)
-        return min(1000, self.model.max_polling if self.model else 1000)
+    link_ceiling: int = 1000
 
 
 def _with_current(values: list[int], current: int | None) -> list[int]:
@@ -274,11 +291,14 @@ def capabilities_for(
     usb_name: str = "",
 ) -> Capabilities:
     sensor = model.sensor_profile if model else SENSORS.get(sensor_name or "", UNKNOWN_SENSOR)
-    ceiling = 1000
     if receiver is not None:
         ceiling = min(receiver.max_polling, model.max_polling if model else 8000)
     elif model is not None:
-        ceiling = min(1000, model.max_polling)
+        # A wired link is 1 kHz unless the mouse itself reports a faster rate:
+        # the A9 Ultimate answers 4000 Hz while plugged in.
+        ceiling = min(model.max_polling, max(1000, active_polling))
+    else:
+        ceiling = 1000
     polling = [hz for _code, hz in POLLING_CODES if hz <= ceiling]
     polling = _with_current(polling, active_polling)
 
@@ -298,7 +318,7 @@ def capabilities_for(
         receiver=receiver,
         polling_rates=polling,
         lift_off_choices=choices,
-            debounce_options=_with_current(list(DEFAULT_DEBOUNCE_OPTIONS), debounce),
+        debounce_options=_with_current(list(DEFAULT_DEBOUNCE_OPTIONS), debounce),
         sleep_options=_with_current(list(DEFAULT_SLEEP_OPTIONS), sleep),
         dpi_lighting=model.dpi_lighting if model else True,
         stage_colors=model.stage_colors if model else True,
@@ -309,6 +329,7 @@ def capabilities_for(
         profiles=True,
         bottom_button=model.bottom_button if model else True,
         dpi_options=sensor.options(),
+        link_ceiling=ceiling,
     )
 
 

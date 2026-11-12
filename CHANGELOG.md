@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.9.0 — 2026-11-12
+
+- Added **experimental support for the ATK A9 Ultimate** (CID/MID `1,3`,
+  `373b:11b6` cable and `373b:11d9` 8K dongle). It speaks the `0xFF02`
+  protocol, so polling, DPI stages and colours, lift-off, debounce, sleep,
+  Motion Sync, straight-line, ripple, rotation, lighting, profiles and button
+  remapping are enabled. The sensor is not identified yet, so the DPI list stops
+  at 30,000, and the lift-off code the unit reports (`6`) is not in the known
+  1 mm / 2 mm map, so the UI keeps warning about it until it is confirmed. The
+  `373b:11d9` dongle is now named in the Device page.
+- Added **experimental support for the VXE R1 NK (NearLink)** over `0xFF05`
+  (CID/MID `2,8`, `373b:1216` NANO receiver / `373b:124c` cable). Polling, DPI,
+  lift-off, debounce, sleep, Motion Sync, straight-line, ripple, profiles and
+  button remapping are enabled; the model has no rotation, lighting, stage
+  colours or performance-mode hardware, so those pages stay hidden. The
+  receiver also answers for an R1 S NK (`2,9`), so the model still comes from
+  CID/MID only.
+- Wired links are no longer capped at 1 kHz when the mouse reports a faster
+  rate. The A9 Ultimate reports 4000 Hz on its cable, so `atkctl caps` and the
+  Device page now show a 4 kHz ceiling instead of contradicting the mouse.
+- `0xFF05` battery replies now expose the pack voltage (percent, then millivolts
+  little endian), which restores the voltage line the 0.6.1 battery-only path
+  reported and the 0.7.0 rewrite dropped.
+- `0xFF05` replies with status `0x73` are treated as unsolicited device events
+  instead of being matched against the command in flight.
+- The R1 NK firmware reports eight DPI slots regardless of how many are
+  configured and stores a slot's factory-default button as class `0`; unused
+  0 DPI slots are trimmed so they cannot be selected, and class `0` is decoded
+  as the slot default for models that declare it.
+- Support reports now name the configuration protocol (`0xFF02` or `0xFF05`).
+- Neither new model has been validated on physical hardware by the project yet.
+  Both were implemented from the reporters' device reports and, for the R1 NK,
+  from a command-by-command mapping of the vendor channel.
+
 ## 0.8.0 — 2026-11-11
 
 - Added an **experimental device catalog** derived from the public ATK HUB

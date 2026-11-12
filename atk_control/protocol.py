@@ -35,6 +35,9 @@ MAX_EEPROM_CHUNK = 10
 V2_REPORT_ID = 0x08
 V2_FRAME_SIZE = 64
 V2_MARKER = 0x72
+# Status byte of an unsolicited device event (for example a battery change
+# pushed by the mouse).  Such a report is not a reply to the command in flight.
+V2_EVENT_STATUS = 0x73
 V2_BATTERY_CMD = 0x07
 V2_TARGET_DONGLE = 0
 V2_TARGET_MOUSE = 1
@@ -132,6 +135,7 @@ RECEIVER_NAMES: dict[int, str] = {
     0x10C9: "ATK NearLink Dongle",
     0x11A9: "ATK 4K Dongle",
     0x11DC: "ATK 8K NANO Dongle",
+    0x11D9: "ATK 8K Wireless Dongle",
     0xF58A: "VXE 1K Dongle",
     0xF58D: "VXE 4K Dongle",
     0xF58E: "VXE 1K Dongle",
@@ -263,6 +267,10 @@ def decode_v2_reply(raw: bytes, command: int) -> bytes | None:
     elif data[0] != V2_MARKER:
         return None
     if len(data) < 7 or data[0] != V2_MARKER:
+        return None
+    if data[1] == V2_EVENT_STATUS:
+        # Unsolicited event (battery change, receiver notice).  It shares the
+        # frame layout but is not the answer to the command being sent.
         return None
     if data[4] != command:
         return None
@@ -935,10 +943,16 @@ class V2Transport(CompxTransport):
         charge = self._command(V2_CMD_READ_CHARGING, 2, 1)
         if not charge:
             raise ProtocolError("short v2 charging reply")
+        # The battery reply is percent, then the pack voltage in millivolts
+        # little endian (the R1 NK returns 52 c6 0f = 82 %, 4038 mV).
+        millivolts = None
+        if len(payload) >= 3:
+            candidate = payload[1] | (payload[2] << 8)
+            millivolts = candidate if 1000 <= candidate <= 6000 else None
         return {
             "percent": payload[0],
             "charging": charge[0] in (1, 0x3B),
-            "millivolts": None,
+            "millivolts": millivolts,
         }
 
     def read_dongle_version(self) -> str:

@@ -65,7 +65,7 @@ Download the `.flatpak` bundle from the
 then install it for your user:
 
 ```bash
-flatpak install --user ./atk-control-0.8.0-x86_64.flatpak
+flatpak install --user ./atk-control-0.9.0-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -107,8 +107,8 @@ then make it executable:
 
 ```bash
 sha256sum --check SHA256SUMS
-chmod +x atk-control-0.8.0-x86_64.AppImage
-./atk-control-0.8.0-x86_64.AppImage
+chmod +x atk-control-0.9.0-x86_64.AppImage
+./atk-control-0.9.0-x86_64.AppImage
 ```
 
 The AppImage contains the application but **not** GTK, PyGObject or the other
@@ -126,7 +126,7 @@ The AppImage also needs the [udev rule](#hid-permissions). To check the app
 without a tray host:
 
 ```bash
-./atk-control-0.8.0-x86_64.AppImage --no-tray
+./atk-control-0.9.0-x86_64.AppImage --no-tray
 ```
 
 There is nothing to uninstall; delete the AppImage when finished.

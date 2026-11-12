@@ -553,5 +553,113 @@ class V2ControllerTests(unittest.TestCase):
         self.assertIsInstance(controller.controller_for(info), controller.Controller)
 
 
+class _R1NKTransport(_FakeV2Transport):
+    """VXE R1 NK: eight DPI slots, unused ones at 0, buttons as class 0."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.identity = (2, 8)
+        self.dpi = bytearray(66)
+        self.dpi[0] = 2
+        self.dpi[1] = 8
+        for index, dpi in enumerate((400, 800, 1600, 3200)):
+            self._put_stage(index, dpi, dpi, "#ffffff")
+        self.buttons = bytearray(30)
+        self.light = b"\x00\x00\x00"
+
+    def set_button(self, index, action):
+        # The firmware stores a slot's own default as class 0.
+        default = controller.V2_BUTTON_ACTIONS[controller.DEFAULT_BUTTON_ACTIONS[index]]
+        record = bytes(5) if tuple(action) == default else bytes(action) + b"\0"
+        self.buttons[index * 5:index * 5 + 5] = record
+
+
+class R1NKControllerTests(unittest.TestCase):
+    def _controller(self):
+        info = DeviceInfo(
+            "/dev/hidraw-nk", 0x373B, 0x1216,
+            "ATK NK mouse NANO dongle", "0800", "0100",
+            True, b"", "v2", True,
+        )
+        session = controller.V2Controller(info)
+        session.transport = _R1NKTransport()
+        return session
+
+    def test_unused_dpi_slots_are_trimmed(self) -> None:
+        state = self._controller().read_full()
+        self.assertEqual(state.model_name, "VXE R1 NK")
+        self.assertEqual(state.sensor, "PAW3395SE")
+        self.assertFalse(state.read_only)
+        self.assertEqual(state.stage_count, 4)
+        self.assertEqual(
+            state.stages, [(400, 400), (800, 800), (1600, 1600), (3200, 3200)]
+        )
+        self.assertEqual(state.active_stage, 2)
+        self.assertEqual(state.dpi, 1600)
+
+    def test_factory_default_buttons_are_named(self) -> None:
+        state = self._controller().read_full()
+        self.assertEqual(
+            [button.action_id for button in state.buttons],
+            ["left", "right", "middle", "back", "forward", "dpi_cycle"],
+        )
+        self.assertTrue(all(button.readable for button in state.buttons))
+
+    def test_writing_a_slot_default_verifies(self) -> None:
+        session = self._controller()
+        session.read_full()
+        self.assertEqual(session.set_button_action(2, "middle"), "Middle click")
+        self.assertEqual(session.state.buttons[2].action_id, "middle")
+
+    def test_remap_to_a_different_action_verifies(self) -> None:
+        session = self._controller()
+        session.read_full()
+        self.assertEqual(session.set_button_action(3, "dpi_up"), "DPI up")
+        self.assertEqual(session.state.buttons[3].action_id, "dpi_up")
+        self.assertEqual(session.state.buttons[2].action_id, "middle")
+
+    def test_unsupported_controls_are_reported_off(self) -> None:
+        state = self._controller().read_full()
+        self.assertFalse(state.supports_angle)
+        self.assertFalse(state.supports_lighting)
+        self.assertFalse(state.supports_stage_colors)
+        self.assertFalse(state.supports_performance_mode)
+        self.assertTrue(state.supports_button_remap)
+
+
+class _A9UltimateIdentity(FakeTransport):
+    def read_identity(self):
+        return 1, 3
+
+
+class A9UltimateTests(unittest.TestCase):
+    def _controller(self):
+        info = DeviceInfo(
+            "/dev/hidraw-ultimate", 0x373B, 0x11B6,
+            "Compx ATK A9 Ultimate", "0303", "0303",
+            True, b"", "v1", True,
+        )
+        session = controller.Controller(info)
+        session.transport = _A9UltimateIdentity()
+        return session
+
+    def test_identity_enables_settings(self) -> None:
+        state = self._controller().read_full()
+        self.assertEqual(state.model_name, "ATK A9 Ultimate")
+        self.assertEqual((state.cid, state.mid), (1, 3))
+        self.assertEqual(state.sensor, "Unknown sensor")
+        self.assertFalse(state.read_only)
+        self.assertTrue(state.supports_button_remap)
+        self.assertTrue(state.supports_lighting)
+
+    def test_cable_keeps_its_reported_polling_rate(self) -> None:
+        session = self._controller()
+        state = session.read_full()
+        self.assertEqual(state.polling_rate, 8000)
+        self.assertEqual(session.caps.link_ceiling, 8000)
+        self.assertIn(4000, session.caps.polling_rates)
+        self.assertEqual(session.set_polling(4000), 4000)
+
+
 if __name__ == "__main__":
     unittest.main()

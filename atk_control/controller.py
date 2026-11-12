@@ -1079,6 +1079,7 @@ class V2Controller:
             self.caps.receiver = devices.Receiver(0, "USB cable", self.model.max_polling)
             self.caps.polling_rates = [hz for hz in (125, 250, 500, 1000, 2000, 4000, 8000)
                                        if hz <= self.model.max_polling]
+            self.caps.link_ceiling = self.model.max_polling
 
     def _apply_battery(self, state: MouseState) -> None:
         try:
@@ -1130,8 +1131,15 @@ class V2Controller:
             return
         count = len(stages)
         active = min(raw[0], count - 1)
+        # Byte 1 is the table size, not the configured stage count: the R1 NK
+        # always reports eight and leaves the unused slots at 0 DPI.  Trim
+        # that tail so an unusable stage cannot be selected or activated.
+        while len(stages) > active + 1 and stages[-1] == (0, 0):
+            stages.pop()
+        count = len(stages)
+        active = min(active, count - 1)
         state.stages = stages
-        state.stage_colors = colors
+        state.stage_colors = colors[:count]
         state.stage_count = count
         state.active_stage = active
         state.dpi, state.dpi_y = stages[active]
@@ -1167,12 +1175,32 @@ class V2Controller:
                 break
             record = raw[offset:offset + 5]
             action = (record[0], record[1], record[2], record[3])
+            raw_text = " ".join(f"{value:02x}" for value in record)
+            if (
+                action == (0, 0, 0, 0)
+                and self.model is not None
+                and self.model.normalizes_default_buttons
+            ):
+                # This firmware stores a factory-default assignment as class 0
+                # instead of the explicit class-1 value.
+                default_id = (
+                    DEFAULT_BUTTON_ACTIONS[index]
+                    if index < len(DEFAULT_BUTTON_ACTIONS) else ""
+                )
+                buttons.append(Button(
+                    name=BUTTON_NAMES[index],
+                    action=V2_BUTTON_LABELS.get(default_id, "Factory default"),
+                    raw=raw_text,
+                    action_id=default_id,
+                    readable=True,
+                ))
+                continue
             action_id = V2_BUTTON_IDS.get(action, "")
             label = V2_BUTTON_LABELS.get(action_id, "Custom / unsupported")
             buttons.append(Button(
                 name=BUTTON_NAMES[index],
                 action=label,
-                raw=" ".join(f"{value:02x}" for value in record),
+                raw=raw_text,
                 action_id=action_id,
                 readable=action != (0, 0, 0, 0),
             ))

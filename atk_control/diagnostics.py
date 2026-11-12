@@ -55,6 +55,14 @@ def _raw_lines(raw_registers: dict[int, bytes | None]) -> list[str]:
     return lines
 
 
+def _protocol_label(protocol: str) -> str:
+    if protocol == "v2":
+        return "0xFF05 (64-byte report 8)"
+    if protocol == "v1":
+        return "0xFF02 (16-byte report 8)"
+    return "unknown"
+
+
 def _distribution_name() -> str:
     try:
         release = platform.freedesktop_os_release()
@@ -207,6 +215,7 @@ def report_text(state: MouseState, device_path: str | None = None,
     lines.append(f"- Sensor: {state.sensor}")
     lines.append(f"- USB ID: {state.vendor_id:04x}:{state.product_id:04x}")
     lines.append(f"- USB device revision: {state.usb_bcd or 'unknown'}")
+    lines.append(f"- Configuration protocol: {_protocol_label(state.protocol)}")
     lines.append(f"- Firmware: {state.firmware or 'not reported'}")
     lines.append(f"- CID/MID: {state.identity}")
     lines.append(f"- Connection: {state.link_label}")
