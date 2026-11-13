@@ -20,9 +20,10 @@
 - Corrected the **ATK A9 Ultimate sensor** to `PAW3950Ultra`. ATK HUB's own model
   table lists CID/MID `1,3` as an Ultimate-tier mouse with that sensor, and the
   unit's stage records decode as 400/800/1600/3200 under the ultra encoding
-  instead of 2000/4000/8000/16000 under step-50. Every DPI value it read or
-  wrote was therefore five times too high, and the DPI list was capped at
-  30,000 instead of 42,000.
+  instead of 2000/4000/8000/16000 under step-50. The DPI values it displayed
+  were therefore five times too high, and a DPI set from the app landed five
+  times too low on the mouse. The DPI list was also capped at 30,000 instead of
+  42,000.
 - Cross-checked the `0xFF05` command map and the CID/MID table against the
   reference reverse engineering: all command numbers, the memory map and the
   identity entries for `2,1`, `2,8`, `2,14` and `2,27` agree.
