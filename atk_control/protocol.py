@@ -784,8 +784,8 @@ class CompxTransport:
             millivolts = mv if mv > 0 else None
         return {"percent": percent, "charging": charging, "millivolts": millivolts}
 
-    def read_identity(self, attempts: int = 3) -> tuple[int, int]:
-        reply = self._simple_command(CMD_CID_MID, attempts=attempts)
+    def read_identity(self) -> tuple[int, int]:
+        reply = self._simple_command(CMD_CID_MID)
         if reply[4] < 2:
             raise ProtocolError("short CID/MID reply")
         return reply[5], reply[6]

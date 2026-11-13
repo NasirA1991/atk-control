@@ -60,7 +60,7 @@ class FakeTransport:
     def read_battery(self):
         return {"percent": 76, "charging": False, "millivolts": 3980}
 
-    def read_identity(self, attempts: int = 3):
+    def read_identity(self):
         return 2, 54
 
     def read_firmware(self, attempts=1):
@@ -89,12 +89,12 @@ class _ProfileCommitFailure(FakeTransport):
 
 
 class _ExperimentalIdentity(FakeTransport):
-    def read_identity(self, attempts: int = 3):
+    def read_identity(self):
         return 2, 36
 
 
 class _UnverifiedIdentity(FakeTransport):
-    def read_identity(self, attempts: int = 3):
+    def read_identity(self):
         return 9, 9
 
 
@@ -425,7 +425,7 @@ class _FakeV2Transport:
     def close(self):
         self.closed = True
 
-    def read_identity(self, attempts: int = 3):
+    def read_identity(self):
         return self.identity
 
     def read_version(self):
@@ -707,7 +707,7 @@ class R1NKControllerTests(unittest.TestCase):
 
 
 class _A9UltimateIdentity(FakeTransport):
-    def read_identity(self, attempts: int = 3):
+    def read_identity(self):
         return 1, 3
 
 
@@ -754,7 +754,7 @@ class A9UltimateTests(unittest.TestCase):
 
 
 class _R1SEPlusIdentity(FakeTransport):
-    def read_identity(self, attempts: int = 3):
+    def read_identity(self):
         return 2, 31
 
 

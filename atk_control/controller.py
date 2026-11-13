@@ -186,16 +186,13 @@ class Controller:
     def _identify(self) -> tuple[int | None, int | None, str]:
         cid = mid = None
         last: Exception | None = None
-        # One exchange per attempt; the outer loop supplies the retries.  Three
-        # exchanges inside each of three attempts used to cost 5.4 s on a
-        # sleeping mouse.
-        for _ in range(3):
-            try:
-                cid, mid = self.transport.read_identity(attempts=1)
-                break
-            except ProtocolError as exc:
-                last = exc
-                time.sleep(0.12)
+        # The transport retries each command three times already, and the worker
+        # retries the whole connect, so one call here is enough.  Looping three
+        # times on top of that cost 5.4 s on a sleeping mouse.
+        try:
+            cid, mid = self.transport.read_identity()
+        except ProtocolError as exc:
+            last = exc
         if cid is None and self.model is not None:
             # The model is already known, so this is a dropped poll, not a new
             # device.  Returning None here used to downgrade the mouse to an
