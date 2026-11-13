@@ -185,8 +185,18 @@ def _status(controller: Controller | V2Controller, as_json: bool) -> int:
     print(f"Firmware   : {firmware}")
     if state.dongle_firmware:
         print(f"Dongle fw  : {state.dongle_firmware}")
-    if state.experimental:
-        print("Support    : experimental / read-only (model recognized, protocol unverified)")
+    support = state.support
+    if not support and state.experimental:
+        # Older state snapshots carry only the boolean.
+        support = "recognised"
+    if support == "recognised":
+        print("Support    : recognised / read-only (no hardware report yet)")
+    elif support == "experimental":
+        print("Support    : experimental (writable, not verified control-by-control)")
+    elif support == "verified":
+        print("Support    : verified (tested on this model, evidence recorded)")
+    elif state.read_only:
+        print("Support    : unknown model / read-only")
     if state.telemetry_only:
         print("Settings   : read-only (unverified 0xff05 device)")
         return 0

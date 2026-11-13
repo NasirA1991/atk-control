@@ -112,6 +112,53 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(caps.sensor.max_dpi, 18000)
 
 
+class SupportLevelTests(unittest.TestCase):
+    """The level in the table is the only source of truth for write access."""
+
+    def _all_models(self):
+        return devices.MODELS + devices.EXPERIMENTAL_MODELS + devices.V2_MODELS
+
+    def test_every_entry_declares_a_known_level(self) -> None:
+        allowed = {
+            devices.SUPPORT_RECOGNISED,
+            devices.SUPPORT_EXPERIMENTAL,
+            devices.SUPPORT_VERIFIED,
+        }
+        for model in self._all_models():
+            self.assertIn(model.support, allowed, model.name)
+
+    def test_verified_entries_carry_evidence(self) -> None:
+        verified = [m for m in self._all_models() if m.support == devices.SUPPORT_VERIFIED]
+        self.assertTrue(verified, "no verified model in the table")
+        for model in verified:
+            self.assertTrue(model.evidence.strip(), f"{model.name} has no evidence")
+
+    def test_read_only_follows_the_level(self) -> None:
+        for model in self._all_models():
+            self.assertEqual(
+                model.read_only, model.support == devices.SUPPORT_RECOGNISED, model.name
+            )
+
+    def test_catalog_entries_are_read_only(self) -> None:
+        for model in devices.EXPERIMENTAL_MODELS:
+            self.assertTrue(model.read_only, model.name)
+
+    def test_every_sensor_exists(self) -> None:
+        names = set(devices.SENSORS) | {"Unknown sensor"}
+        for model in self._all_models():
+            self.assertIn(model.sensor, names, f"{model.name} names an unknown sensor")
+
+    def test_identities_are_unique_per_table(self) -> None:
+        for table in (devices.MODELS, devices.EXPERIMENTAL_MODELS, devices.V2_MODELS):
+            keys = [(m.cid, m.mid) for m in table]
+            self.assertEqual(len(keys), len(set(keys)))
+
+    def test_an_unknown_sensor_blocks_dpi_writes_only(self) -> None:
+        model = devices.Model(9, 9, "Test Mouse", "ATK", "Unknown sensor", 1000)
+        self.assertFalse(model.dpi_writable)
+        self.assertTrue(devices.MODEL_BY_CIDMID[(2, 31)].dpi_writable)
+
+
 class CapabilityTests(unittest.TestCase):
     def test_8k_receiver(self) -> None:
         model = devices.MODEL_BY_CIDMID[(2, 49)]

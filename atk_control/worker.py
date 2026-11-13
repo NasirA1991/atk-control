@@ -307,8 +307,8 @@ class DeviceWorker:
                     )
                 elif getattr(controller.state, "experimental", False):
                     self._toast(
-                        "Experimental model recognition: settings stay read-only until "
-                        "the transport is verified."
+                        "Read-only catalog entry: identity and telemetry only until "
+                        "a hardware report adds this model."
                     )
                 else:
                     self._toast(

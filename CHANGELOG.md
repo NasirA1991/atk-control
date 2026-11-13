@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.9.5 — 2026-11-14
+
+The support process now lives in the model table instead of in prose.
+
+- **One support level per model.** `Model.support` is `recognised` (read-only),
+  `experimental` (writable, not tested control by control) or `verified`
+  (tested, with evidence). It replaces the `experimental` boolean, which meant
+  "read-only" in code while the README used "Experimental" for writable models —
+  the same word for two opposite things. The app banner, `atkctl status`, support
+  reports, the README table and the promotion rules all read this one field.
+- **Verified entries carry their evidence.** `Model.evidence` records the issue,
+  firmware, links and date, and a test fails if a verified entry has none. The
+  two verified models now carry what was actually tested.
+- **Writes are gated per feature.** DPI writes are refused while the model's
+  sensor is unidentified: the sensor selects the DPI encoding, so the same wrong
+  codec encoded and decoded the value and read-back could not catch it. That is
+  the 0.9.1 A9 Ultimate bug (DPI five times too low); polling, buttons and the
+  rest stay available, which is what an unidentified sensor should block.
+- **Model-table invariants are tests**: every entry declares a known level, every
+  sensor name exists in `SENSORS`, and no identity is duplicated inside a table.
+- The README hardware section is split into Verified, Experimental and
+  Recognised, and the family entries that are writable on inherited evidence
+  (MAD R MAJOR and relatives, X1 Pro Max, R1 Ultra and others) are listed as
+  experimental instead of "recognized / not individually tested", which read as
+  weaker than their actual access.
+
 ## 0.9.4 — 2026-11-14
 
 Fixes from an external code review of 0.9.1, verified against the tree before

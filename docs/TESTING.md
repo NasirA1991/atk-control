@@ -204,11 +204,21 @@ live USB when a test depends on them.
 A model is in one of three states; the [README](../README.md#supported-hardware)
 shows the current one.
 
-| State | What it claims | What is required |
+| Level | What it claims | What is required |
 | --- | --- | --- |
-| Read-only | identity, battery and reads only | nothing: the identity is in the vendor catalog |
-| Experimental | writes work, verified by read-back | an owner's report that decodes with the family's existing protocol |
-| Verified | the advertised controls are proven on that model | the checklist below, recorded in [PROTOCOL.md](PROTOCOL.md) |
+| `recognised` | identity, battery and reads only | nothing: the identity is in the vendor catalogue |
+| `experimental` | writes work, verified by read-back | an owner's report that decodes with the family's existing protocol |
+| `verified` | the advertised controls are proven on that model | the checklist below, recorded in [PROTOCOL.md](PROTOCOL.md) |
+
+The level is a field on the model entry in `atk_control/devices.py`; the app
+banner, the README table and `atkctl status` all read it. A `verified` entry must
+also carry its evidence (firmware, links, date, issue), which a unit test
+enforces.
+
+Writes are also gated per feature, not just per model. DPI writes are refused
+while the sensor is unidentified, because the sensor selects the DPI encoding
+and read-back cannot catch a wrong one: the same codec encodes and decodes the
+value, which is how 0.9.1 shipped DPI five times too low for one model.
 
 To move a model from experimental to verified, its owner runs this on the exact
 mouse and posts the result:

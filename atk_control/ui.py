@@ -1554,10 +1554,15 @@ class MainWindow(Adw.ApplicationWindow):
             )
         elif experimental:
             self.notice_label.set_text(
-                "Experimental model recognition: ATK HUB lists this mouse, but its "
-                "transport and write commands have not been verified. Detection and "
-                "telemetry are read-only. Save a report from the Device page to help "
-                "promote it to full support."
+                "Read-only catalog entry: ATK HUB lists this mouse, but no hardware "
+                "report has been acted on for it yet. Identity, battery and readable "
+                "settings are shown; writes are disabled. Save a report from the "
+                "Device page to help."
+            )
+        elif state.protocol == "v2" and state.support == "verified":
+            self.notice_label.set_text(
+                "0xFF05 support verified on this model: every advertised setting has "
+                "been tested on hardware with read-back and the evidence is recorded."
             )
         elif state.protocol == "v2":
             self.notice_label.set_text(

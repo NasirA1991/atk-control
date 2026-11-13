@@ -37,6 +37,9 @@ class MouseState:
     read_only: bool = False
     telemetry_only: bool = False
     experimental: bool = False
+    # One of "unknown", "recognised", "experimental", "verified" — the same
+    # value the model table carries, so the UI, CLI and README agree.
+    support: str = ""
     protocol: str = "v1"
 
     # Telemetry

@@ -39,6 +39,13 @@ SENSORS: dict[str, Sensor] = {
 
 UNKNOWN_SENSOR = Sensor("Unknown sensor", "step50", 50, 30000)
 
+# Support levels.  Recognised entries are read-only; experimental entries are
+# writable but have not been tested control-by-control on that exact model;
+# verified entries carry the evidence in ``Model.evidence``.
+SUPPORT_RECOGNISED = "recognised"
+SUPPORT_EXPERIMENTAL = "experimental"
+SUPPORT_VERIFIED = "verified"
+
 
 @dataclass(frozen=True)
 class Model:
@@ -60,13 +67,35 @@ class Model:
     # instead of the explicit class-1 value.  Read that back as the slot's
     # default action rather than "Custom / unsupported".
     normalizes_default_buttons: bool = False
-    # Experimental entries are recognized from the public ATK HUB catalog but
-    # have not been hardware-validated by this project. They stay read-only.
-    experimental: bool = False
+    # How much evidence backs this entry.  One field drives the README, the UI
+    # banner and the CLI, so the three cannot describe a model differently.
+    support: str = SUPPORT_EXPERIMENTAL
+    # Where that support came from: issue, firmware, links, date.  Required for
+    # a verified entry, which a test enforces.
+    evidence: str = ""
 
     @property
     def sensor_profile(self) -> Sensor:
         return SENSORS.get(self.sensor, UNKNOWN_SENSOR)
+
+    @property
+    def experimental(self) -> bool:
+        """True when the entry is read-only.  Kept for the existing callers."""
+        return self.support == SUPPORT_RECOGNISED
+
+    @property
+    def read_only(self) -> bool:
+        return self.support == SUPPORT_RECOGNISED
+
+    @property
+    def dpi_writable(self) -> bool:
+        """DPI needs an identified sensor.
+
+        An unknown codec round-trips through its own encoder, so read-back
+        cannot catch a wrong one: the A9 Ultimate shipped writing every DPI
+        value five times too low until its sensor was identified.
+        """
+        return self.sensor in SENSORS
 
 
 # The MAD R family and common VXE R1 variants.  Values are deliberately
@@ -77,14 +106,22 @@ MODELS: tuple[Model, ...] = (
     Model(2, 49, "MAD R", "ATK", "PAW3395", 8000, bottom_button=False,
           usb_ids=((0x373B, 0x103F),)),
     Model(2, 54, "MAD R +", "ATK", "PAW3395", 8000, sensor_max=True,
-          button_remap=True, bottom_button=False, usb_ids=((0x373B, 0x104B),)),
+          button_remap=True, bottom_button=False, usb_ids=((0x373B, 0x104B),),
+          support=SUPPORT_VERIFIED,
+          evidence="MAD 8K dongle 373b:1040, USB rev 2.15, every setting "
+                   "written, read back and restored, 2026-11-04 "
+                   "(docs/PROTOCOL.md#hardware-evidence)"),
     Model(2, 55, "MAD R MAJOR+", "ATK", "PAW3950", 8000, bottom_button=False,
           usb_ids=((0x373B, 0x104C),)),
     Model(2, 133, "MAD R", "ATK", "PAW3950Ultra", 8000, bottom_button=False,
           usb_ids=((0x373B, 0x132B),)),
     Model(2, 7, "VXE R1 Pro", "VXE", "PAW3395", 8000),
     Model(2, 8, "VXE R1 Pro", "VXE", "PAW3395", 8000, sensor_max=True,
-          button_remap=True),
+          button_remap=True, support=SUPPORT_VERIFIED,
+          evidence="VXE 1K 3554:f58a and 4K 3554:f505 receivers, polling, DPI, "
+                   "stage, colour, lift-off, debounce, sync, ripple, sleep, "
+                   "performance and LED written, read back and restored, "
+                   "2026-11-04 (docs/PROTOCOL.md#hardware-evidence)"),
     Model(2, 11, "VXE R1", "VXE", "PAW3395", 8000),
     Model(2, 12, "VXE R1", "VXE", "PAW3395", 8000),
     Model(2, 27, "VXE R1 Pro Max", "VXE", "PAW3395", 8000,
@@ -125,39 +162,39 @@ MODELS: tuple[Model, ...] = (
 # hardware test.  USB IDs are intentionally omitted for shared receivers; the
 # mouse identity (CID/MID) is the reliable key.
 EXPERIMENTAL_MODELS: tuple[Model, ...] = (
-    Model(2, 36, "ATK F1 Pro", "ATK", "PAW3950", 8000, experimental=True),
-    Model(2, 37, "ATK F1 Pro Max", "ATK", "PAW3950", 8000, experimental=True),
-    Model(2, 38, "ATK X1 Pro", "ATK", "PAW3950", 8000, experimental=True),
-    Model(2, 40, "ATK Z1 Pro", "ATK", "PAW3950", 8000, experimental=True),
-    Model(2, 41, "ATK Z1 Pro Max", "ATK", "PAW3950", 8000, experimental=True),
+    Model(2, 36, "ATK F1 Pro", "ATK", "PAW3950", 8000, support=SUPPORT_RECOGNISED),
+    Model(2, 37, "ATK F1 Pro Max", "ATK", "PAW3950", 8000, support=SUPPORT_RECOGNISED),
+    Model(2, 38, "ATK X1 Pro", "ATK", "PAW3950", 8000, support=SUPPORT_RECOGNISED),
+    Model(2, 40, "ATK Z1 Pro", "ATK", "PAW3950", 8000, support=SUPPORT_RECOGNISED),
+    Model(2, 41, "ATK Z1 Pro Max", "ATK", "PAW3950", 8000, support=SUPPORT_RECOGNISED),
     Model(2, 42, "ATK F1 Ultimate", "ATK", "PAW3950Ultra", 8000,
-          bottom_button=False, stage_colors=False, experimental=True),
-    Model(2, 43, "ATK X1 Ultra", "ATK", "PAW3950Ultra", 8000, experimental=True),
+          bottom_button=False, stage_colors=False, support=SUPPORT_RECOGNISED),
+    Model(2, 43, "ATK X1 Ultra", "ATK", "PAW3950Ultra", 8000, support=SUPPORT_RECOGNISED),
     Model(2, 45, "ATK F1 Ultra", "ATK", "PAW3950Ultra", 8000,
-          bottom_button=False, stage_colors=False, experimental=True),
+          bottom_button=False, stage_colors=False, support=SUPPORT_RECOGNISED),
     Model(2, 46, "ATK X1 Ultimate", "ATK", "PAW3950Ultra", 8000,
-          bottom_button=False, experimental=True),
+          bottom_button=False, support=SUPPORT_RECOGNISED),
     Model(2, 50, "ATK F1 Extreme", "ATK", "PAW3950Ultra", 8000,
-          bottom_button=False, stage_colors=False, experimental=True),
-    Model(2, 53, "ATK Z1 Ultra", "ATK", "PAW3950Ultra", 8000, experimental=True),
-    Model(2, 64, "ATK U2 Mini", "ATK", "PAW3950", 8000, experimental=True),
-    Model(2, 65, "ATK U2 Ultimate", "ATK", "PAW3950Ultra", 8000, experimental=True),
-    Model(2, 66, "ATK U2 Ultra", "ATK", "PAW3950", 8000, experimental=True),
+          bottom_button=False, stage_colors=False, support=SUPPORT_RECOGNISED),
+    Model(2, 53, "ATK Z1 Ultra", "ATK", "PAW3950Ultra", 8000, support=SUPPORT_RECOGNISED),
+    Model(2, 64, "ATK U2 Mini", "ATK", "PAW3950", 8000, support=SUPPORT_RECOGNISED),
+    Model(2, 65, "ATK U2 Ultimate", "ATK", "PAW3950Ultra", 8000, support=SUPPORT_RECOGNISED),
+    Model(2, 66, "ATK U2 Ultra", "ATK", "PAW3950", 8000, support=SUPPORT_RECOGNISED),
     Model(2, 85, "ATK A9 Pro Max", "ATK", "PAW3395Ultra", 1000,
-          stage_colors=False, experimental=True),
+          stage_colors=False, support=SUPPORT_RECOGNISED),
     Model(2, 87, "ATK A9 Ultra", "ATK", "PAW3950Ultra", 8000,
-          stage_colors=False, experimental=True),
+          stage_colors=False, support=SUPPORT_RECOGNISED),
     Model(2, 99, "ATK A9", "ATK", "PAW3395SE", 1000,
-          stage_colors=False, experimental=True),
+          stage_colors=False, support=SUPPORT_RECOGNISED),
     Model(2, 100, "ATK U2 Pro Max", "ATK", "PAW3395Ultra", 8000,
-          experimental=True),
-    Model(2, 29, "VXE R1 SE", "VXE", "PAW3395SE", 1000, experimental=True),
-    Model(2, 63, "VXE R1S+", "VXE", "PAW3311", 1000, experimental=True),
-    Model(2, 72, "VXE V3", "VXE", "PAW3311", 1000, experimental=True),
-    Model(2, 73, "VXE V3 Pro", "VXE", "PAW3395SE", 1000, experimental=True),
-    Model(2, 121, "VXE X3", "VXE", "PAW3315", 1000, experimental=True),
-    Model(2, 122, "VXE X3 Pro", "VXE", "PAW3395SE", 1000, experimental=True),
-    Model(2, 123, "VXE X3 Turbo", "VXE", "PAW3395SE", 1000, experimental=True),
+          support=SUPPORT_RECOGNISED),
+    Model(2, 29, "VXE R1 SE", "VXE", "PAW3395SE", 1000, support=SUPPORT_RECOGNISED),
+    Model(2, 63, "VXE R1S+", "VXE", "PAW3311", 1000, support=SUPPORT_RECOGNISED),
+    Model(2, 72, "VXE V3", "VXE", "PAW3311", 1000, support=SUPPORT_RECOGNISED),
+    Model(2, 73, "VXE V3 Pro", "VXE", "PAW3395SE", 1000, support=SUPPORT_RECOGNISED),
+    Model(2, 121, "VXE X3", "VXE", "PAW3315", 1000, support=SUPPORT_RECOGNISED),
+    Model(2, 122, "VXE X3 Pro", "VXE", "PAW3395SE", 1000, support=SUPPORT_RECOGNISED),
+    Model(2, 123, "VXE X3 Turbo", "VXE", "PAW3395SE", 1000, support=SUPPORT_RECOGNISED),
 )
 
 MODEL_BY_CIDMID: dict[tuple[int, int], Model] = {

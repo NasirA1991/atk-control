@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from atk_control import controller, protocol
+from atk_control import controller, devices, protocol
 from atk_control.protocol import DeviceInfo, pack_pair, pack_rgb
 from atk_control.state import MouseState
 
@@ -751,6 +751,43 @@ class A9UltimateTests(unittest.TestCase):
         self.assertEqual(session.caps.link_ceiling, 8000)
         self.assertIn(4000, session.caps.polling_rates)
         self.assertEqual(session.set_polling(4000), 4000)
+
+
+class DpiWriteGateTests(unittest.TestCase):
+    """An unidentified sensor means an unverified DPI codec."""
+
+    def _controller(self):
+        info = DeviceInfo(
+            "/dev/hidraw-gate", 0x373B, 0x11B6,
+            "Compx ATK A9 Ultimate", "0303", "0303",
+            True, b"", "v1", True,
+        )
+        session = controller.Controller(info)
+        session.transport = _A9UltimateIdentity()
+        session.read_full()
+        # Pretend the sensor is still unknown, as it was when the model shipped.
+        session.model = devices.Model(1, 3, "ATK A9 Ultimate", "ATK", "Unknown sensor", 8000)
+        session.read_only = False
+        return session
+
+    def test_dpi_writes_are_refused(self) -> None:
+        session = self._controller()
+        with self.assertRaises(protocol.ProtocolError):
+            session.set_stage_dpi(0, 1600, 1600)
+        with self.assertRaises(protocol.ProtocolError):
+            session.set_stage_color(0, "#112233")
+        with self.assertRaises(protocol.ProtocolError):
+            session.add_stage()
+
+    def test_other_writes_still_work(self) -> None:
+        session = self._controller()
+        self.assertEqual(session.set_polling(1000), 1000)
+        self.assertEqual(session.set_debounce(4), 4)
+
+    def test_an_identified_sensor_writes_dpi(self) -> None:
+        session = self._controller()
+        session.model = devices.MODEL_BY_CIDMID[(1, 3)]
+        self.assertEqual(session.set_stage_dpi(0, 1600, 1600), (1600, 1600))
 
 
 class _R1SEPlusIdentity(FakeTransport):

@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.9.5" date="2026-11-14">
+      <description>
+        <p>Moves the model support process into the model table. Each entry now declares a support level (recognised, experimental or verified) instead of an experimental boolean that meant read-only in code while the README used the same word for writable models; the app banner, atkctl status, support reports and README table all read that one field. Verified entries carry their evidence and a test enforces it. DPI writes are refused while a model's sensor is unidentified, because the sensor selects the DPI encoding and read-back cannot detect a wrong codec. The model table gains invariant tests for levels, sensor names and duplicate identities.</p>
+      </description>
+    </release>
     <release version="0.9.4" date="2026-11-14">
       <description>
         <p>Fixes from an external code review. A profile changed with the mouse's own button is no longer reverted when a setting is saved, a failed identity read on a later refresh keeps the known model instead of downgrading it (which misread ultra-encoded DPI five-fold), and the v1 controller refuses writes on read-only models itself. The window and tray now use the controller's own capabilities instead of rebuilding them, so a cabled 0xFF05 mouse no longer offers a different polling range than the CLI, and the tray stops resolving NearLink mice through the old table. Receivers that never answer command 0x03 are skipped after three misses, a sleeping mouse costs 1.8 s instead of 5.4 s per connect, 0xFF05 memory replies are matched against the requested address, and --raw support reports from 0xFF05 mice now contain the memory blocks.</p>

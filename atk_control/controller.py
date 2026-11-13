@@ -406,7 +406,7 @@ class Controller:
             self.model = devices.MODEL_BY_CIDMID.get((cid, mid))
         else:
             self.model = devices.MODEL_BY_USB.get((self.info.vendor_id, self.info.product_id))
-        self.read_only = self.model is None or self.model.experimental
+        self.read_only = self.model is None or self.model.read_only
         # Use the identified sensor's DPI family while decoding stages.  The
         # conservative default would decode a PAW3950 Ultra stage incorrectly.
         self.caps = devices.capabilities_for(
@@ -443,6 +443,7 @@ class Controller:
             wired=not self.info.is_receiver,
             read_only=self.read_only,
             experimental=bool(self.model and self.model.experimental),
+            support=self.model.support if self.model else "unknown",
             dpi=stages[active][0],
             dpi_y=stages[active][1],
             stages=stages,
@@ -606,6 +607,20 @@ class Controller:
         if not condition:
             raise ProtocolError(message)
 
+    def _require_dpi_writable(self) -> None:
+        """Refuse DPI writes while the sensor codec is unverified.
+
+        The declared sensor selects the DPI encoding, so an unidentified
+        sensor means a read-back can confirm a value that the mouse stored
+        five times too low (0.9.1).
+        """
+        model = self.model
+        if model is not None and not model.dpi_writable:
+            raise ProtocolError(
+                f"DPI writes are disabled until the sensor is identified "
+                f"({model.name} reports \"{model.sensor}\")"
+            )
+
     def _write_and_read(self, addr: int, data: bytes, length: int | None = None) -> bytes:
         self.transport.write_eeprom(addr, data)
         time.sleep(0.02)
@@ -641,6 +656,7 @@ class Controller:
         return index
 
     def set_stage_dpi(self, index: int, x: int, y: int | None = None) -> tuple[int, int]:
+        self._require_dpi_writable()
         self._require(0 <= index < self.state.stage_count, "DPI stage out of range")
         y = x if y is None else y
         family = self.caps.sensor.family
@@ -661,6 +677,7 @@ class Controller:
         return confirmed
 
     def set_stage_color(self, index: int, color: str) -> str:
+        self._require_dpi_writable()
         self._require(self.caps.stage_colors, "This mouse does not expose stage colours")
         self._require(0 <= index < self.state.stage_count, "DPI stage out of range")
         normalized = f"#{color.strip().lstrip('#').lower()}"
@@ -852,6 +869,7 @@ class Controller:
         )
 
     def add_stage(self) -> int:
+        self._require_dpi_writable()
         self._require(self.state.stage_count < 8, "This mouse already has eight DPI stages")
         count = self.state.stage_count
         new_index = count
@@ -1108,6 +1126,15 @@ class V2Controller:
         if not condition:
             raise ProtocolError(message)
 
+    def _require_dpi_writable(self) -> None:
+        """Refuse DPI writes while the sensor codec is unverified."""
+        model = self.model
+        if model is not None and not model.dpi_writable:
+            raise ProtocolError(
+                f"DPI writes are disabled until the sensor is identified "
+                f"({model.name} reports \"{model.sensor}\")"
+            )
+
     def _identity(self) -> tuple[int | None, int | None, str]:
         cid: int | None = None
         mid: int | None = None
@@ -1269,8 +1296,9 @@ class V2Controller:
 
     def _apply_flags(self, state: MouseState) -> None:
         model = self.model
-        state.read_only = model is None
+        state.read_only = model is None or model.read_only
         state.telemetry_only = model is None
+        state.support = model.support if model else "unknown"
         state.supports_angle = False
         state.supports_performance_mode = bool(model and model.performance_mode)
         state.supports_sensor_max = bool(model and model.sensor_max)
@@ -1378,6 +1406,7 @@ class V2Controller:
 
     def set_active_stage(self, index: int) -> int:
         self._require(not self.read_only, "DPI stages are read-only on this 0xFF05 device")
+        self._require_dpi_writable()
         self._require(0 <= index < self.state.stage_count, "DPI stage out of range")
         x, y = self.state.stages[index]
         color = self.state.stage_colors[index] if index < len(self.state.stage_colors) else "#ffffff"
@@ -1391,6 +1420,7 @@ class V2Controller:
 
     def set_stage_dpi(self, index: int, x: int, y: int | None = None) -> tuple[int, int]:
         self._require(not self.read_only, "DPI stages are read-only on this 0xFF05 device")
+        self._require_dpi_writable()
         self._require(0 <= index < self.state.stage_count, "DPI stage out of range")
         y = x if y is None else y
         self._require(x in self.caps.dpi_options and y in self.caps.dpi_options, "Unsupported DPI value")
@@ -1403,6 +1433,7 @@ class V2Controller:
 
     def set_stage_color(self, index: int, color: str) -> str:
         self._require(not self.read_only, "DPI colours are read-only on this 0xFF05 device")
+        self._require_dpi_writable()
         self._require(
             self.state.supports_stage_colors,
             "This mouse does not expose stage colours",

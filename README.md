@@ -37,45 +37,42 @@ and the features under [Limitations](#limitations).
 Only models tested on physical hardware count as verified; a family name does
 not mean every variant has been tested.
 
-### Tested hardware
+### Support levels
 
-| Device | Receiver | Status |
+| Level | Writes | Meaning |
 | --- | --- | --- |
-| **ATK MAD R+** | 8K | **Verified** |
-| **VXE R1 Pro** | 1K, 4K | **Verified** |
-| **ATK Dragonfly A9 Pro Max 2.0** | Wired, 8K dongle | **Experimental** |
-| **ATK A9 Ultimate** | Wired, 8K dongle | **Experimental** |
-| **VXE R1 NK (NearLink)** | 1K receiver, cable | **Experimental** |
-| **VXE R1 SE+** | 1K | **Experimental** |
+| **Verified** | yes | every advertised setting tested on that exact model, with the evidence recorded in the protocol notes |
+| **Experimental** | yes | implemented from an owner's report or from a verified family's firmware; every write is verified by read-back, but the model has not been tested control by control |
+| **Recognised** | no | identity and sensor known from the vendor catalogue or a report; read-only until someone tests it |
 
-**Verified** = every advertised setting tested on that exact model, with the
-evidence recorded in the protocol notes; **Experimental** = implemented from an
-owner's report and the family's proven transport, writes enabled and verified by
-read-back, but not yet tested control by control. The checks behind each state
-are in [Testing a mouse](docs/TESTING.md#promotion-criteria).
+The level is stored on the model entry in `atk_control/devices.py` and drives
+this table, the app banner and `atkctl status`, so they cannot drift apart. A
+verified entry must carry its evidence, which a unit test enforces. The checks
+behind each level are in [Testing a mouse](docs/TESTING.md#promotion-criteria).
 
-The Dragonfly A9 Pro Max 2.0 uses USB `373b:11dc` (8K dongle) or `373b:1264`
-(wired); its owner confirmed that settings work and persist across a power cycle
-on both links, but the control-by-control test is still pending, and it has no
-rotation, stage-count changes or Bluetooth configuration. The A9 Ultimate
-answers CID/MID `1,3` on the older `0xFF02` protocol with a PAW3950Ultra; the
-lift-off level its firmware stores is still unmapped. The VXE R1 NK answers
-CID/MID `2,8` over `0xFF05` and is wired/1K only. The VXE R1 SE+ answers CID/MID
-`2,31` over `0xFF02` on its 1K receiver (`373b:1085`); it was added from a device
-report and has not been write-tested by its owner yet.
+### Verified
 
-### Other recognized hardware
+| Device | Link |
+| --- | --- |
+| **ATK MAD R+** | 8K dongle |
+| **VXE R1 Pro** | 1K, 4K |
 
-| Hardware | Status | Notes |
+### Experimental
+
+| Device | Link | Why not verified yet |
 | --- | --- | --- |
-| Other MAD R family models (MAD R, MAD R MAJOR, MAD R MAJOR+) | Recognized | Not individually tested |
-| Other VXE R1 family models (R1, R1 Pro Max) | Recognized | Not individually tested |
-| ATK X1 Pro Max, ATK A9 Plus NearLink, VXE R1 Ultra | Recognized | Not individually tested |
-| 25 additional ATK/VXE models | **Read-only** | Model and sensor recognized; writes disabled until verified |
-| Other ATK/VXE mice | **Read-only** | Discovery reports only |
+| **ATK Dragonfly A9 Pro Max 2.0** | USB `373b:1264`, 8K dongle `373b:11dc` | owner confirmed settings and power-cycle persistence on both links; the control-by-control test is pending. No rotation or stage-count changes, and Bluetooth has no configuration channel |
+| **ATK A9 Ultimate** | USB `373b:11b6`, 8K dongle `373b:11d9` | CID/MID `1,3`, PAW3950Ultra over `0xFF02`; the lift-off level its firmware stores is still unmapped |
+| **VXE R1 NK (NearLink)** | 1K receiver `373b:1216`, cable `373b:124c` | CID/MID `2,8` over `0xFF05`, wired/1K only |
+| **VXE R1 SE+** | 1K receiver `373b:1085` | CID/MID `2,31` over `0xFF02`; added from a report, not write-tested by its owner yet |
+| MAD R, MAD R MAJOR, MAD R MAJOR+, VXE R1, R1 Pro Max, ATK X1 Pro Max, ATK A9 Plus NearLink, VXE R1 Ultra | varies | same firmware family as a verified model, but the exact variant has not been tested |
 
-**Recognized** models use a model entry; some controls may be unavailable.
-**Read-only** models can be identified and reported, but writes are blocked.
+### Recognised, read-only
+
+| Hardware | Notes |
+| --- | --- |
+| 25 additional ATK/VXE models | model and sensor from the ATK HUB catalogue; writes blocked until a report and a test |
+| Other ATK/VXE mice | identity only; discovery report available |
 The catalog covers selected F1, X1, Z1, U2, A9, VXE R1 SE/R1S+, V3 and X3 models.
 
 Receiver ceilings: 1K = 1000 Hz, VXE 4K = 4000 Hz, MAD 8K = 8000 Hz. Polling is
@@ -90,15 +87,15 @@ Missing your model or a broken setting? Send a [device support report](#device-r
 **Flatpak:** download from the [latest release](https://github.com/NasirA1991/atk-control/releases/latest), then:
 
 ```bash
-flatpak install --user ./atk-control-0.9.4-x86_64.flatpak
+flatpak install --user ./atk-control-0.9.5-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
 **AppImage:** download, then:
 
 ```bash
-chmod +x atk-control-0.9.4-x86_64.AppImage
-./atk-control-0.9.4-x86_64.AppImage
+chmod +x atk-control-0.9.5-x86_64.AppImage
+./atk-control-0.9.5-x86_64.AppImage
 ```
 
 AUR installs the udev rule; Flatpak, AppImage and per-user installs need the

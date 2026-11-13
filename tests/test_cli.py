@@ -214,7 +214,7 @@ class CliTests(unittest.TestCase):
         with patch("atk_control.cli._open", return_value=ctl):
             with contextlib.redirect_stdout(out):
                 self.assertEqual(cli.main(["status"]), 0)
-        self.assertIn("experimental / read-only", out.getvalue())
+        self.assertIn("recognised / read-only", out.getvalue())
 
 
 if __name__ == "__main__":
