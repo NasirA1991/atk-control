@@ -30,6 +30,51 @@ class _FakeController:
         pass
 
 
+class _StageRecordingController:
+    path = "/dev/null"
+    state = MouseState(model_name="MAD R", cid=2, mid=54, active_stage=1)
+    caps = devices.default_capabilities()
+
+    def __init__(self) -> None:
+        self.stage = None
+
+    def read_full(self):
+        return self.state
+
+    def close(self):
+        pass
+
+    def set_stage_dpi(self, index, x, y=None):
+        self.stage = index
+        return (x, x)
+
+
+class DpiStageTests(unittest.TestCase):
+    def test_first_stage_is_one_based(self) -> None:
+        ctl = _StageRecordingController()
+        with patch("atk_control.cli._open", return_value=ctl):
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(["dpi", "800", "--stage", "1"]), 0)
+        self.assertEqual(ctl.stage, 0)
+
+    def test_stage_zero_is_rejected_instead_of_editing_the_active_stage(self) -> None:
+        ctl = _StageRecordingController()
+        with patch("atk_control.cli._open", return_value=ctl):
+            with contextlib.redirect_stderr(io.StringIO()):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaises(SystemExit) as caught:
+                        cli.main(["dpi", "800", "--stage", "0"])
+        self.assertNotEqual(caught.exception.code, 0)
+        self.assertIsNone(ctl.stage)
+
+    def test_omitted_stage_edits_the_active_one(self) -> None:
+        ctl = _StageRecordingController()
+        with patch("atk_control.cli._open", return_value=ctl):
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(["dpi", "800"]), 0)
+        self.assertEqual(ctl.stage, ctl.state.active_stage)
+
+
 class CliTests(unittest.TestCase):
     def test_version_command(self) -> None:
         out = io.StringIO()

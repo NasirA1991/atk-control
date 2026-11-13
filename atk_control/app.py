@@ -97,7 +97,8 @@ class AtkApplication(Adw.Application):
             self._held = True
             if self._latest_link[0]:
                 if tray.start():
-                    tray.update(self._latest_state, True)
+                    tray.update(self._latest_state, True,
+                                caps=self._caps())
                 elif not self._tray_fallback_shown:
                     print("atk-control: tray watcher unavailable", file=sys.stderr)
             else:
@@ -170,7 +171,7 @@ class AtkApplication(Adw.Application):
             self.add_window(self.window)
             self.window.on_link(*self._latest_link)
             if self._latest_state is not None:
-                self.window.on_state(self._latest_state, set())
+                self.window.on_state(self._latest_state, set(), caps=self._caps())
         return self.window
 
     def _on_close_request(self, window) -> bool:
@@ -195,6 +196,10 @@ class AtkApplication(Adw.Application):
     def _link_from_thread(self, connected: bool, error: str | None) -> None:
         GLib.idle_add(self._apply_link, connected, error)
 
+    def _caps(self):
+        """The worker's capability snapshot, never a local rebuild."""
+        return self.worker.capabilities if self.worker is not None else None
+
     def _toast_from_thread(self, message: str) -> None:
         GLib.idle_add(self._apply_toast, message)
 
@@ -206,12 +211,13 @@ class AtkApplication(Adw.Application):
             return False
         self._latest_state = state
         self._latest_link = (True, None)
+        caps = self._caps()
         if self.window is not None:
-            self.window.on_state(state, changed)
+            self.window.on_state(state, changed, caps=caps)
         if self.tray is not None:
             if not self.tray.visible and not self._tray_fallback_shown:
                 self.tray.start()
-            self.tray.update(state, True)
+            self.tray.update(state, True, caps=caps)
         if (
             state.battery is not None
             and state.battery <= 15
@@ -242,7 +248,7 @@ class AtkApplication(Adw.Application):
                     if not self.tray.start() and not self._tray_fallback_shown:
                         logger.warning("connected, but the tray item could not be registered")
                         self._tray_unavailable()
-                self.tray.update(self._latest_state, True)
+                self.tray.update(self._latest_state, True, caps=self._caps())
             else:
                 self.tray.update(None, False, error)
                 self.tray.stop()

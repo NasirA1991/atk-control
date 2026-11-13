@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.9.4 — 2026-11-14
+
+Fixes from an external code review of 0.9.1, verified against the tree before
+each change. Every item below has a regression test.
+
+- **State and safety**
+  - `commit_settings()` reads the active profile from the mouse instead of
+    trusting the cached state. A profile changed with the mouse's own button, or
+    by another tool, was silently reverted by the save.
+  - A failed identity read on a later refresh no longer drops the known model.
+    It used to count as a normal poll miss and downgrade a PAW3950Ultra mouse to
+    an unknown step-50 one, misreading every DPI value five-fold.
+  - The v1 controller refuses writes itself when the model is read-only. Only the
+    worker and the CLI checked before, so a direct caller could write to an
+    experimental model.
+  - `atkctl dpi --stage 0` is rejected. It used to be falsy and silently edit the
+    active stage; `--stage` is 1-based.
+- **One source of capabilities.** The worker now publishes the controller's own
+  capabilities with the state, and the window and tray consume them instead of
+  rebuilding from the model tables. A cabled A9 Pro Max 2.0 offered 125-1000 Hz
+  in the GUI while `atkctl` offered up to 8000 Hz, and the tray resolved every
+  mouse through the v1 table, so an R1 NK appeared as "VXE R1 Pro".
+- **Timing**
+  - a receiver that never answers command `0x03` is skipped after three misses
+    instead of costing 1.8 s on every live poll;
+  - a sleeping mouse costs one exchange per identity attempt instead of three: a
+    failed connect is 1.8 s rather than 5.4 s.
+- **Transport**
+  - `0xFF05` memory replies are matched against the requested address, so a late
+    reply can no longer be read as the next chunk and shift the DPI table that
+    the following write sends back;
+  - `--debug` now reaches the controller and the transport instead of being
+    dropped in the CLI;
+  - `0xFF05` support reports include the memory blocks (DPI table, sensor mode,
+    LED, buttons). They were empty, so a `--raw` report from an unknown v2 mouse
+    carried no device bytes at all.
+- `373b:1216` (the NearLink NANO receiver) is in the receiver ceiling table now,
+  instead of being detected only by its product name.
+- `0xFF05` setters apply the same local checks as v1: polling must be in the
+  link's rate list, stage colours and button remapping must be supported, and
+  lift-off must be one of the model's choices.
+- The v2 notice no longer claims the firmware is unvalidated; it says what is
+  true (read-back verified, not yet verified control-by-control).
+
 ## 0.9.3 — 2026-11-13
 
 - Wrote down what the two status words actually mean, because the README and

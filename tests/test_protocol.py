@@ -131,7 +131,8 @@ class _RecordingV2(protocol.V2Transport):
         self.calls.append((command, param_length, command_length, data, target))
         if command == protocol.V2_CMD_READ_MEMORY:
             count = data[2]
-            return b"\0\0\0" + bytes((data[0] + i) & 0xFF for i in range(count))
+            # The reply echoes the requested address and length, then the data.
+            return data[0:2] + bytes((count,)) + bytes((data[0] + i) & 0xFF for i in range(count))
         if command == protocol.V2_CMD_READ_CONFIG:
             config = bytearray(18)
             config[2] = 4
@@ -165,6 +166,23 @@ class V2TransportCommandTests(unittest.TestCase):
         self.assertEqual(transport.calls[-1][3], bytes((2, 1, 0, 2, 0)))
         transport.set_lighting(2, 170, 15)
         self.assertEqual(transport.calls[-1][3], bytes((2, 170, 15)))
+
+
+class _StaleMemoryV2(protocol.V2Transport):
+    """Replies carry the address of an earlier chunk."""
+
+    def __init__(self) -> None:
+        super().__init__("/dev/null", wireless=True)
+
+    def _command(self, command, param_length, command_length, data=b"", target=None):
+        return b"\x09\x00" + bytes((data[2],)) + bytes(data[2])
+
+
+class V2MemoryReplyTests(unittest.TestCase):
+    def test_stale_memory_reply_is_rejected(self) -> None:
+        transport = _StaleMemoryV2()
+        with self.assertRaises(protocol.ProtocolError):
+            transport.read_memory(1, 12)
 
 
 class _BatteryV2(protocol.V2Transport):

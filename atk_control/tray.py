@@ -487,24 +487,37 @@ class Tray(dbus.service.Object):
         return False
 
     def update(self, state: MouseState | None, connected: bool,
-               message: str | None = None) -> None:
+               message: str | None = None,
+               caps: devices.Capabilities | None = None) -> None:
         self.state = state
         self.connected = connected and state is not None
         message_before = self._message
         status_before = self._status
         if self.connected and state is not None:
-            model = None
-            if state.cid is not None and state.mid is not None:
-                model = devices.MODEL_BY_CIDMID.get((state.cid, state.mid))
-            self.caps = devices.capabilities_for(
-                model=model,
-                receiver=devices.receiver_for(state.receiver_pid, state.receiver_name)
-                if state.via_receiver and state.receiver_pid else None,
-                sensor_name=state.sensor,
-                active_polling=state.polling_rate,
-                debounce=state.debounce_ms,
-                sleep=state.sleep_seconds,
-            )
+            if caps is not None:
+                # The worker snapshot already carries the controller's
+                # per-model adjustments; rebuilding here lost them and used
+                # the v1 model table for 0xFF05 mice.
+                self.caps = caps
+            else:
+                model = None
+                if state.cid is not None and state.mid is not None:
+                    if state.protocol == "v2":
+                        model = devices.v2_model_for(
+                            state.cid, state.mid, state.vendor_id,
+                            state.product_id, state.usb_name,
+                        )
+                    else:
+                        model = devices.MODEL_BY_CIDMID.get((state.cid, state.mid))
+                self.caps = devices.capabilities_for(
+                    model=model,
+                    receiver=devices.receiver_for(state.receiver_pid, state.receiver_name)
+                    if state.via_receiver and state.receiver_pid else None,
+                    sensor_name=state.sensor,
+                    active_polling=state.polling_rate,
+                    debounce=state.debounce_ms,
+                    sleep=state.sleep_seconds,
+                )
             self.polling_rates = self.caps.polling_rates
             self._message = (
                 f"{state.connected_name} — {state.battery if state.battery is not None else '?'}% · "

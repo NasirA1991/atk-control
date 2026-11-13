@@ -61,7 +61,7 @@ class _PersistingController:
         return value
 
 
-def _open(path: str | None = None) -> Controller | V2Controller:
+def _open(path: str | None = None, debug: bool = False) -> Controller | V2Controller:
     candidates = discover()
     if path:
         candidates = [c for c in candidates if c.path == path]
@@ -69,7 +69,7 @@ def _open(path: str | None = None) -> Controller | V2Controller:
             raise ProtocolError(f"{path} is not an ATK/VXE configuration interface")
     errors: list[str] = []
     for info in candidates:
-        controller = controller_for(info)
+        controller = controller_for(info, debug=debug)
         try:
             controller.open()
         except PermissionDenied as exc:
@@ -402,6 +402,10 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("--interval must be between 0.2 and 60 seconds")
         if args.count is not None and args.count < 1:
             parser.error("--count must be at least 1")
+    if args.command == "dpi" and args.stage is not None and args.stage < 1:
+        # --stage is 1-based.  0 used to be falsy and silently edited the
+        # active stage instead of failing.
+        parser.error("--stage is 1-based and must be at least 1")
     logger.debug("atkctl %s command=%s device=%s", config.VERSION, args.command, args.device)
     if args.command == "version":
         print(f"atkctl {config.VERSION}")
@@ -412,7 +416,7 @@ def main(argv: list[str] | None = None) -> int:
     controller: Controller | V2Controller | None = None
     try:
         try:
-            controller = _open(args.device)
+            controller = _open(args.device, debug=args.debug)
         except DeviceNotFound as exc:
             if args.command in ("report", "support"):
                 return _write_discovery(args, str(exc))
@@ -466,7 +470,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "polling":
             return _set_and_print("Polling", f"{controller.set_polling(args.hz)} Hz")
         if args.command == "dpi":
-            stage = (args.stage - 1) if args.stage else controller.state.active_stage
+            # 0 is a valid stage index, so test for None rather than truthiness.
+            stage = (args.stage - 1) if args.stage is not None else controller.state.active_stage
             x, y = controller.set_stage_dpi(stage, args.dpi, args.y)
             return _set_and_print("DPI", f"{x} x {y}")
         if args.command == "stage":

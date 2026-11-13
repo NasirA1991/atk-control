@@ -46,8 +46,11 @@ sensor mode (`0x1f`). The protocol has no sensor-rotation command and no
 DPI-stage count command. Unknown identities are discovered but never written.
 
 This was reimplemented from the public `atk-hub-linux` and `atk-tool` protocol
-observations; neither source is copied. It has not been validated on physical
-A9 hardware yet. Bluetooth exposes no configuration collection.
+observations; neither source is copied. The owner of an A9 Pro Max 2.0 has since
+run it on hardware and confirmed that settings are written correctly and survive
+a power cycle on both links, but no control has been tested one by one yet, so
+the model is still labelled experimental in the README. Bluetooth exposes no
+configuration collection.
 
 A VXE R1 NK (NearLink, CID/MID `2,8`, firmware `1.0.12`) was later mapped
 command-by-command by a reporter on the cable (`373b:124c`) and through the

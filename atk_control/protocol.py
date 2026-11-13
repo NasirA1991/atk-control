@@ -118,6 +118,7 @@ RECEIVER_CEILINGS: dict[int, int] = {
     0x1085: 1000,
     0x10C9: 1000,
     0x11A9: 4000,  # ATK / VXE 4K dongle
+    0x1216: 1000,  # ATK NK mouse NANO dongle (NearLink 1K, R1 NK / A9 Plus)
     0xF400: 1000,
     0xF505: 4000,
     0xF50B: 1000,
@@ -136,6 +137,7 @@ RECEIVER_NAMES: dict[int, str] = {
     0x11A9: "ATK 4K Dongle",
     0x11DC: "ATK 8K NANO Dongle",
     0x11D9: "ATK 8K Wireless Dongle",
+    0x1216: "ATK NK NANO Dongle",
     0xF58A: "VXE 1K Dongle",
     0xF58D: "VXE 4K Dongle",
     0xF58E: "VXE 1K Dongle",
@@ -782,8 +784,8 @@ class CompxTransport:
             millivolts = mv if mv > 0 else None
         return {"percent": percent, "charging": charging, "millivolts": millivolts}
 
-    def read_identity(self) -> tuple[int, int]:
-        reply = self._simple_command(CMD_CID_MID)
+    def read_identity(self, attempts: int = 3) -> tuple[int, int]:
+        reply = self._simple_command(CMD_CID_MID, attempts=attempts)
         if reply[4] < 2:
             raise ProtocolError("short CID/MID reply")
         return reply[5], reply[6]
@@ -882,16 +884,26 @@ class V2Transport(CompxTransport):
             raise ValueError("length must be 1-512")
         out = bytearray()
         while len(out) < length:
+            offset = address + len(out)
             count = min(V2_READ_CHUNK, length - len(out))
+            requested = offset.to_bytes(2, "little")
             payload = self._command(
-                V2_CMD_READ_MEMORY, 10, 13,
-                (address + len(out)).to_bytes(2, "little") + bytes((count,)),
+                V2_CMD_READ_MEMORY, 10, 13, requested + bytes((count,)),
             )
+            # The reply echoes the address and length.  A late reply to an
+            # earlier chunk used to be accepted as the current one, which
+            # shifts the DPI table that set_active_stage() then writes back.
+            if len(payload) < 3 or payload[0:2] != requested:
+                raise ProtocolError(
+                    f"stale v2 memory reply (wanted 0x{offset:04x})"
+                )
+            if payload[2] < count:
+                raise ProtocolError(
+                    f"short v2 memory reply at 0x{offset:04x}"
+                )
             chunk = payload[3:3 + count]
             if len(chunk) != count:
-                raise ProtocolError(
-                    f"short v2 memory reply at 0x{address + len(out):04x}"
-                )
+                raise ProtocolError(f"short v2 memory reply at 0x{offset:04x}")
             out.extend(chunk)
         return bytes(out)
 

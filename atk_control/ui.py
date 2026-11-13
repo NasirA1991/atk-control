@@ -430,6 +430,7 @@ class MainWindow(Adw.ApplicationWindow):
         super().__init__(title="ATK Control")
         self.worker = worker
         self._state: MouseState | None = None
+        self._caps_snapshot: devices.Capabilities | None = None
         self._connected = False
         self._loading = False
         self._angle_timer = 0
@@ -1435,6 +1436,8 @@ class MainWindow(Adw.ApplicationWindow):
 
     # --------------------------------------------------------------- updates
     def _caps(self) -> devices.Capabilities:
+        if self._caps_snapshot is not None:
+            return self._caps_snapshot
         model = None
         if (
             self._state is not None
@@ -1525,8 +1528,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.dpi_active_meta.set_text("Waiting for a mouse")
         self.dpi_active_note.set_text("")
 
-    def on_state(self, state: MouseState, changed: set[str]) -> None:
+    def on_state(self, state: MouseState, changed: set[str],
+                 caps: devices.Capabilities | None = None) -> None:
         self._state = state
+        # The worker publishes the controller's capabilities with the state;
+        # rebuilding them here would drop its per-model adjustments.
+        self._caps_snapshot = caps
         self._connected = True
         # The worker re-emits the full state on every live poll. Rebuilding
         # every page when nothing rendered changed is expensive on an idle
@@ -1555,8 +1562,9 @@ class MainWindow(Adw.ApplicationWindow):
         elif state.protocol == "v2":
             self.notice_label.set_text(
                 "Experimental 0xFF05 support. Read and write commands follow the "
-                "public ATK Hub protocol, but this exact firmware has not been "
-                "validated on hardware yet. Keep a copy of your settings."
+                "public ATK Hub protocol and every write is verified by read-back, "
+                "but this model is not verified control-by-control on hardware yet. "
+                "Keep a copy of your settings."
             )
         elif state.read_only:
             self.notice_label.set_text(

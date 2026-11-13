@@ -70,6 +70,7 @@ class DeviceWorker:
         self._report_path: str | None = None
         self._report_include_raw = False
         self._state = MouseState()
+        self._caps = devices.default_capabilities()
         self._controller: Controller | V2Controller | None = None
         self._connected = False
         self._last_link_error: str | None = None
@@ -108,18 +109,29 @@ class DeviceWorker:
 
     @property
     def device_path(self) -> str | None:
-        return self._controller.path if self._controller else None
+        with self._lock:
+            controller = self._controller
+        return controller.path if controller else None
 
     @property
     def capabilities(self):
-        return devices.capabilities_for(
-            model=self._controller.model if self._controller else None,
-            receiver=self._controller.receiver if self._controller else None,
-            sensor_name=self.state.sensor or None,
-            active_polling=self.state.polling_rate,
-            debounce=self.state.debounce_ms,
-            sleep=self.state.sleep_seconds,
-        )
+        """The controller's own capabilities, snapshotted with the state.
+
+        Rebuilding them here would lose the controller's per-model
+        adjustments (the wired 0xFF05 report-rate table, the discovered
+        capability flags) and let the window, the tray and the CLI disagree.
+        """
+        with self._lock:
+            return copy.deepcopy(self._caps)
+
+    def _store_state(self, state: MouseState) -> None:
+        """Publish state and capabilities together, under one lock."""
+        controller = self._controller
+        caps = copy.deepcopy(controller.caps) if controller is not None else None
+        with self._lock:
+            self._state = copy.deepcopy(state)
+            if caps is not None:
+                self._caps = caps
 
     def submit(self, method: str, *args, key: str | None = None) -> None:
         """Queue one verified device operation. Last value for a key wins."""
@@ -249,8 +261,8 @@ class DeviceWorker:
             self._last_online_ping = time.monotonic()
             self._warned_permission = False
             self._last_full = time.monotonic()
+            self._store_state(state)
             with self._lock:
-                self._state = copy.deepcopy(state)
                 switched = switched_from is not None and info.path != switched_from
                 self._preferred_path = info.path
             self._emit_link(True, None)
@@ -320,16 +332,14 @@ class DeviceWorker:
                 state = controller.read_full() if full_refresh else controller.state
                 if full_refresh:
                     self._last_full = time.monotonic()
-                with self._lock:
-                    self._state = copy.deepcopy(state)
+                self._store_state(state)
                 self._emit_state(state, set())
             except (ProtocolError, ValueError) as exc:
                 # Re-read the confirmed state so a rejected write cannot leave
                 # the UI showing an optimistic value that the mouse rejected.
                 try:
                     state = controller.read_full()
-                    with self._lock:
-                        self._state = copy.deepcopy(state)
+                    self._store_state(state)
                     self._emit_state(state, set())
                 except Exception:
                     logger.exception("failed to re-read state after a rejected write")
@@ -342,8 +352,7 @@ class DeviceWorker:
                 controller.commit_settings()
                 state = controller.read_full()
                 self._last_full = time.monotonic()
-                with self._lock:
-                    self._state = copy.deepcopy(state)
+                self._store_state(state)
                 self._emit_state(state, set())
             except (ProtocolError, ValueError) as exc:
                 self._toast(f"Setting applied but not saved to onboard memory: {exc}")
@@ -426,8 +435,7 @@ class DeviceWorker:
                     return
             else:
                 self._query_misses = 0
-            with self._lock:
-                self._state = copy.deepcopy(state)
+            self._store_state(state)
             self._emit_state(state, set())
             self._last_emit = now
         except DeviceNotFound:

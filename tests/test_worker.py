@@ -39,6 +39,7 @@ class WorkerSafetyTests(unittest.TestCase):
                 self.path = info.path
                 self.model = None
                 self.receiver = None
+                self.caps = devices.default_capabilities()
 
             def open(self):
                 asked.append(self.path)
@@ -137,6 +138,57 @@ class ProtocolRetryTests(unittest.TestCase):
         worker._poll()
         self.assertEqual(worker._query_misses, 1)
         self.assertGreater(worker._last_emit, 0.0)
+
+
+class CapabilitySnapshotTests(unittest.TestCase):
+    """The window, tray and CLI must all see the controller's own capabilities."""
+
+    def test_worker_publishes_the_controller_capabilities(self) -> None:
+        model = devices.MODEL_BY_CIDMID[(1, 3)]  # A9 Ultimate, PAW3950Ultra
+        caps = devices.capabilities_for(
+            model=model, receiver=None, active_polling=4000
+        )
+        state = MouseState(model_name=model.name, sensor=model.sensor,
+                           cid=1, mid=3, polling_rate=4000)
+
+        class FakeController:
+            path = "/dev/hidraw-test"
+
+            def __init__(self):
+                self.model = model
+                self.receiver = None
+                self.caps = caps
+
+            def read_full(self):
+                return state
+
+        worker = DeviceWorker(lambda *_: None, lambda *_: None)
+        worker._controller = FakeController()
+        worker._store_state(state)
+
+        published = worker.capabilities
+        # A local rebuild would fall back to the 1 kHz cable default and lose
+        # the controller's 4 kHz ceiling.
+        self.assertEqual(published.link_ceiling, 4000)
+        self.assertIn(4000, published.polling_rates)
+        self.assertEqual(worker.device_path, "/dev/hidraw-test")
+
+    def test_published_capabilities_are_a_copy(self) -> None:
+        worker = DeviceWorker(lambda *_: None, lambda *_: None)
+        caps = devices.default_capabilities()
+        caps.polling_rates = [1000]
+
+        class FakeController:
+            path = "/dev/hidraw-test"
+
+            def __init__(self):
+                self.caps = caps
+
+        worker._controller = FakeController()
+        worker._store_state(MouseState())
+        first = worker.capabilities
+        first.polling_rates.append(8000)
+        self.assertNotIn(8000, worker.capabilities.polling_rates)
 
 
 class DemoWorkerTests(unittest.TestCase):

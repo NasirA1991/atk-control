@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import time
 
@@ -137,6 +138,9 @@ class Controller:
         self.receiver: devices.Receiver | None = None
         self.caps: devices.Capabilities = devices.default_capabilities()
         self.read_only = True
+        # Some receivers never answer command 0x03.  Remember consecutive
+        # failures so the live poll stops paying for three timeouts each time.
+        self._online_misses = 0
 
     # -- lifecycle ---------------------------------------------------------
     def open(self) -> MouseState:
@@ -182,14 +186,22 @@ class Controller:
     def _identify(self) -> tuple[int | None, int | None, str]:
         cid = mid = None
         last: Exception | None = None
+        # One exchange per attempt; the outer loop supplies the retries.  Three
+        # exchanges inside each of three attempts used to cost 5.4 s on a
+        # sleeping mouse.
         for _ in range(3):
             try:
-                cid, mid = self.transport.read_identity()
+                cid, mid = self.transport.read_identity(attempts=1)
                 break
             except ProtocolError as exc:
                 last = exc
                 time.sleep(0.12)
-        if cid is None and self.model is None and self.receiver is not None:
+        if cid is None and self.model is not None:
+            # The model is already known, so this is a dropped poll, not a new
+            # device.  Returning None here used to downgrade the mouse to an
+            # unknown, read-only model and misread its DPI encoding.
+            raise ProtocolError("The mouse stopped answering its identity command") from last
+        if cid is None and self.receiver is not None:
             sleep_hint = (
                 "The receiver answered, but the paired mouse did not. "
                 "Turn the mouse on or move it, then retry."
@@ -368,16 +380,19 @@ class Controller:
     def _read_receiver(self) -> dict | None:
         if not self.info.is_receiver:
             return None
-        return self.transport.receiver_online()
+        if self._online_misses >= 3:
+            # This receiver has not answered 0x03 three times in a row; the
+            # link is still up, so stop spending a timeout on it every poll.
+            return None
+        info = self.transport.receiver_online()
+        self._online_misses = 0 if info is not None else self._online_misses + 1
+        return info
 
     def online_status(self) -> bool | None:
         """Cheap receiver-only liveness check (does not read the mouse)."""
         if not self.info.is_receiver:
             return True
-        try:
-            info = self.transport.receiver_online()
-        except ProtocolError:
-            return None
+        info = self._read_receiver()
         if not isinstance(info, dict) or "online" not in info:
             return None
         return bool(info["online"])
@@ -386,9 +401,14 @@ class Controller:
         """Read identity and all readable settings.  Missing optional rows are OK."""
         self.receiver = devices.receiver_for(self.info.product_id, self.info.product_name)
         cid, mid, firmware = self._identify()
-        self.model = devices.model_for(
-            cid, mid, self.info.vendor_id, self.info.product_id, self.info.product_name
-        )
+        if cid is not None and mid is not None:
+            # The mouse answered its identity, so trust only the identity
+            # table.  Falling back to the USB id here would grant writes to a
+            # model this app never actually identified, and shared receivers
+            # make that a real risk.
+            self.model = devices.MODEL_BY_CIDMID.get((cid, mid))
+        else:
+            self.model = devices.MODEL_BY_USB.get((self.info.vendor_id, self.info.product_id))
         self.read_only = self.model is None or self.model.experimental
         # Use the identified sensor's DPI family while decoding stages.  The
         # conservative default would decode a PAW3950 Ultra stage incorrectly.
@@ -946,7 +966,7 @@ class Controller:
         while forcing that flush.  Without this, changes survive until the
         mouse is powered off and then revert to the last saved profile.
         """
-        current = self.state.profile or self._read_profile()
+        current = self._read_profile()
         self._require(current is not None, "The mouse did not report its active profile")
         if current is None:
             raise ProtocolError("The mouse did not report its active profile")
@@ -972,6 +992,49 @@ class Controller:
                     logger.exception("could not restore profile %d after failed commit", current)
             raise
         self.state.profile = current
+
+
+def _guard_read_only(method):
+    """Refuse a v1 write unless the model is verified or allowed to write."""
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if self.read_only:
+            raise ProtocolError(
+                "This model is read-only until its settings are verified"
+            )
+        return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+# Every v1 write lands in one of these methods.  The worker and the CLI also
+# check read_only before queueing work, but a direct caller must not be able to
+# skip the check, so it lives here as well.
+_WRITE_METHODS = (
+    "set_polling",
+    "set_active_stage",
+    "set_stage_dpi",
+    "set_stage_color",
+    "set_lift_off_code",
+    "set_debounce",
+    "set_motion_sync",
+    "set_sleep",
+    "set_straight_line",
+    "set_ripple",
+    "set_angle",
+    "set_sensor_mode",
+    "set_performance_mode",
+    "set_button_action",
+    "reset_buttons",
+    "add_stage",
+    "remove_last_stage",
+    "set_led_mode",
+    "set_profile",
+    "commit_settings",
+)
+for _write_name in _WRITE_METHODS:
+    setattr(Controller, _write_name, _guard_read_only(getattr(Controller, _write_name)))
 
 
 V2_BUTTON_ACTIONS: dict[str, tuple[int, int, int, int]] = {
@@ -1288,6 +1351,15 @@ class V2Controller:
             self._apply_config(state, self.transport.read_config())
         except ProtocolError:
             pass
+        # The stage button on the mouse changes the active index without
+        # touching the config block, so read the one byte and reload only when
+        # it moved.
+        try:
+            active = self.transport.read_memory(1, 1)
+            if active and active[0] != state.active_stage:
+                self._reload_dpi()
+        except ProtocolError:
+            pass
         return state
 
     def online_status(self) -> bool | None:
@@ -1301,6 +1373,7 @@ class V2Controller:
 
     def set_polling(self, hertz: int) -> int:
         self._require(not self.read_only, "This 0xFF05 device is not in the verified model table")
+        self._require(hertz in self.caps.polling_rates, f"{hertz} Hz is not available on this link")
         actual = self.transport.set_rate(hertz)
         self._require(actual == hertz, f"The mouse kept {actual} Hz")
         self.state.polling_rate = actual
@@ -1333,6 +1406,10 @@ class V2Controller:
 
     def set_stage_color(self, index: int, color: str) -> str:
         self._require(not self.read_only, "DPI colours are read-only on this 0xFF05 device")
+        self._require(
+            self.state.supports_stage_colors,
+            "This mouse does not expose stage colours",
+        )
         self._require(0 <= index < self.state.stage_count, "DPI stage out of range")
         if len(color) != 7 or not color.startswith("#"):
             raise ProtocolError("Colour must be #rrggbb")
@@ -1345,7 +1422,8 @@ class V2Controller:
 
     def set_lift_off_code(self, code: int) -> int:
         self._require(not self.read_only, "Lift-off distance is read-only on this 0xFF05 device")
-        self._require(code in (1, 2, 3), "Unsupported lift-off code")
+        allowed = [item[0] for item in self.caps.lift_off_choices]
+        self._require(code in allowed, "That lift-off value is not available")
         self.transport.set_lod(code)
         config = self.transport.read_config()
         actual = config[5] + 1
@@ -1415,6 +1493,7 @@ class V2Controller:
 
     def set_button_action(self, index: int, action: str) -> str:
         self._require(not self.read_only, "Button remapping is read-only on this 0xFF05 device")
+        self._require(self.state.supports_button_remap, "Button remapping has not been verified for this model")
         self._require(0 <= index < len(BUTTON_NAMES), "Button index out of range")
         self._require(action in V2_BUTTON_ACTIONS, "Unsupported button action")
         if index == 5 and self.model is not None and not self.model.bottom_button:
@@ -1490,9 +1569,29 @@ class V2Controller:
         # bounce is needed.
         return
 
+    # Memory blocks that describe the settings surface, at the addresses the
+    # firmware itself documents (see docs/PROTOCOL.md).
+    RAW_BLOCKS: tuple[tuple[int, int], ...] = (
+        (0x0001, 66),  # DPI table: active index, count, eight stages
+        (0x004A, 1),   # sensor sampling mode
+        (0x004C, 3),   # LED mode, brightness, speed
+        (0x0052, 30),  # six button records
+    )
+
     def collect_raw_registers(self, start: int = 0, end: int = 0,
                               include_disabled: bool = True) -> dict[int, bytes | None]:
-        return {}
+        """Read the 0xFF05 memory blocks for a support report (read-only).
+
+        Without this a --raw report from a 0xFF05 mouse carried no device
+        bytes at all, which is exactly the data the next model needs.
+        """
+        result: dict[int, bytes | None] = {}
+        for address, length in self.RAW_BLOCKS:
+            try:
+                result[address] = self.transport.read_memory(address, length)
+            except ProtocolError:
+                result[address] = None
+        return result
 
 
 def controller_for(info: DeviceInfo, debug: bool = False) -> Controller | V2Controller:

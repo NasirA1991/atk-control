@@ -60,7 +60,7 @@ class FakeTransport:
     def read_battery(self):
         return {"percent": 76, "charging": False, "millivolts": 3980}
 
-    def read_identity(self):
+    def read_identity(self, attempts: int = 3):
         return 2, 54
 
     def read_firmware(self, attempts=1):
@@ -89,12 +89,12 @@ class _ProfileCommitFailure(FakeTransport):
 
 
 class _ExperimentalIdentity(FakeTransport):
-    def read_identity(self):
+    def read_identity(self, attempts: int = 3):
         return 2, 36
 
 
 class _UnverifiedIdentity(FakeTransport):
-    def read_identity(self):
+    def read_identity(self, attempts: int = 3):
         return 9, 9
 
 
@@ -221,11 +221,18 @@ class ControllerTests(unittest.TestCase):
         ctl.read_full()
         self.assertFalse(ctl.state.supports_button_remap)
         self.assertFalse(ctl.state.supports_sensor_max)
-        with self.assertRaises(protocol.ProtocolError):
-            ctl.set_button_action(4, "back")
-        with self.assertRaises(protocol.ProtocolError):
-            ctl.set_sensor_mode(2)
-        self.assertEqual(ctl.set_sensor_mode(1), 1)
+        self.assertTrue(ctl.read_only)
+        # A direct caller must not be able to write to an unidentified model;
+        # the guard lives in the controller, not only in the worker and CLI.
+        for write in (
+            lambda: ctl.set_button_action(4, "back"),
+            lambda: ctl.set_sensor_mode(2),
+            lambda: ctl.set_sensor_mode(1),
+            lambda: ctl.set_polling(500),
+            lambda: ctl.set_led_mode(1, 1, 1),
+        ):
+            with self.assertRaises(protocol.ProtocolError):
+                write()
 
     def test_button_reset_restores_original_on_partial_failure(self) -> None:
         fake = _ButtonFailure()
@@ -267,14 +274,60 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(self.ctl.state.stage_count, 4)
 
     def test_commit_settings_round_trips_profile(self) -> None:
-        self.ctl.state.profile = 1
+        self.ctl.transport.profile = 0  # the mouse is on profile 1
+        self.ctl.state.profile = 3  # stale cache, must not be trusted
         self.ctl.commit_settings()
-        self.assertEqual(self.ctl.state.profile, 1)
         self.assertEqual(self.ctl.transport.profile, 0)
+        self.assertEqual(self.ctl.state.profile, 1)
+
+    def test_commit_keeps_the_profile_the_mouse_reports(self) -> None:
+        # The profile button moved the mouse to profile 2 after the last full
+        # read.  Committing must return to 2, not to the cached 1.
+        self.ctl.state.profile = 1
+        self.ctl.transport.profile = 1
+        self.ctl.commit_settings()
+        self.assertEqual(self.ctl.transport.profile, 1)
+        self.assertEqual(self.ctl.state.profile, 2)
+
+    def test_identity_loss_keeps_the_known_model(self) -> None:
+        first = self.ctl.read_full()
+        self.assertEqual(first.model_name, "MAD R +")
+        self.assertFalse(first.read_only)
+
+        def failing_identity(attempts: int = 3):
+            raise protocol.ProtocolError("the mouse is asleep")
+
+        self.ctl.transport.read_identity = failing_identity
+        with self.assertRaises(protocol.ProtocolError):
+            self.ctl.read_full()
+        # The model and its DPI family survive a dropped poll: downgrading to
+        # an unknown model here misread ultra-encoded DPI by a factor of five.
+        self.assertIsNotNone(self.ctl.model)
+        assert self.ctl.model is not None
+        self.assertEqual(self.ctl.model.name, "MAD R +")
+        self.assertFalse(self.ctl.read_only)
+
+    def test_receiver_online_is_not_retried_forever(self) -> None:
+        receiver = FakeTransport()
+        receiver.receiver_online = lambda: None
+        self.ctl.transport = receiver
+        self.ctl.info.product_id = 0x1040
+        self.ctl.info.product_name = "MAD 8K DONGLE"
+        calls = {"n": 0}
+
+        def failing():
+            calls["n"] += 1
+            return None
+
+        receiver.receiver_online = failing
+        for _ in range(6):
+            self.ctl.read_live()
+        self.assertLessEqual(calls["n"], 3)
 
     def test_commit_settings_attempts_profile_restore_after_failure(self) -> None:
         fake = _ProfileCommitFailure()
         self.ctl.transport = fake
+        fake.profile = 0  # profile 1 on the mouse
         self.ctl.state.profile = 1
         with self.assertRaises(protocol.ProtocolError):
             self.ctl.commit_settings()
@@ -372,7 +425,7 @@ class _FakeV2Transport:
     def close(self):
         self.closed = True
 
-    def read_identity(self):
+    def read_identity(self, attempts: int = 3):
         return self.identity
 
     def read_version(self):
@@ -403,6 +456,11 @@ class _FakeV2Transport:
 
     def read_dongle_version(self):
         return "1.0.19"
+
+    def read_memory(self, address, length):
+        if address == 1 and length == 1:
+            return bytes((self.dpi[0],))
+        return bytes(length)
 
     def set_rate(self, hertz):
         code = protocol.V2_RATE_TO_CODE[hertz]
@@ -649,7 +707,7 @@ class R1NKControllerTests(unittest.TestCase):
 
 
 class _A9UltimateIdentity(FakeTransport):
-    def read_identity(self):
+    def read_identity(self, attempts: int = 3):
         return 1, 3
 
 
@@ -696,7 +754,7 @@ class A9UltimateTests(unittest.TestCase):
 
 
 class _R1SEPlusIdentity(FakeTransport):
-    def read_identity(self):
+    def read_identity(self, attempts: int = 3):
         return 2, 31
 
 

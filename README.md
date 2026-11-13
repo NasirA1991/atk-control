@@ -90,15 +90,15 @@ Missing your model or a broken setting? Send a [device support report](#device-r
 **Flatpak:** download from the [latest release](https://github.com/NasirA1991/atk-control/releases/latest), then:
 
 ```bash
-flatpak install --user ./atk-control-0.9.3-x86_64.flatpak
+flatpak install --user ./atk-control-0.9.4-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
 **AppImage:** download, then:
 
 ```bash
-chmod +x atk-control-0.9.3-x86_64.AppImage
-./atk-control-0.9.3-x86_64.AppImage
+chmod +x atk-control-0.9.4-x86_64.AppImage
+./atk-control-0.9.4-x86_64.AppImage
 ```
 
 AUR installs the udev rule; Flatpak, AppImage and per-user installs need the
