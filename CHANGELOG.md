@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.3 — 2026-11-13
+
+- Wrote down what the two status words actually mean, because the README and
+  `CONTRIBUTING.md` disagreed. **Verified** now means the contribution
+  checklist: each advertised setting tested on that exact model, read back,
+  restored, power-cycle checked, and the evidence recorded in
+  `docs/PROTOCOL.md`. **Experimental** is now an explicit tier below it: an
+  owner's report plus the family's proven transport, writes enabled and verified
+  by read-back, but not tested control by control. The ladder and the checks are
+  in [docs/TESTING.md](docs/TESTING.md) and
+  [CONTRIBUTING.md](CONTRIBUTING.md).
+- Accordingly the **ATK Dragonfly A9 Pro Max 2.0 returns to experimental**. Its
+  owner confirmed that settings work and persist across a power cycle on both
+  links, which is enough to keep it writable but not enough for the verified
+  claim added in 0.9.1; that claim was ahead of the evidence. Nothing changes in
+  the app. Once the control-by-control checks are recorded in `docs/PROTOCOL.md`
+  it moves back to verified.
+- Experimental models are tracked with a `needs-verification` label on their
+  issue, which may be closed as soon as support ships.
+
 ## 0.9.2 — 2026-11-13
 
 - Added **experimental support for the VXE R1 SE+** (CID/MID `2,31`, firmware
@@ -20,7 +40,8 @@
   The hardware owner tested both links (`373b:1264` cable, `373b:11dc` 8K
   dongle) and confirmed that settings are written correctly and survive a power
   cycle. Its identity table, sensor, polling ceiling and capability flags were
-  already correct in 0.9.0.
+  already correct in 0.9.0. (Reversed in 0.9.3: the confirmation did not cover
+  each control, which is what the verified claim requires.)
 - **Lift-off on `0xFF05` mice is a vendor level, not millimetres.** The value is
   `config[5] + 1`, so a firmware that uses levels outside the known 1/2/3 map
   used to display `Lift-off: unknown`, which looked like a read failure. It now

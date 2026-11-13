@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.9.3" date="2026-11-13">
+      <description>
+        <p>Documents what the two status words mean and aligns the README with the contribution rules. Verified now requires every advertised setting to be tested on that exact model, read back, restored, power-cycle checked, and the evidence recorded in the protocol notes; experimental is the tier below it, where writes are enabled from an owner's report and verified by read-back. Accordingly the ATK Dragonfly A9 Pro Max 2.0 returns to experimental: its owner confirmed settings work and persist across a power cycle, which keeps it writable but does not yet cover each control. Experimental models are tracked with a needs-verification label.</p>
+      </description>
+    </release>
     <release version="0.9.2" date="2026-11-13">
       <description>
         <p>Adds experimental support for the VXE R1 SE+ (CID/MID 2,31 over its 373b:1085 1K receiver). The mouse was previously recognized read-only from the device catalog; its report shows a complete 0xFF02 register set, so polling, DPI stages and colours, lift-off, debounce, sleep, Motion Sync, straight-line, ripple, rotation, lighting, profiles and button remapping are now writable. The sensor stays PAW3395SE with the 100-18,000 DPI table, matching the retail specification. Settings have not been write-tested on hardware yet.</p>

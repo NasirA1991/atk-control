@@ -43,21 +43,26 @@ not mean every variant has been tested.
 | --- | --- | --- |
 | **ATK MAD R+** | 8K | **Verified** |
 | **VXE R1 Pro** | 1K, 4K | **Verified** |
-| **ATK Dragonfly A9 Pro Max 2.0** | Wired, 8K dongle | **Verified** |
+| **ATK Dragonfly A9 Pro Max 2.0** | Wired, 8K dongle | **Experimental** |
 | **ATK A9 Ultimate** | Wired, 8K dongle | **Experimental** |
 | **VXE R1 NK (NearLink)** | 1K receiver, cable | **Experimental** |
 | **VXE R1 SE+** | 1K | **Experimental** |
 
-**Verified** = exact model tested; **Experimental** = protocol implemented but
-untested. The Dragonfly A9 Pro Max 2.0 uses USB `373b:11dc` (8K dongle) or
-`373b:1264` (wired); an owner confirmed settings and their persistence across a
-power cycle on both links, and it has no rotation, stage-count changes or
-Bluetooth configuration. The A9 Ultimate answers CID/MID `1,3` on the older
-`0xFF02` protocol with a PAW3950Ultra; the lift-off level its firmware stores is
-still unmapped. The VXE R1 NK answers CID/MID `2,8` over `0xFF05` and is
-wired/1K only. The VXE R1 SE+ answers CID/MID `2,31` over `0xFF02` on its 1K
-receiver (`373b:1085`); it was added from a device report and has not been
-write-tested by its owner yet.
+**Verified** = every advertised setting tested on that exact model, with the
+evidence recorded in the protocol notes; **Experimental** = implemented from an
+owner's report and the family's proven transport, writes enabled and verified by
+read-back, but not yet tested control by control. The checks behind each state
+are in [Testing a mouse](docs/TESTING.md#promotion-criteria).
+
+The Dragonfly A9 Pro Max 2.0 uses USB `373b:11dc` (8K dongle) or `373b:1264`
+(wired); its owner confirmed that settings work and persist across a power cycle
+on both links, but the control-by-control test is still pending, and it has no
+rotation, stage-count changes or Bluetooth configuration. The A9 Ultimate
+answers CID/MID `1,3` on the older `0xFF02` protocol with a PAW3950Ultra; the
+lift-off level its firmware stores is still unmapped. The VXE R1 NK answers
+CID/MID `2,8` over `0xFF05` and is wired/1K only. The VXE R1 SE+ answers CID/MID
+`2,31` over `0xFF02` on its 1K receiver (`373b:1085`); it was added from a device
+report and has not been write-tested by its owner yet.
 
 ### Other recognized hardware
 
@@ -85,15 +90,15 @@ Missing your model or a broken setting? Send a [device support report](#device-r
 **Flatpak:** download from the [latest release](https://github.com/NasirA1991/atk-control/releases/latest), then:
 
 ```bash
-flatpak install --user ./atk-control-0.9.2-x86_64.flatpak
+flatpak install --user ./atk-control-0.9.3-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
 **AppImage:** download, then:
 
 ```bash
-chmod +x atk-control-0.9.2-x86_64.AppImage
-./atk-control-0.9.2-x86_64.AppImage
+chmod +x atk-control-0.9.3-x86_64.AppImage
+./atk-control-0.9.3-x86_64.AppImage
 ```
 
 AUR installs the udev rule; Flatpak, AppImage and per-user installs need the

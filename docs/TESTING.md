@@ -198,3 +198,32 @@ re-enumeration (cable to receiver, wake, reset) needs a re-attach; WSL has no
 udev unless systemd is enabled, so run the CLI as root or install the rule
 inside the distro. The GUI and the tray need a real Linux session, so use a
 live USB when a test depends on them.
+
+## Promotion criteria
+
+A model is in one of three states; the [README](../README.md#supported-hardware)
+shows the current one.
+
+| State | What it claims | What is required |
+| --- | --- | --- |
+| Read-only | identity, battery and reads only | nothing: the identity is in the vendor catalog |
+| Experimental | writes work, verified by read-back | an owner's report that decodes with the family's existing protocol |
+| Verified | the advertised controls are proven on that model | the checklist below, recorded in [PROTOCOL.md](PROTOCOL.md) |
+
+To move a model from experimental to verified, its owner runs this on the exact
+mouse and posts the result:
+
+1. reads are consistent on that link (`atkctl status`, `atkctl caps`);
+2. each advertised setting is written, read back, and restored to its original
+   value;
+3. the values the app claims to commit survive a power cycle or reconnect;
+4. the evidence is written into [PROTOCOL.md](PROTOCOL.md).
+
+"The settings work" keeps a model experimental: it proves that writes land, not
+that every control is correct. A control that cannot be restored from the app —
+an unmapped lift-off level, for example — is not tested at all, and the
+limitation is stated instead of being guessed at.
+
+Experimental models are tracked with the `needs-verification` label on their
+issue. The label comes off when the evidence lands and the README moves the model
+to verified.
