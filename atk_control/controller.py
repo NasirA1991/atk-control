@@ -1220,6 +1220,16 @@ class V2Controller:
         state.supports_stage_count = False
         self.read_only = state.read_only
 
+    def _dongle_firmware(self) -> str:
+        """Version of the receiver itself; only receivers answer command 0x88."""
+        if not self.info.is_receiver:
+            return ""
+        try:
+            return self.transport.read_dongle_version()
+        except ProtocolError:
+            logger.debug("v2 dongle firmware read failed", exc_info=True)
+            return ""
+
     def read_full(self) -> MouseState:
         cid, mid, firmware = self._identity()
         self._set_model(cid, mid)
@@ -1233,6 +1243,7 @@ class V2Controller:
             brand=self.model.brand if self.model else "ATK",
             sensor=self.model.sensor if self.model else "Unknown sensor",
             firmware=firmware,
+            dongle_firmware=self._dongle_firmware(),
             usb_bcd=protocol.format_bcd(self.info.bcd_device),
             via_receiver=self.info.is_receiver,
             receiver_name=self.receiver.name if self.receiver else "",

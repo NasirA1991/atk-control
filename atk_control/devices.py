@@ -101,10 +101,13 @@ MODELS: tuple[Model, ...] = (
           usb_ids=((0x373B, 0x1017),)),
     Model(2, 83, "ATK A9 Plus NearLink", "ATK", "PAW3395", 1000),
     # The A9 Ultimate answers CID/MID 1,3: a different CID family from the
-    # older 2,x mice, but on the same 0xff02 register layout.  The sensor is
-    # not identified yet, so the DPI table stays at the conservative
-    # 50-30,000 step-50 range that the unit's own stage records decode with.
-    Model(1, 3, "ATK A9 Ultimate", "ATK", "Unknown sensor", 8000,
+    # older 2,x mice, but on the same 0xff02 register layout.  The vendor
+    # model table behind ATK HUB 3.2.28 lists 1,3 as an Ultimate-tier mouse
+    # with a PAW3950Ultra (it calls that entry "ATK Ghost Ultimate"; the USB
+    # product string says A9 Ultimate).  The unit's stage records agree: the
+    # ultra encoding decodes 0x27/0x4f/0x9f/0x3f-0x44 as 400/800/1600/3200,
+    # the usual factory ladder, while step-50 would read 2000-16000.
+    Model(1, 3, "ATK A9 Ultimate", "ATK", "PAW3950Ultra", 8000,
           button_remap=True, usb_ids=((0x373B, 0x11B6),)),
     Model(2, 114, "VXE R1 Ultra", "VXE", "PAW3395", 8000),
 )

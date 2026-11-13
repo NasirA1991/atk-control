@@ -1218,6 +1218,9 @@ class MainWindow(Adw.ApplicationWindow):
         )
         self.firmware_value = self._label("—", "metric-value")
         firmware_body.append(self.firmware_value)
+        self.dongle_firmware_value = self._label("", "row-sub", wrap=True)
+        self.dongle_firmware_value.set_visible(False)
+        firmware_body.append(self.dongle_firmware_value)
         firmware_body.append(self._label(
             "Firmware updates are handled by ATK HUB. Download and install them there, "
             "then reconnect the mouse. Settings are kept.",
@@ -1727,8 +1730,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.lod_note.set_visible(state.lod_code is not None and state.lod_code not in known_codes)
         if state.lod_code is not None and state.lod_code not in known_codes:
             self.lod_note.set_text(
-                f"This firmware reports lift-off code {state.lod_code}, which is not in the "
-                "verified 1 mm / 2 mm map. Choose a verified value to migrate it."
+                f"This firmware reports lift-off level {state.lod_code}, which is not in the "
+                "verified 1 mm / 2 mm map. Choosing a value writes that level and reads it back."
             )
 
         # ComboRow-like DropDowns.  The current value is added to the list by
@@ -1876,6 +1879,9 @@ class MainWindow(Adw.ApplicationWindow):
         )
         self.device_values["Device revision"].set_text(state.usb_bcd or "—")
         self.firmware_value.set_text(state.firmware or "Not reported")
+        dongle = state.dongle_firmware
+        self.dongle_firmware_value.set_text(f"Receiver firmware {dongle}" if dongle else "")
+        self.dongle_firmware_value.set_visible(bool(dongle))
         self._update_device_choices(state)
         self.profile_card.set_visible(state.profile is not None)
         for number, button in enumerate(self.profile_buttons, start=1):

@@ -26,6 +26,7 @@ class MouseState:
     brand: str = "ATK"
     sensor: str = ""
     firmware: str = ""
+    dongle_firmware: str = ""
     usb_bcd: str = ""
     via_receiver: bool = False
     receiver_name: str = ""

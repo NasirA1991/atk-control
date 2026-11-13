@@ -67,20 +67,25 @@ file.
 
 For the models added in 0.9.0, a healthy read-only pass looks like this:
 
-| Check | ATK A9 Ultimate | VXE R1 NK (NearLink) |
-| --- | --- | --- |
-| `status` → Mouse | `ATK A9 Ultimate` | `VXE R1 NK` |
-| Link | `USB cable` or `ATK 8K Wireless Dongle` | `ATK NK mouse NANO dongle` or `USB cable` |
-| `caps` → Sensor | `Unknown sensor` (50–30000) | `PAW3395SE` (100–18000) |
-| `caps` → Link ceiling | 4000 Hz on cable, 8000 Hz on the dongle | 1000 Hz |
-| `caps` → DPI range | 50–30000 | 100–18000 |
-| DPI stages | 4 (as configured on the mouse) | 4, not 8 |
-| Rotation / lighting / colours | yes / yes / yes | no / no / no |
-| Buttons | named, e.g. `Back` | named, e.g. `Back` — not `Custom / unsupported` |
+| Check | ATK A9 Ultimate | VXE R1 NK (NearLink) | ATK Dragonfly A9 Pro Max 2.0 |
+| --- | --- | --- | --- |
+| `status` → Mouse | `ATK A9 Ultimate` | `VXE R1 NK` | `ATK Dragonfly A9 Pro Max 2.0` |
+| Link | `USB cable` or `ATK 8K Wireless Dongle` | `ATK NK mouse NANO dongle` or `USB cable` | `USB cable` or `ATK 8K NANO Dongle` |
+| `caps` → Sensor | `PAW3950Ultra` (10–42000) | `PAW3395SE` (100–18000) | `PAW3395Ultra`, `PAW3950Ultra` or `PAW3950DM` by CID/MID |
+| `caps` → Link ceiling | 4000 Hz on cable, 8000 Hz on the dongle | 1000 Hz | 8000 Hz on both links |
+| DPI stages | as configured on the mouse | 4, not 8 | as configured on the mouse |
+| Rotation / lighting / colours | yes / yes / yes | no / no / no | no / yes / yes |
+| Buttons | named, e.g. `Back` | named, e.g. `Back` — not `Custom / unsupported` | named, e.g. `Back` |
+| `status` → Dongle fw | wired: absent | `Dongle fw` line when a receiver is used | `1.0.19` on the dongle |
 
 `status` also prints the CID/MID implicitly through the model name; if the
 model reads `Unknown ATK/VXE mouse` on a receiver, the paired mouse did not
 answer — wake it and retry.
+
+`Lift-off` prints millimetres only when the stored level is mapped (`1`–`3`).
+`Lift-off: level 6 (unmapped)` is not a failure: the `0xFF05` firmware stores a
+vendor level, and the tested A9 Pro Max 2.0 keeps a level the app cannot name
+yet. Please report that line — it is what maps the remaining levels.
 
 ## 2. Reversible write checks
 
@@ -139,15 +144,18 @@ rejects, with the exact command and the error text.
 
 ### Known limits to expect
 
-- **ATK A9 Ultimate** — the sensor is not identified, so the DPI list stops at
-  30,000, and the lift-off code the mouse reports (`6`) is not in the known
-  1 mm / 2 mm map. The Performance page warns about the unmapped code; writing a
-  verified value is allowed and verified by read-back.
+- **ATK A9 Ultimate** — the PAW3950Ultra sensor comes from ATK HUB's model
+  table, not from an owner's confirmation yet, so DPI has not been checked
+  against the mouse itself. Its lift-off level (`6`) is not in the known
+  1 mm / 2 mm map. The Performance page warns about the unmapped level; writing
+  a verified value is allowed and verified by read-back.
 - **VXE R1 NK** — no rotation, lighting, stage-colour or performance-mode
   controls, because the hardware does not expose them. Macros and
   keyboard/shortcut button classes are read-only.
 - **ATK Dragonfly A9 Pro Max 2.0** — `0xFF05` path: no rotation and no way to
-  add or remove DPI stages. Settings write to the active profile directly.
+  add or remove DPI stages. Settings write to the active profile directly, and
+  an owner confirmed they survive a power cycle. Lift-off reads as an unmapped
+  level until the vendor's option list for this model is confirmed.
 
 ## 3. What to attach
 

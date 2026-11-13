@@ -217,6 +217,8 @@ def report_text(state: MouseState, device_path: str | None = None,
     lines.append(f"- USB device revision: {state.usb_bcd or 'unknown'}")
     lines.append(f"- Configuration protocol: {_protocol_label(state.protocol)}")
     lines.append(f"- Firmware: {state.firmware or 'not reported'}")
+    if state.via_receiver and state.dongle_firmware:
+        lines.append(f"- Receiver firmware: {state.dongle_firmware}")
     lines.append(f"- CID/MID: {state.identity}")
     lines.append(f"- Connection: {state.link_label}")
     lines.append(f"- Read-only mode: {_safe(state.read_only)}")

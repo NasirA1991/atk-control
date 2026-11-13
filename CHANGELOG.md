@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.9.1 — 2026-11-13
+
+- Promoted the **ATK Dragonfly A9 Pro Max 2.0** from experimental to verified.
+  The hardware owner tested both links (`373b:1264` cable, `373b:11dc` 8K
+  dongle) and confirmed that settings are written correctly and survive a power
+  cycle. Its identity table, sensor, polling ceiling and capability flags were
+  already correct in 0.9.0.
+- **Lift-off on `0xFF05` mice is a vendor level, not millimetres.** The value is
+  `config[5] + 1`, so a firmware that uses levels outside the known 1/2/3 map
+  used to display `Lift-off: unknown`, which looked like a read failure. It now
+  prints `Lift-off: level 6 (unmapped)`, the Device page note says the same, and
+  the report keeps the raw number. Mapping the extra levels needs the vendor's
+  option list for that model.
+- The **receiver firmware** is now read for `0xFF05` receivers (command `0x88`)
+  and shown in `atkctl status`, the Device page and support reports. The A9 Pro
+  Max 2.0 reports mouse `1.0.14` and dongle `1.0.19`; previously only the mouse
+  version was visible.
+- Corrected the **ATK A9 Ultimate sensor** to `PAW3950Ultra`. ATK HUB's own model
+  table lists CID/MID `1,3` as an Ultimate-tier mouse with that sensor, and the
+  unit's stage records decode as 400/800/1600/3200 under the ultra encoding
+  instead of 2000/4000/8000/16000 under step-50. Every DPI value it read or
+  wrote was therefore five times too high, and the DPI list was capped at
+  30,000 instead of 42,000.
+- Cross-checked the `0xFF05` command map and the CID/MID table against the
+  reference reverse engineering: all command numbers, the memory map and the
+  identity entries for `2,1`, `2,8`, `2,14` and `2,27` agree.
+
 ## 0.9.0 — 2026-11-12
 
 - Added **experimental support for the ATK A9 Ultimate** (CID/MID `1,3`,

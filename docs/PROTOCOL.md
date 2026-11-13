@@ -66,6 +66,38 @@ firmware quirks are handled:
 That receiver also answers for an R1 S NK (`2,9`) and for other NearLink mice,
 so the model must come from CID/MID, never from the USB id.
 
+## Reference cross-check
+
+The 0xFF05 details in this document were re-read against the public
+`Kamrulhasan12345/atk-hub-linux` implementation (the project this path was
+originally reconstructed from) before the 0.9.1 release. They agree:
+
+- command numbers: rate `1`, DPI `2`, LOD `3`, button `5`, macro `6`, battery
+  `7`, config `9`, profile `10`, angle snap `11`, ripple `12`, Motion Sync `13`,
+  charging `15`, reset `19`, LED `20`, sleep `21`, debounce `22`, read memory
+  `23`, firmware `28`, sensor mode `31`, cid/mid `74`; dongle connect `129`,
+  dongle version `136`;
+- the unsolicited report code `0x73` (DPI changed / profile changed), which this
+  app ignores while a command is in flight;
+- the memory map: DPI block `1`-`66`, sensor mode `74`, LED `76`-`78`, buttons
+  `82`-`111`;
+- the model table for `2,1`, `2,8`, `2,14` and `2,27` (sensors PAW3395Ultra,
+  PAW3395SE, PAW3950Ultra and PAW3950DM), and the `1,3` entry covered under
+  "Newer 0xFF02 identities" below.
+
+Two details from that work are worth repeating:
+
+- **Lift-off is a level, not a distance.** Config byte `5` is the vendor's
+  `offsetCalibration` index, reported as `config[5] + 1` and written as
+  `level - 1` with command `0x03`. Only levels 1-3 are mapped to 1 mm / 2 mm /
+  0.7 mm here, so a firmware that stores a higher level is shown as
+  `level N (unmapped)` rather than a wrong distance.
+- **The receiver's own firmware** answers dongle command `136` (`0x88`). The
+  tested 8K dongle reports `1.0.19` while the mouse reports `1.0.14`; both are
+  now shown. After the 1.0.19 update the dongle's USB manufacturer string
+  changed from `ATK` to `MADLIONS`, so discovery must key on VID/PID and the
+  mouse identity, never on the product string.
+
 ## Registers used
 
 | Address | Meaning |
@@ -88,19 +120,22 @@ Polling codes: `08`=125, `04`=250, `02`=500, `01`=1000, `10`=2000,
 An ATK A9 Ultimate (firmware `3.03`) was reported on the cable (`373b:11b6`)
 and through its 8K dongle (`373b:11d9`). Both links answered CID/MID `1,3`,
 which is a different CID family from the older `2,x` mice but the same
-`0xff02` register layout: the polling row decoded as 4000 Hz with four stages
-(2000/4000/8000/16000), `0x00a9` decoded as debounce 1 ms, Motion Sync on,
-sleep 300 s, straight-line and ripple off, `0x004c` as lighting off with
-brightness/speed 1, `0x002c` as unpacked stage colours and `0x0060` as the
-six standard button records.
+`0xff02` register layout: the polling row decoded as 4000 Hz with four stages,
+`0x00a9` decoded as debounce 1 ms, Motion Sync on, sleep 300 s, straight-line
+and ripple off, `0x004c` as lighting off with brightness/speed 1, `0x002c` as
+unpacked stage colours and `0x0060` as the six standard button records.
 
-Two values do not match the older map and are treated as unconfirmed:
+The sensor is a PAW3950Ultra, which also fixes the DPI decode: the four stage
+records are `27 27 00 xx`, `4f 4f 00 xx`, `9f 9f 00 xx` and `3f 3f 44 xx`.
+Under the ultra encoding those are 400 / 800 / 1600 / 3200 DPI, the usual
+factory ladder; the step-50 table would read 2000 / 4000 / 8000 / 16000. The
+sensor comes from ATK HUB's model table (see the reference cross-check above),
+which lists `1,3` as an Ultimate-tier mouse; the table calls that entry
+"ATK Ghost Ultimate" while the USB product string says "ATK A9 Ultimate".
 
-- the sensor is not identified, so the DPI table is the conservative
-  50-30,000 step-50 range;
-- lift-off reads code `6`, outside the known 1 mm / 2 mm / 0.7 mm codes, so the
-  UI warns that the stored code is unmapped and only offers the verified
-  values.
+One value still does not match the older map: lift-off reads `6`, outside the
+known 1 mm / 2 mm / 0.7 mm codes, so the UI warns that the stored value is
+unmapped and only offers the verified values.
 
 The wired link also proves the 1 kHz cable cap is only a default: the mouse
 itself reported 4000 Hz, so the wired ceiling is now

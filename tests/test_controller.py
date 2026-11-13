@@ -401,6 +401,9 @@ class _FakeV2Transport:
     def read_online(self):
         return True
 
+    def read_dongle_version(self):
+        return "1.0.19"
+
     def set_rate(self, hertz):
         code = protocol.V2_RATE_TO_CODE[hertz]
         self.config[2] = code
@@ -465,6 +468,7 @@ class V2ControllerTests(unittest.TestCase):
         self.assertEqual(state.model_name, "ATK Dragonfly A9 Pro Max 2.0")
         self.assertEqual(state.sensor, "PAW3395Ultra")
         self.assertEqual(state.firmware, "1.03")
+        self.assertEqual(state.dongle_firmware, "1.0.19")
         self.assertEqual(state.dpi, 1600)
         self.assertEqual(state.stage_count, 4)
         self.assertEqual(state.polling_rate, 1000)
@@ -525,6 +529,23 @@ class V2ControllerTests(unittest.TestCase):
         self.assertFalse(session.online_status())
         session.transport.read_online = lambda: True
         self.assertTrue(session.online_status())
+
+    def test_wired_link_has_no_dongle_firmware(self) -> None:
+        info = DeviceInfo(
+            "/dev/hidraw-cable", 0x373B, 0x1264,
+            "ATK ATK A9 PRO MAX 2.0 NK", "0301", "0100",
+            True, b"", "v2", True,
+        )
+        session = controller.V2Controller(info)
+        transport = _FakeV2Transport()
+
+        def unexpected():
+            raise AssertionError("command 0x88 must not run on a wired link")
+
+        transport.read_dongle_version = unexpected
+        session.transport = transport
+        state = session.read_full()
+        self.assertEqual(state.dongle_firmware, "")
 
     def test_unknown_v2_is_read_only(self) -> None:
         session = self._controller()
@@ -647,10 +668,23 @@ class A9UltimateTests(unittest.TestCase):
         state = self._controller().read_full()
         self.assertEqual(state.model_name, "ATK A9 Ultimate")
         self.assertEqual((state.cid, state.mid), (1, 3))
-        self.assertEqual(state.sensor, "Unknown sensor")
+        self.assertEqual(state.sensor, "PAW3950Ultra")
         self.assertFalse(state.read_only)
         self.assertTrue(state.supports_button_remap)
         self.assertTrue(state.supports_lighting)
+
+    def test_stage_records_decode_with_the_ultra_encoding(self) -> None:
+        # The report's raw stages were 0x27/0x4f/0x9f/0x3f-0x44: 400-3200 DPI
+        # under the ultra encoding, not the 2000-16000 the step-50 table gives.
+        transport = _A9UltimateIdentity()
+        for index, dpi in enumerate((400, 800, 1600, 3200)):
+            put(transport.mem, 0x000C + index * 4,
+                protocol.pack_dpi_stage(dpi, dpi, "ultra"))
+        session = self._controller()
+        session.transport = transport
+        state = session.read_full()
+        self.assertEqual(state.stages, [(400, 400), (800, 800), (1600, 1600), (3200, 3200)])
+        self.assertEqual(state.dpi, 1600)
 
     def test_cable_keeps_its_reported_polling_rate(self) -> None:
         session = self._controller()

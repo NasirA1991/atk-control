@@ -183,6 +183,8 @@ def _status(controller: Controller | V2Controller, as_json: bool) -> int:
         "not forwarded by the receiver" if state.via_receiver else "unknown"
     )
     print(f"Firmware   : {firmware}")
+    if state.dongle_firmware:
+        print(f"Dongle fw  : {state.dongle_firmware}")
     if state.experimental:
         print("Support    : experimental / read-only (model recognized, protocol unverified)")
     if state.telemetry_only:
@@ -194,7 +196,14 @@ def _status(controller: Controller | V2Controller, as_json: bool) -> int:
     print(f"Ripple     : {_onoff(state.ripple_control)}")
     if state.sensor_mode is not None:
         print(f"Sensor mode: {_sensor_mode_label(state.sensor_mode)}")
-    print(f"Lift-off   : {state.lod_mm:.1f} mm" if state.lod_mm is not None else "Lift-off   : unknown")
+    if state.lod_mm is not None:
+        print(f"Lift-off   : {state.lod_mm:.1f} mm")
+    elif state.lod_code is not None:
+        # The 0xFF05 firmware stores a vendor level, not millimetres, and the
+        # level-to-distance table is only known for some models.
+        print(f"Lift-off   : level {state.lod_code} (unmapped)")
+    else:
+        print("Lift-off   : unknown")
     print(f"Debounce   : {state.debounce_ms} ms" if state.debounce_ms is not None else "Debounce   : unknown")
     print(f"Sleep      : {state.sleep_seconds} s" if state.sleep_seconds else "Sleep      : unknown")
     return 0

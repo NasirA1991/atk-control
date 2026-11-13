@@ -43,16 +43,18 @@ not mean every variant has been tested.
 | --- | --- | --- |
 | **ATK MAD R+** | 8K | **Verified** |
 | **VXE R1 Pro** | 1K, 4K | **Verified** |
-| **ATK Dragonfly A9 Pro Max 2.0** | Wired, 8K dongle | **Experimental** |
+| **ATK Dragonfly A9 Pro Max 2.0** | Wired, 8K dongle | **Verified** |
 | **ATK A9 Ultimate** | Wired, 8K dongle | **Experimental** |
 | **VXE R1 NK (NearLink)** | 1K receiver, cable | **Experimental** |
 
 **Verified** = exact model tested; **Experimental** = protocol implemented but
 untested. The Dragonfly A9 Pro Max 2.0 uses USB `373b:11dc` (8K dongle) or
-`373b:1264` (wired), and has no rotation, stage-count changes or Bluetooth
-configuration. The A9 Ultimate answers CID/MID `1,3` on the older `0xFF02`
-protocol, so its hidden sensor and lift-off mapping are still unconfirmed; the
-VXE R1 NK answers CID/MID `2,8` over `0xFF05` and is wired/1K only.
+`373b:1264` (wired); an owner confirmed settings and their persistence across a
+power cycle on both links, and it has no rotation, stage-count changes or
+Bluetooth configuration. The A9 Ultimate answers CID/MID `1,3` on the older
+`0xFF02` protocol with a PAW3950Ultra; the lift-off level its firmware stores is
+still unmapped. The VXE R1 NK answers CID/MID `2,8` over `0xFF05` and is
+wired/1K only.
 
 ### Other recognized hardware
 
@@ -80,15 +82,15 @@ Missing your model or a broken setting? Send a [device support report](#device-r
 **Flatpak:** download from the [latest release](https://github.com/NasirA1991/atk-control/releases/latest), then:
 
 ```bash
-flatpak install --user ./atk-control-0.9.0-x86_64.flatpak
+flatpak install --user ./atk-control-0.9.1-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
 **AppImage:** download, then:
 
 ```bash
-chmod +x atk-control-0.9.0-x86_64.AppImage
-./atk-control-0.9.0-x86_64.AppImage
+chmod +x atk-control-0.9.1-x86_64.AppImage
+./atk-control-0.9.1-x86_64.AppImage
 ```
 
 AUR installs the udev rule; Flatpak, AppImage and per-user installs need the
@@ -165,9 +167,13 @@ JSON output and exit codes. The GUI and CLI share a per-device lock; stop
   have no rotation control and no way to add or remove stages. Settings work
   over the dongle or USB cable; Bluetooth exposes no configuration interface.
 - The ATK A9 Ultimate is experimental: its `0xFF02` register layout matches the
-  rest of the family, but the sensor model is not identified, so the DPI list is
-  capped at 30,000 and its lift-off code (`6`) is not in the known 1 mm/2 mm map.
-  The VXE R1 NK has no lighting, stage colours or performance-mode hardware.
+  rest of the family and the PAW3950Ultra sensor comes from ATK HUB's own model
+  table, but no owner has confirmed settings on hardware yet. Its lift-off level
+  (`6`) is not in the known 1 mm / 2 mm map.
+- For `0xFF05` mice the lift-off byte is a vendor level, not millimetres. Levels
+  1-3 map to 1 mm / 2 mm / 0.7 mm; an unmapped level is shown as
+  `Lift-off: level N (unmapped)` instead of claiming a distance.
+- The VXE R1 NK has no lighting, stage colours or performance-mode hardware.
 - Some known models are recognized but read-only until their transport is
   verified. Experimental catalog entries never write.
 - Firmware flashing is not implemented. Use [ATK HUB](https://hub.atk.pro) for

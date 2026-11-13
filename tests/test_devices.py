@@ -59,8 +59,10 @@ class ModelTests(unittest.TestCase):
         assert model is not None
         self.assertEqual(model.name, "ATK A9 Ultimate")
         self.assertEqual(model.brand, "ATK")
-        # The sensor is not identified yet, so the conservative table applies.
-        self.assertEqual(model.sensor_profile.max_dpi, 30000)
+        # ATK HUB's model table lists this identity with a PAW3950Ultra.
+        self.assertEqual(model.sensor, "PAW3950Ultra")
+        self.assertEqual(model.sensor_profile.max_dpi, 42000)
+        self.assertEqual(model.sensor_profile.family, "ultra")
         self.assertTrue(model.button_remap)
         self.assertFalse(model.experimental)
         self.assertIs(devices.MODEL_BY_USB[(0x373B, 0x11B6)], model)

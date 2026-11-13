@@ -224,6 +224,26 @@ class V2CliTests(unittest.TestCase):
             self.assertEqual(cli.main(["polling", "8000"]), 0)
         self.assertEqual(ctl.state.polling_rate, 8000)
 
+    def test_status_shows_unmapped_lift_off_level_and_receiver_firmware(self) -> None:
+        ctl = _V2Stub()
+        ctl.state = MouseState(
+            model_name="ATK Dragonfly A9 Pro Max 2.0", brand="ATK",
+            cid=2, mid=14, sensor="PAW3950Ultra",
+            firmware="1.0.14", dongle_firmware="1.0.19",
+            dpi=800, dpi_y=800, stage_count=4, active_stage=1,
+            polling_rate=1000, battery=79, lod_code=6, lod_mm=None,
+            protocol="v2", read_only=False, telemetry_only=False,
+            via_receiver=True,
+        )
+        out = io.StringIO()
+        with patch("atk_control.cli._open", return_value=ctl):
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(cli.main(["status"]), 0)
+        text = out.getvalue()
+        self.assertIn("Lift-off   : level 6 (unmapped)", text)
+        self.assertIn("Dongle fw  : 1.0.19", text)
+        self.assertNotIn("Lift-off   : unknown", text)
+
     def test_scan_labels_v2_as_ff05(self) -> None:
         info = DeviceInfo(
             "/dev/hidraw-a9", 0x373B, 0x11DC, "NK dongle",
