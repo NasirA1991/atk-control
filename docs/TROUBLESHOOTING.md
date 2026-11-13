@@ -188,7 +188,7 @@ dbus-python. Install the distribution packages listed in
 [INSTALLATION.md](INSTALLATION.md#appimage). Try:
 
 ```bash
-./atk-control-0.9.1-x86_64.AppImage --no-tray
+./atk-control-0.9.2-x86_64.AppImage --no-tray
 ```
 
 For a missing tray, see [The tray icon is missing](#the-tray-icon-is-missing).

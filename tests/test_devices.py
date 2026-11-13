@@ -93,6 +93,25 @@ class ModelTests(unittest.TestCase):
         )
 
 
+    def test_vxe_r1_se_plus_leaves_the_read_only_catalog(self) -> None:
+        model = devices.model_for(2, 31, 0x373B, 0x1085, "CX Wireless mouse -1k dongle")
+        self.assertIsNotNone(model)
+        assert model is not None
+        self.assertEqual(model.name, "VXE R1 SE+")
+        self.assertEqual(model.sensor, "PAW3395SE")
+        self.assertFalse(model.experimental)
+        self.assertTrue(model.button_remap)
+        self.assertNotIn(
+            (2, 31), {(entry.cid, entry.mid) for entry in devices.EXPERIMENTAL_MODELS}
+        )
+        receiver = devices.receiver_for(0x1085, "CX Wireless mouse -1k dongle")
+        self.assertIsNotNone(receiver)
+        caps = devices.capabilities_for(model=model, receiver=receiver)
+        self.assertEqual(caps.link_ceiling, 1000)
+        self.assertEqual(caps.polling_rates, [125, 250, 500, 1000])
+        self.assertEqual(caps.sensor.max_dpi, 18000)
+
+
 class CapabilityTests(unittest.TestCase):
     def test_8k_receiver(self) -> None:
         model = devices.MODEL_BY_CIDMID[(2, 49)]

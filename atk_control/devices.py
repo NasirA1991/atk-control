@@ -100,6 +100,12 @@ MODELS: tuple[Model, ...] = (
     Model(2, 39, "ATK X1 Pro Max", "ATK", "PAW3950", 8000,
           usb_ids=((0x373B, 0x1017),)),
     Model(2, 83, "ATK A9 Plus NearLink", "ATK", "PAW3395", 1000),
+    # VXE R1 SE+ (CID/MID 2,31) at firmware 3.15 over its 1K receiver: a
+    # complete 0xFF02 register set with four user DPI stages inside the
+    # PAW3395SE 100-18,000 table (the retail specification agrees), standard
+    # button records and a readable rotation row.  The 373b:1085 receiver is
+    # shared with other VXE 1K mice, so the identity stays authoritative.
+    Model(2, 31, "VXE R1 SE+", "VXE", "PAW3395SE", 1000, button_remap=True),
     # The A9 Ultimate answers CID/MID 1,3: a different CID family from the
     # older 2,x mice, but on the same 0xff02 register layout.  The vendor
     # model table behind ATK HUB 3.2.28 lists 1,3 as an Ultimate-tier mouse
@@ -146,7 +152,6 @@ EXPERIMENTAL_MODELS: tuple[Model, ...] = (
     Model(2, 100, "ATK U2 Pro Max", "ATK", "PAW3395Ultra", 8000,
           experimental=True),
     Model(2, 29, "VXE R1 SE", "VXE", "PAW3395SE", 1000, experimental=True),
-    Model(2, 31, "VXE R1 SE+", "VXE", "PAW3395SE", 1000, experimental=True),
     Model(2, 63, "VXE R1S+", "VXE", "PAW3311", 1000, experimental=True),
     Model(2, 72, "VXE V3", "VXE", "PAW3311", 1000, experimental=True),
     Model(2, 73, "VXE V3 Pro", "VXE", "PAW3395SE", 1000, experimental=True),

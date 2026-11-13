@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.2 — 2026-11-13
+
+- Added **experimental support for the VXE R1 SE+** (CID/MID `2,31`, firmware
+  `3.15`, over the `373b:1085` 1K receiver). It was already recognized from the
+  read-only catalog; the owner's report shows a complete `0xFF02` register set —
+  four user DPI stages inside the sensor table, the six standard button records,
+  a readable rotation row and lighting — so polling, DPI stages and colours,
+  lift-off, debounce, sleep timer, Motion Sync, straight-line, ripple, rotation,
+  lighting, profiles and button remapping are now writable. The sensor stays
+  PAW3395SE with the 100-18,000 DPI table, which matches the retail
+  specification. No write has been tested on hardware yet.
+- The read-only catalog drops to 25 entries, since `2,31` moved into the
+  supported model table.
+
 ## 0.9.1 — 2026-11-13
 
 - Promoted the **ATK Dragonfly A9 Pro Max 2.0** from experimental to verified.

@@ -695,5 +695,48 @@ class A9UltimateTests(unittest.TestCase):
         self.assertEqual(session.set_polling(4000), 4000)
 
 
+class _R1SEPlusIdentity(FakeTransport):
+    def read_identity(self):
+        return 2, 31
+
+
+class R1SEPlusTests(unittest.TestCase):
+    def _controller(self):
+        info = DeviceInfo(
+            "/dev/hidraw-seplus", 0x373B, 0x1085,
+            "CX Wireless mouse -1k dongle", "0110", "0315",
+            True, b"", "v1", True,
+        )
+        session = controller.Controller(info)
+        session.transport = _R1SEPlusIdentity()
+        return session
+
+    def test_identity_is_writable(self) -> None:
+        state = self._controller().read_full()
+        self.assertEqual(state.model_name, "VXE R1 SE+")
+        self.assertEqual((state.cid, state.mid), (2, 31))
+        self.assertEqual(state.sensor, "PAW3395SE")
+        self.assertFalse(state.read_only)
+        self.assertFalse(state.experimental)
+        self.assertTrue(state.supports_button_remap)
+        self.assertTrue(state.supports_angle)
+        self.assertTrue(state.supports_lighting)
+
+    def test_polling_is_capped_by_the_one_kilohertz_receiver(self) -> None:
+        session = self._controller()
+        session.read_full()
+        self.assertEqual(session.caps.link_ceiling, 1000)
+        self.assertEqual(session.set_polling(500), 500)
+        with self.assertRaises(protocol.ProtocolError):
+            session.set_polling(4000)
+
+    def test_dpi_write_uses_the_paw3395se_table(self) -> None:
+        session = self._controller()
+        session.read_full()
+        self.assertEqual(session.set_stage_dpi(0, 1600, 1600), (1600, 1600))
+        with self.assertRaises(protocol.ProtocolError):
+            session.set_stage_dpi(0, 20000, 20000)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -141,6 +141,17 @@ The wired link also proves the 1 kHz cable cap is only a default: the mouse
 itself reported 4000 Hz, so the wired ceiling is now
 `min(model.max_polling, max(1000, reported rate))`.
 
+## Report-only 0xFF02 identities
+
+A VXE R1 SE+ (CID/MID `2,31`, firmware `3.15`) was reported behind its 1K
+receiver (`373b:1085`, USB revision 1.10). Every readable register decoded with
+the shared map: polling 1000 Hz, four stages (950 / 1650 / 1200 / 2950 DPI, all
+multiples of 50 inside the PAW3395SE table), lift-off code `1`, debounce 8 ms,
+Motion Sync on, sleep 60 s, rotation `0` / off, LED off with brightness and
+speed `1`, two stage colours and the six standard button records. The model is
+writable from 0.9.2, but no write has been exercised on that hardware yet, so it
+stays labelled experimental in the README.
+
 ## Receiver identification
 
 Receivers use shared USB product IDs and answer for the paired mouse. The

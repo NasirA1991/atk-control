@@ -65,7 +65,7 @@ file.
 
 ### What the output should say
 
-For the models added in 0.9.0, a healthy read-only pass looks like this:
+For the models added since 0.9.0, a healthy read-only pass looks like this:
 
 | Check | ATK A9 Ultimate | VXE R1 NK (NearLink) | ATK Dragonfly A9 Pro Max 2.0 |
 | --- | --- | --- | --- |
@@ -149,6 +149,9 @@ rejects, with the exact command and the error text.
   against the mouse itself. Its lift-off level (`6`) is not in the known
   1 mm / 2 mm map. The Performance page warns about the unmapped level; writing
   a verified value is allowed and verified by read-back.
+- **VXE R1 SE+** — added from a report in 0.9.2, not write-tested yet. Its 1K
+  receiver caps polling at 1000 Hz and the DPI table is the PAW3395SE one
+  (100-18,000); DPI stages above that are rejected before the write.
 - **VXE R1 NK** — no rotation, lighting, stage-colour or performance-mode
   controls, because the hardware does not expose them. Macros and
   keyboard/shortcut button classes are read-only.
