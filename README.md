@@ -64,7 +64,7 @@ behind each level are in [Testing a mouse](docs/TESTING.md#promotion-criteria).
 | **ATK Dragonfly A9 Pro Max 2.0** | USB `373b:1264`, 8K dongle `373b:11dc` | owner confirmed settings and power-cycle persistence on both links; the control-by-control test is pending. No rotation or stage-count changes, and Bluetooth has no configuration channel |
 | **ATK A9 Ultimate** | USB `373b:11b6`, 8K dongle `373b:11d9` | CID/MID `1,3`, PAW3950Ultra over `0xFF02`; the lift-off level its firmware stores is still unmapped |
 | **VXE R1 NK (NearLink)** | 1K receiver `373b:1216`, cable `373b:124c` | CID/MID `2,8` over `0xFF05`, wired/1K only |
-| **VXE R1 SE+** | 1K receiver `373b:1085` | CID/MID `2,31` over `0xFF02`; added from a report, not write-tested by its owner yet |
+| **VXE R1 SE+** | 1K receiver `373b:1085` | CID/MID `2,31` over `0xFF02`; polling and DPI writes confirmed by its owner on 0.9.2, remaining controls not yet tested |
 | MAD R, MAD R MAJOR, MAD R MAJOR+, VXE R1, R1 Pro Max, ATK X1 Pro Max, ATK A9 Plus NearLink, VXE R1 Ultra | varies | same firmware family as a verified model, but the exact variant has not been tested |
 
 ### Recognised, read-only
