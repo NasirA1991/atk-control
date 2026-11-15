@@ -6,6 +6,7 @@ umask 022
 PREFIX="/usr"
 USER_INSTALL=0
 UDEV_ONLY=0
+FORCE=0
 DESTDIR="${DESTDIR:-}"
 RULE_NAME="71-atk-control.rules"
 ETC_RULE="/etc/udev/rules.d/$RULE_NAME"
@@ -20,6 +21,7 @@ Options:
   --user          remove a per-user install under ~/.local
   --prefix PATH   system prefix (default: /usr)
   --udev-only     remove only /etc/udev/rules.d/71-atk-control.rules (requires root)
+  --force         override the package-ownership guard
   -h, --help      show this help
 
 A system uninstall needs root. A per-user uninstall removes the user files; if
@@ -32,6 +34,34 @@ die() {
     exit 1
 }
 
+package_owner() {
+    local path="$1"
+    [ -e "$path" ] || return 0
+    if command -v pacman >/dev/null 2>&1; then
+        pacman -Qqo "$path" 2>/dev/null | head -n 1 || true
+    elif command -v dpkg >/dev/null 2>&1; then
+        dpkg -S "$path" 2>/dev/null | head -n 1 | cut -d: -f1 || true
+    elif command -v rpm >/dev/null 2>&1; then
+        rpm -qf "$path" 2>/dev/null | head -n 1 || true
+    fi
+}
+
+package_guard() {
+    local path owner
+    [ -z "$DESTDIR" ] || return 0
+    [ "$USER_INSTALL" -eq 0 ] || return 0
+    for path in "$PREFIX/share/atk-control" "$PREFIX/bin/atk-control"; do
+        owner="$(package_owner "$path")"
+        if [ -n "$owner" ]; then
+            if [ "$FORCE" -eq 1 ]; then
+                echo "Warning: $path is owned by package '$owner'; continuing because --force was given." >&2
+            else
+                die "$path is owned by package '$owner'; use your package manager, or pass --force to override"
+            fi
+        fi
+    done
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --user) USER_INSTALL=1; shift ;;
@@ -41,6 +71,7 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --udev-only) UDEV_ONLY=1; shift ;;
+        --force) FORCE=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) die "unknown option: $1" ;;
     esac
@@ -78,6 +109,8 @@ if [ "$USER_INSTALL" -eq 1 ]; then
 elif [ -z "$DESTDIR" ] && [ "$(id -u)" -ne 0 ]; then
     die "a system uninstall needs root; use sudo or pass --user"
 fi
+
+package_guard
 
 DATA_ROOT="$DESTDIR$PREFIX/share/atk-control"
 LICENSE_ROOT="$DESTDIR$PREFIX/share/licenses/atk-control"

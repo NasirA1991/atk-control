@@ -112,7 +112,7 @@ not pipe it from `curl` into `sudo`.
 Download the bundle from the [latest release](https://github.com/NasirA1991/atk-control/releases/latest), then:
 
 ```bash
-flatpak install --user ./atk-control-0.9.5-x86_64.flatpak
+flatpak install --user ./atk-control-0.9.6-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -125,8 +125,8 @@ same commands with a Copy button and a link to the rule file.
 Download the AppImage, then:
 
 ```bash
-chmod +x atk-control-0.9.5-x86_64.AppImage
-./atk-control-0.9.5-x86_64.AppImage
+chmod +x atk-control-0.9.6-x86_64.AppImage
+./atk-control-0.9.6-x86_64.AppImage
 ```
 
 The AppImage needs host Python 3, PyGObject, GTK4, libadwaita, pycairo and
@@ -139,8 +139,8 @@ dbus-python. Install the host udev rule once with
 Extract the tarball, then install it with the same script:
 
 ```bash
-tar -xzf atk-control-0.9.5.tar.gz
-cd atk-control-0.9.5
+tar -xzf atk-control-0.9.6.tar.gz
+cd atk-control-0.9.6
 sudo ./install.sh
 ```
 

@@ -65,7 +65,7 @@ Download the `.flatpak` bundle from the
 then install it for your user:
 
 ```bash
-flatpak install --user ./atk-control-0.9.5-x86_64.flatpak
+flatpak install --user ./atk-control-0.9.6-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -114,8 +114,8 @@ then make it executable:
 
 ```bash
 sha256sum --check SHA256SUMS
-chmod +x atk-control-0.9.5-x86_64.AppImage
-./atk-control-0.9.5-x86_64.AppImage
+chmod +x atk-control-0.9.6-x86_64.AppImage
+./atk-control-0.9.6-x86_64.AppImage
 ```
 
 The AppImage contains the application but **not** GTK, PyGObject or the other
@@ -136,7 +136,7 @@ run `sudo ./install.sh --udev-only` once. If access is blocked, the app's
 To check the app without a tray host:
 
 ```bash
-./atk-control-0.9.5-x86_64.AppImage --no-tray
+./atk-control-0.9.6-x86_64.AppImage --no-tray
 ```
 
 There is nothing to uninstall; delete the AppImage when finished.
@@ -172,6 +172,11 @@ before copying files. Packagers can pass `DESTDIR`; `--skip-deps` bypasses the
 check. `--udev-only` installs just the host rule in `/etc/udev/rules.d/`.
 `DESTDIR` is available for package staging. The installer does not use pip;
 `uninstall.sh` removes `/usr` or `~/.local` installs.
+
+System installs and uninstalls first check whether pacman, dpkg or rpm owns
+`$PREFIX/share/atk-control` or `$PREFIX/bin/atk-control`. If so, use your
+package manager; `--force` overrides the guard for a deliberate manual
+install. `DESTDIR`, `--user` and `--udev-only` are not guarded.
 
 To remove a source install:
 
