@@ -32,7 +32,7 @@ jobs:
       - name: Syntax-check shell scripts
         run: |
           status=0
-          for script in install.sh uninstall.sh scripts/*.sh packaging/*/*.sh \
+          for script in install.sh uninstall.sh get.sh scripts/*.sh packaging/*/*.sh \
                         packaging/appimage/AppRun packaging/flatpak/atkctl; do
             [ -f "$script" ] || continue
             head -n1 "$script" | grep -qE '^#!.*(bash|/sh)' || continue
@@ -43,6 +43,112 @@ jobs:
         run: appstreamcli validate --no-net data/metainfo/io.github.atkcontrol.AtkControl.metainfo.xml
       - name: Validate desktop entry
         run: desktop-file-validate data/applications/io.github.atkcontrol.AtkControl.desktop
+
+  get-sh-dry-run:
+    name: get-sh dry-run (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu
+            image: ubuntu:24.04
+            expected: tarball
+            prepare: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl tar ca-certificates
+          - name: fedora
+            image: fedora:latest
+            expected: tarball
+            prepare: dnf install -y curl tar shadow-utils util-linux
+          - name: arch
+            image: archlinux:latest
+            expected: aur
+            prepare: pacman -Syu --noconfirm curl tar
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install test tools
+        run: ${{ matrix.prepare }}
+      - name: Create unprivileged user
+        run: |
+          useradd -m -s /bin/bash tester
+          if [ "${{ matrix.name }}" = "arch" ]; then
+            printf '%s\n' '#!/bin/sh' 'exit 0' > /usr/local/bin/paru
+            chmod +x /usr/local/bin/paru
+          fi
+      - name: Dry-run as a normal user
+        shell: bash
+        run: |
+          set -euo pipefail
+          su -s /bin/bash tester -c "cd '$GITHUB_WORKSPACE' && ./get.sh --version 0.9.6 --dry-run --yes --user" > /tmp/get-sh.out 2>&1
+          cat /tmp/get-sh.out
+          grep -F 'method  : ${{ matrix.expected }}' /tmp/get-sh.out
+
+  get-sh-tarball:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl tar shellcheck python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 python3-cairo python3-dbus
+      - name: Shellcheck get.sh
+        run: shellcheck get.sh
+      - name: Prepare fake release
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release" "$RUNNER_TEMP/home" "$RUNNER_TEMP/state" "$RUNNER_TEMP/bin"
+          git archive --format=tar.gz --prefix=atk-control-0.9.6/ -o "$RUNNER_TEMP/release/atk-control-0.9.6.tar.gz" HEAD
+          (cd "$RUNNER_TEMP/release" && sha256sum atk-control-0.9.6.tar.gz > SHA256SUMS)
+          printf '%s\n' '#!/bin/sh' 'printf "stub sudo: %s\\n" "$*" >> "$HOME/sudo.log"' 'exit 0' > "$RUNNER_TEMP/bin/sudo"
+          chmod +x "$RUNNER_TEMP/bin/sudo"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Start fake release server
+        run: |
+          set -euo pipefail
+          (cd "$RUNNER_TEMP/release" && python3 -m http.server 8765 --bind 127.0.0.1 > "$RUNNER_TEMP/http.log" 2>&1 & echo $! > "$RUNNER_TEMP/http.pid")
+          sleep 1
+      - name: Install and uninstall a real tarball
+        env:
+          HOME: ${{ runner.temp }}/home
+          XDG_STATE_HOME: ${{ runner.temp }}/state
+          GET_SH_BASE_URL: http://127.0.0.1:8765
+        run: |
+          set -euo pipefail
+          ./get.sh --version 0.9.6 --method tarball --user --yes
+          test -x "$HOME/.local/bin/atkctl"
+          test -f "$XDG_STATE_HOME/atk-control/get-sh.state"
+          ./get.sh --uninstall --yes
+          test ! -e "$HOME/.local/bin/atkctl"
+          test ! -e "$XDG_STATE_HOME/atk-control/get-sh.state"
+      - name: Corrupted checksum aborts before install
+        env:
+          HOME: ${{ runner.temp }}/bad-home
+          XDG_STATE_HOME: ${{ runner.temp }}/bad-state
+          GET_SH_BASE_URL: http://127.0.0.1:8766
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" "$XDG_STATE_HOME" "$RUNNER_TEMP/bad-release"
+          cp "$RUNNER_TEMP/release/atk-control-0.9.6.tar.gz" "$RUNNER_TEMP/bad-release/"
+          printf '%064d  atk-control-0.9.6.tar.gz\n' 0 > "$RUNNER_TEMP/bad-release/SHA256SUMS"
+          (cd "$RUNNER_TEMP/bad-release" && python3 -m http.server 8766 --bind 127.0.0.1 > "$RUNNER_TEMP/http-bad.log" 2>&1 & echo $! > "$RUNNER_TEMP/http-bad.pid")
+          sleep 1
+          set +e
+          ./get.sh --version 0.9.6 --method tarball --user --yes
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "corrupt checksum unexpectedly succeeded" >&2
+            exit 1
+          fi
+          test ! -e "$HOME/.local/bin/atkctl"
+      - name: Stop servers
+        if: always()
+        run: |
+          set +e
+          for pid in "$RUNNER_TEMP/http.pid" "$RUNNER_TEMP/http-bad.pid"; do
+            [ -f "$pid" ] && kill "$(cat "$pid")"
+          done
+          exit 0
 
   quality:
     runs-on: ubuntu-latest
