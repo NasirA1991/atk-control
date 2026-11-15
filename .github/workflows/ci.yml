@@ -58,7 +58,7 @@ jobs:
           - name: fedora
             image: fedora:latest
             expected: tarball
-            prepare: dnf install -y curl tar shadow-utils
+            prepare: dnf install -y curl tar shadow-utils util-linux
           - name: arch
             image: archlinux:latest
             expected: aur
