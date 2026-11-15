@@ -335,7 +335,10 @@ See [Device support reports](docs/DEVICE_REPORTS.md) for contents and privacy.
 Bug reports, hardware reports and focused pull requests are welcome. For device
 support, include a sanitized report and state what was physically tested. For
 code, run the test suite and keep unknown or unverified devices read-only.
-Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the
+Questions, ideas and setup help are better in
+[Discussions](https://github.com/NasirA1991/atk-control/discussions); use issues
+for reproducible bugs, device reports and feature requests. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md) and the
 [documentation index](docs/README.md); report security issues per [SECURITY.md](SECURITY.md).
 
 ## License and project information

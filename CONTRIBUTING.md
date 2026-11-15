@@ -1,5 +1,9 @@
 # Contributing
 
+For questions, ideas, setup help or "how do I" posts, use
+[Discussions](https://github.com/NasirA1991/atk-control/discussions). Keep issues
+for reproducible bugs, device reports and concrete feature requests.
+
 ## Device support reports
 
 Use the device-support issue template. A useful report includes the mouse and
