@@ -27,7 +27,7 @@ and the features under [Limitations](#limitations).
 
 ## Contents
 
-- [Supported hardware](#supported-hardware) · [Quick start](#quick-start) · [Features](#features) · [Screenshots](#screenshots)
+- [Supported hardware](#supported-hardware) · [Install](#install) · [Features](#features) · [Screenshots](#screenshots)
 - [Getting started](#getting-started) · [CLI](#cli) · [Limitations](#limitations) · [Security and permissions](#security-and-permissions)
 - [Troubleshooting](#troubleshooting) · [Device reports](#device-reports) · [Documentation](#documentation)
 - [Contributing](#contributing) · [License and project information](#license-and-project-information)
@@ -80,27 +80,74 @@ capped at the link ceiling; run `atkctl caps` or open the Device page for values
 
 Missing your model or a broken setting? Send a [device support report](#device-reports).
 
-## Quick start
+## Install
 
-**AUR (Arch):** `paru -S atk-control` or `yay -S atk-control`; `atk-control-git` for development.
+### Arch-based distributions: recommended
 
-**Flatpak:** download from the [latest release](https://github.com/NasirA1991/atk-control/releases/latest), then:
+```bash
+paru -S atk-control    # or: yay -S atk-control
+```
+
+`atk-control-git` builds the latest commit instead. The package installs the
+udev rule, desktop entry and both `atk-control` and `atkctl`.
+
+### Any distribution: install script
+
+```bash
+git clone https://github.com/NasirA1991/atk-control.git
+cd atk-control
+sudo ./install.sh                  # system install under /usr
+# or, without root:
+./install.sh --user
+sudo ./install.sh --udev-only      # once, for hidraw access
+```
+
+Run `./uninstall.sh` to remove a system install, or `./uninstall.sh --user` for
+a per-user one. The `--udev-only` line is needed only after `--user`; a system
+install includes the rule. Clone and inspect the script before running it; do
+not pipe it from `curl` into `sudo`.
+
+### Flatpak
+
+Download the bundle from the [latest release](https://github.com/NasirA1991/atk-control/releases/latest), then:
 
 ```bash
 flatpak install --user ./atk-control-0.9.5-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
-**AppImage:** download, then:
+Flatpak cannot install host udev rules. From a clone, run
+`sudo ./install.sh --udev-only` once. If access is blocked, the app shows the
+same commands with a Copy button and a link to the rule file.
+
+### AppImage
+
+Download the AppImage, then:
 
 ```bash
 chmod +x atk-control-0.9.5-x86_64.AppImage
 ./atk-control-0.9.5-x86_64.AppImage
 ```
 
-AUR installs the udev rule; Flatpak, AppImage and per-user installs need the
-[host udev rule](docs/INSTALLATION.md#hid-permissions) once. See
-[Installation](docs/INSTALLATION.md) for dependencies and uninstalling; `pip` is not supported.
+The AppImage needs host Python 3, PyGObject, GTK4, libadwaita, pycairo and
+dbus-python. Install the host udev rule once with
+`sudo ./install.sh --udev-only` from a clone; if access is blocked, the app's
+**Fix permissions** button installs it after one administrator prompt.
+
+### Source tarball
+
+Extract the tarball, then install it with the same script:
+
+```bash
+tar -xzf atk-control-0.9.5.tar.gz
+cd atk-control-0.9.5
+sudo ./install.sh
+```
+
+AUR installs the udev rule automatically. Flatpak, AppImage and per-user
+installs need [HID permissions](docs/INSTALLATION.md#hid-permissions) once.
+See [Installation](docs/INSTALLATION.md) for dependencies, udev details and
+uninstalling. `pip install` is not supported.
 
 ## Features
 
@@ -199,9 +246,9 @@ Writing settings requires read/write access to the mouse's hidraw node. The
 project ships a udev rule granting the active local user access through
 `uaccess`; it matches vendor IDs `373b` and `3554`, so it is intentionally
 broader than one product ID. AUR and system `install.sh` install it; Flatpak,
-AppImage and per-user installs need the
-[host udev rule](docs/INSTALLATION.md#hid-permissions) once. Do not run with
-`sudo` or `chmod 777` the device.
+AppImage and per-user installs need `sudo ./install.sh --udev-only` once. The
+app offers a Fix permissions button on native installs and copyable commands in
+Flatpak. Do not run the app with `sudo` or `chmod 777` the device.
 
 Writes are validated and read back. v1 settings use a profile round-trip
 (roughly 0.4 seconds) and restore the original profile if it fails. Button

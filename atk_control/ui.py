@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import math
 import os
+import shutil
+import subprocess
+import tempfile
+import threading
 from pathlib import Path
 
 import cairo
@@ -440,6 +444,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._button_action_keys = BUTTON_ACTION_ORDER + ("custom",)
         self._last_state_signature: tuple[object, ...] | None = None
         self._last_device_signature: tuple[object, ...] | None = None
+        self._permission_dialog: Adw.AlertDialog | None = None
 
         self.set_default_size(1140, 900)
         self.set_size_request(860, 620)
@@ -466,6 +471,223 @@ class MainWindow(Adw.ApplicationWindow):
         support = Gio.SimpleAction.new("open-support", None)
         support.connect("activate", lambda *_: self._open_support())
         self.add_action(support)
+
+    # ------------------------------------------------------------- permissions
+    RULE_NAME = "71-atk-control.rules"
+
+    @staticmethod
+    def _permission_rule_path() -> Path:
+        return config.data_dir() / "udev" / MainWindow.RULE_NAME
+
+    @staticmethod
+    def _permission_manual_text(flatpak: bool) -> str:
+        commands = (
+            "sudo install -Dm644 71-atk-control.rules /etc/udev/rules.d/71-atk-control.rules\n"
+            "sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw"
+        )
+        if flatpak:
+            return (
+                "# Save the rule to ~/Downloads first, then run from that folder:\n"
+                "cd ~/Downloads\n" + commands
+            )
+        return commands
+
+    def _permission_content(self, flatpak: bool, include_fix: bool,
+                            detail: str = "") -> Gtk.Widget:
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        content.set_size_request(520, -1)
+        why = (
+            "ATK Control found an ATK/VXE receiver, but Linux will not let this "
+            "user open its hidraw device. The node is normally owned by root; "
+            "the udev rule grants access to the active local user."
+        )
+        content.append(self._label(why, "row-sub", wrap=True))
+        if detail:
+            content.append(self._label(detail, "row-sub", wrap=True))
+        if flatpak:
+            content.append(self._label(
+                "Flatpak cannot install host udev rules. Save the rule file below, "
+                "then run these commands in a terminal:",
+                "row-sub", wrap=True,
+            ))
+        else:
+            content.append(self._label(
+                "If the automatic fix is cancelled or fails, run these commands "
+                "from the ATK Control checkout:",
+                "row-sub", wrap=True,
+            ))
+
+        commands = Gtk.TextView()
+        commands.set_editable(False)
+        commands.set_cursor_visible(False)
+        commands.set_monospace(True)
+        commands.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        commands.get_buffer().set_text(self._permission_manual_text(flatpak))
+        commands.add_css_class("permission-commands")
+        content.append(commands)
+
+        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        copy = Gtk.Button(label="Copy commands")
+        copy.add_css_class("pill")
+        copy.connect("clicked", lambda *_: self._copy_permission_commands(flatpak))
+        actions.append(copy)
+
+        if flatpak:
+            save = Gtk.Button(label="Save rule file")
+            save.add_css_class("pill")
+            save.connect("clicked", lambda *_: self._save_permission_rule())
+            actions.append(save)
+            link = Gtk.LinkButton(
+                uri=f"{config.REPO_URL}/raw/main/data/udev/{self.RULE_NAME}",
+                label="Open the rule on GitHub",
+            )
+            actions.append(link)
+        elif include_fix and shutil.which("pkexec"):
+            content.append(self._label(
+                "The Fix permissions button asks for one administrator password "
+                "and installs only the udev rule; it never starts the GUI as root.",
+                "row-sub", wrap=True,
+            ))
+
+        rescan = Gtk.Button(label="Rescan")
+        rescan.add_css_class("pill")
+        rescan.connect("clicked", lambda *_: self._rescan_permissions())
+        actions.append(rescan)
+        content.append(actions)
+        return content
+
+    def show_permission_dialog(self) -> None:
+        if self._permission_dialog is not None:
+            if self._permission_dialog.get_visible():
+                return
+            self._permission_dialog = None
+        flatpak = Path("/.flatpak-info").is_file()
+        path = getattr(self.worker, "permission_path", None) or "the mouse's hidraw device"
+        dialog = Adw.AlertDialog(
+            heading="Mouse found, but Linux is blocking access",
+            body=f"ATK Control found an ATK/VXE receiver at {path}.",
+        )
+        dialog.set_extra_child(self._permission_content(flatpak, include_fix=True))
+        dialog.add_response("close", "Close")
+        dialog.set_close_response("close")
+        if not flatpak and shutil.which("pkexec"):
+            dialog.add_response("fix", "Fix permissions")
+            dialog.set_response_appearance("fix", Adw.ResponseAppearance.SUGGESTED)
+        dialog.connect("closed", self._permission_dialog_closed)
+        self._permission_dialog = dialog
+        dialog.choose(self, None, self._permission_dialog_done)
+
+    def _permission_dialog_closed(self, *_args) -> None:
+        self._permission_dialog = None
+
+    def _permission_dialog_done(self, dialog, result) -> None:
+        try:
+            response = dialog.choose_finish(result)
+        except GLib.Error:
+            return
+        if response == "fix":
+            self._start_permission_fix()
+
+    def _show_manual_permissions(self, detail: str) -> None:
+        dialog = Adw.AlertDialog(
+            heading="Install the udev rule manually",
+            body="The automatic permission fix did not complete.",
+        )
+        dialog.set_extra_child(self._permission_content(
+            Path("/.flatpak-info").is_file(), include_fix=False, detail=detail,
+        ))
+        dialog.add_response("close", "Close")
+        dialog.set_close_response("close")
+        dialog.present(self)
+
+    def _copy_permission_commands(self, flatpak: bool) -> None:
+        display = Gdk.Display.get_default()
+        if display is None:
+            self.toast("The clipboard is not available.")
+            return
+        display.get_clipboard().set(self._permission_manual_text(flatpak))
+        self.toast("Commands copied.")
+
+    def _save_permission_rule(self) -> None:
+        source = self._permission_rule_path()
+        target = Path.home() / "Downloads" / self.RULE_NAME
+        try:
+            if not source.is_file():
+                raise FileNotFoundError(source)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(source.read_bytes())
+        except OSError as exc:
+            self.toast(f"Could not save the udev rule: {exc}")
+            return
+        self.toast(f"Saved {target}")
+
+    def _rescan_permissions(self) -> None:
+        if self._permission_dialog is not None:
+            self._permission_dialog.close()
+        self.worker.retry()
+
+    def _start_permission_fix(self) -> None:
+        if Path("/.flatpak-info").is_file():
+            self._show_manual_permissions("Flatpak cannot modify host udev rules.")
+            return
+        if shutil.which("pkexec") is None:
+            self._show_manual_permissions("pkexec is not installed.")
+            return
+        source = self._permission_rule_path()
+        if not source.is_file():
+            self._show_manual_permissions(f"The bundled rule was not found at {source}.")
+            return
+        self.toast("Waiting for the permission prompt…")
+        threading.Thread(
+            target=self._run_permission_fix,
+            args=(source,),
+            name="atk-udev-fix",
+            daemon=True,
+        ).start()
+
+    def _run_permission_fix(self, source: Path) -> None:
+        script = (
+            'install -Dm644 "$1" /etc/udev/rules.d/71-atk-control.rules && '
+            "udevadm control --reload-rules && "
+            "udevadm trigger --subsystem-match=hidraw"
+        )
+        # pkexec runs as root outside the app's mount namespace. An AppImage
+        # source lives on a FUSE mount that root cannot read, so always hand
+        # pkexec a short-lived copy in /tmp.
+        temp_rule: str | None = None
+        try:
+            fd, temp_rule = tempfile.mkstemp(
+                prefix="atk-control-", suffix=".rules", dir="/tmp",
+            )
+            os.close(fd)
+            shutil.copyfile(source, temp_rule)
+            os.chmod(temp_rule, 0o644)
+            result = subprocess.run(
+                ["pkexec", "sh", "-c", script, "sh", temp_rule],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as exc:
+            GLib.idle_add(self._permission_fix_done, 1, str(exc))
+            return
+        finally:
+            if temp_rule is not None:
+                try:
+                    os.unlink(temp_rule)
+                except OSError:
+                    pass
+        detail = (result.stderr or "").strip()
+        GLib.idle_add(self._permission_fix_done, result.returncode, detail)
+
+    def _permission_fix_done(self, returncode: int, detail: str) -> bool:
+        if returncode == 0:
+            self.toast("Permission rule installed. Replug the receiver, then press Rescan.")
+            self.worker.retry()
+        else:
+            message = detail or "The permission prompt was cancelled or failed."
+            self._show_manual_permissions(message)
+        return False
 
     # ------------------------------------------------------------------- ui
     @staticmethod

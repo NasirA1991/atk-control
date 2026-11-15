@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Installer permission fixes.** `install.sh --udev-only` installs only the
+  host rule in `/etc/udev/rules.d`, and the installer now checks Python/GTK
+  dependencies with distro-specific commands before copying anything.
+  `uninstall.sh` removes both the prefix rule and the host rule.
+- **In-app permission recovery.** Discovery reports a blocked hidraw node as a
+  permission state rather than “no device”; the app explains the problem and
+  offers a one-prompt `pkexec` fix on native installs, or copyable commands and
+  a save-rule button inside Flatpak. A Rescan action retries without restarting.
+- **Docs.** README installation is ordered AUR → install script → Flatpak →
+  AppImage → source, with host udev and uninstall guidance.
+
 ## 0.9.5 — 2026-11-14
 
 The support process now lives in the model table instead of in prose.

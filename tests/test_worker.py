@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from atk_control import devices
-from atk_control.protocol import DeviceInfo, ProtocolError
+from atk_control.protocol import DeviceInfo, PermissionDenied, ProtocolError
 from atk_control.state import MouseState
 from atk_control.worker import DemoWorker, DeviceWorker, _prioritise_candidates
 
@@ -63,6 +63,40 @@ class WorkerSafetyTests(unittest.TestCase):
         self.assertEqual(worker._preferred_path, two.path)
         self.assertEqual(states[-1].model_name, "VXE R1 Pro")
         self.assertTrue(any("Switched automatically" in message for message in toasts))
+
+    def test_permission_denied_is_exposed_for_the_ui(self) -> None:
+        info = DeviceInfo("/dev/hidraw7", 0x373B, 0x1040, "MAD 8K", "0215", False)
+        errors = []
+        states = []
+
+        class DeniedController:
+            def __init__(self, device):
+                self.info = device
+                self.path = device.path
+
+            def open(self):
+                raise PermissionDenied("No permission for /dev/hidraw7")
+
+            def close(self):
+                pass
+
+            def read_full(self):
+                return MouseState()
+
+            def read_live(self):
+                return MouseState()
+
+        worker = DeviceWorker(
+            lambda state, changed: states.append(state),
+            lambda connected, error: errors.append((connected, error)),
+        )
+        with patch("atk_control.worker.discover", return_value=[info]), \
+             patch("atk_control.worker.controller_for", DeniedController):
+            self.assertFalse(worker._connect())
+        self.assertTrue(worker.permission_denied)
+        self.assertEqual(worker.permission_path, info.path)
+        self.assertFalse(worker.connected)
+        self.assertIn("Linux is blocking access", errors[-1][1])
 
     def test_support_report_without_controller_uses_discovery_report(self) -> None:
         toasts = []

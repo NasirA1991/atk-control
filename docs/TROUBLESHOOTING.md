@@ -67,18 +67,17 @@ atkctl: permission denied opening /dev/hidraw22
 Install the udev rule ...
 ```
 
-Install the rule and reload udev:
+From a checkout, install the rule once:
 
 ```bash
-sudo install -Dm644 data/udev/71-atk-control.rules \
-  /usr/lib/udev/rules.d/71-atk-control.rules
-sudo udevadm control --reload-rules
-sudo udevadm trigger --subsystem-match=hidraw
+sudo ./install.sh --udev-only
 ```
 
 Then unplug and reconnect the mouse or receiver. The AUR and system
 `install.sh` installs include the rule; Flatpak, AppImage and `--user` installs
-do not. Details are in [INSTALLATION.md](INSTALLATION.md#hid-permissions).
+do not. Native installs also show a **Fix permissions** button; Flatpak shows
+copyable commands and a **Save rule file** button. Details are in
+[INSTALLATION.md](INSTALLATION.md#hid-permissions).
 
 Do **not** run the app with `sudo` and do not `chmod 777` the device. The
 application is designed to run as your normal desktop user. If `ls -l
@@ -167,9 +166,10 @@ Some features are also model-dependent:
 
 ### The app starts but cannot see the mouse
 
-Install the host udev rule and reconnect the device. Flatpak exposes
-`/dev/hidraw*` through `--device=all`, but it cannot grant permissions that the
-host udev rule has not granted. See
+Install the host udev rule with `sudo ./install.sh --udev-only` and reconnect
+the device. Flatpak exposes `/dev/hidraw*` through `--device=all`, but it cannot
+grant permissions that the host udev rule has not granted. If access is still
+blocked, the app shows copyable commands and a **Save rule file** button. See
 [INSTALLATION.md](INSTALLATION.md#hid-permissions).
 
 ### The Flatpak cannot find its runtime
