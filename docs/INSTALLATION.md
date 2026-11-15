@@ -65,7 +65,7 @@ Download the `.flatpak` bundle from the
 then install it for your user:
 
 ```bash
-flatpak install --user ./atk-control-0.9.5-x86_64.flatpak
+flatpak install --user ./atk-control-0.9.6-x86_64.flatpak
 flatpak run io.github.atkcontrol.AtkControl
 ```
 
@@ -83,8 +83,15 @@ flatpak install flathub org.gnome.Platform//50
 ```
 
 The Flatpak exposes `/dev/hidraw*` through `--device=all`. It does **not**
-install a host udev rule, so follow
-[HID permissions](#hid-permissions) once. The tray requires a StatusNotifier
+install a host udev rule. From a checkout, run:
+
+```bash
+sudo ./install.sh --udev-only
+```
+
+Then reconnect the mouse or receiver. If access is still blocked, the app shows
+copyable commands, a **Copy** button, and a **Save rule file** button; Flatpak
+cannot run the host rule installer itself. The tray requires a StatusNotifier
 host on the host desktop; see
 [Troubleshooting](TROUBLESHOOTING.md#the-tray-icon-is-missing).
 
@@ -107,8 +114,8 @@ then make it executable:
 
 ```bash
 sha256sum --check SHA256SUMS
-chmod +x atk-control-0.9.5-x86_64.AppImage
-./atk-control-0.9.5-x86_64.AppImage
+chmod +x atk-control-0.9.6-x86_64.AppImage
+./atk-control-0.9.6-x86_64.AppImage
 ```
 
 The AppImage contains the application but **not** GTK, PyGObject or the other
@@ -122,11 +129,14 @@ On Debian/Ubuntu the package names are typically `python3-gi`,
 `gir1.2-gtk-4.0`, `gir1.2-adw-1`, `python3-cairo` and `python3-dbus`. Package
 names vary by distribution; install the equivalents for your system.
 
-The AppImage also needs the [udev rule](#hid-permissions). To check the app
-without a tray host:
+The AppImage also needs the [udev rule](#hid-permissions). From a checkout,
+run `sudo ./install.sh --udev-only` once. If access is blocked, the app's
+**Fix permissions** button installs the rule after one administrator prompt.
+
+To check the app without a tray host:
 
 ```bash
-./atk-control-0.9.5-x86_64.AppImage --no-tray
+./atk-control-0.9.6-x86_64.AppImage --no-tray
 ```
 
 There is nothing to uninstall; delete the AppImage when finished.
@@ -149,11 +159,24 @@ without sudo:
 ```
 
 A per-user install writes to `~/.local` and does **not** install the udev
-rule; follow [HID permissions](#hid-permissions). Add `~/.local/bin` to
-`PATH` if the commands are not found.
+rule. Run this once, then reconnect the mouse:
 
+```bash
+sudo ./install.sh --udev-only
+```
+
+Add `~/.local/bin` to `PATH` if the commands are not found.
+
+The installer checks for Python, GTK4, libadwaita, pycairo and dbus-python
+before copying files. Packagers can pass `DESTDIR`; `--skip-deps` bypasses the
+check. `--udev-only` installs just the host rule in `/etc/udev/rules.d/`.
 `DESTDIR` is available for package staging. The installer does not use pip;
 `uninstall.sh` removes `/usr` or `~/.local` installs.
+
+System installs and uninstalls first check whether pacman, dpkg or rpm owns
+`$PREFIX/share/atk-control` or `$PREFIX/bin/atk-control`. If so, use your
+package manager; `--force` overrides the guard for a deliberate manual
+install. `DESTDIR`, `--user` and `--udev-only` are not guarded.
 
 To remove a source install:
 
@@ -165,6 +188,12 @@ or, for a per-user install:
 
 ```bash
 ./uninstall.sh --user
+```
+
+If a host rule remains from `--udev-only`, remove it with:
+
+```bash
+sudo ./uninstall.sh --udev-only
 ```
 
 `pip install .` is not supported. The Python metadata exists for development
@@ -180,17 +209,17 @@ at:
 /usr/lib/udev/rules.d/71-atk-control.rules
 ```
 
-For Flatpak, AppImage or a per-user source install, install the rule from a
-checkout:
+For Flatpak, AppImage or a per-user source install, install the host rule from
+a checkout:
 
 ```bash
-sudo install -Dm644 data/udev/71-atk-control.rules \
-  /usr/lib/udev/rules.d/71-atk-control.rules
-sudo udevadm control --reload-rules
-sudo udevadm trigger --subsystem-match=hidraw
+sudo ./install.sh --udev-only
 ```
 
-Then unplug and reconnect the mouse or receiver. The rule uses `uaccess` and
+This writes `/etc/udev/rules.d/71-atk-control.rules` and reloads udev. Then
+unplug and reconnect the mouse or receiver. The app also offers a native **Fix
+permissions** button (one `pkexec` prompt) and copyable manual commands in
+Flatpak. The rule uses `uaccess` and
 `MODE="0660"` and matches the ATK/VXE vendor IDs `373b` and `3554`; it is
 intentionally vendor-wide because receivers expose several interfaces. See
 [SECURITY.md](../SECURITY.md) for the permission scope and its trade-offs.

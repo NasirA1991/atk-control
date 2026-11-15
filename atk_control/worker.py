@@ -78,7 +78,8 @@ class DeviceWorker:
         self._last_emit = 0.0
         self._last_full = 0.0
         self._query_misses = 0
-        self._warned_permission = False
+        self._permission_denied = False
+        self._permission_path: str | None = None
         self._foreground = False
         self._last_path_check = 0.0
         self._online_misses = 0
@@ -106,6 +107,17 @@ class DeviceWorker:
     def state(self) -> MouseState:
         with self._lock:
             return copy.deepcopy(self._state)
+
+    @property
+    def permission_denied(self) -> bool:
+        """True when a supported mouse is present but hidraw access is blocked."""
+        with self._lock:
+            return self._permission_denied
+
+    @property
+    def permission_path(self) -> str | None:
+        with self._lock:
+            return self._permission_path
 
     @property
     def device_path(self) -> str | None:
@@ -218,6 +230,8 @@ class DeviceWorker:
         candidates = discover()
         with self._lock:
             self._available = candidates
+            self._permission_denied = False
+            self._permission_path = None
         if not candidates:
             self._emit_link(False, "No ATK/VXE mouse or receiver found.")
             return False
@@ -229,15 +243,18 @@ class DeviceWorker:
                 self._preferred_path = None
 
         errors: list[str] = []
+        denied_path: str | None = None
         switched_from = preferred
         for info in candidates:
             controller = controller_for(info)
             try:
                 state = controller.open()
             except PermissionDenied:
+                if denied_path is None:
+                    denied_path = info.path
                 errors.append(
-                    f"{info.hidraw_name}: permission denied. Install the udev rule "
-                    "(71-atk-control.rules) and reconnect the mouse."
+                    f"{info.hidraw_name}: Linux is blocking access to {info.path}. "
+                    "Install the ATK Control udev rule, then reconnect the mouse."
                 )
                 continue
             except (ProtocolError, OSError) as exc:
@@ -259,7 +276,9 @@ class DeviceWorker:
             self._query_misses = 0
             self._online_misses = 0
             self._last_online_ping = time.monotonic()
-            self._warned_permission = False
+            with self._lock:
+                self._permission_denied = False
+                self._permission_path = None
             self._last_full = time.monotonic()
             self._store_state(state)
             with self._lock:
@@ -274,6 +293,10 @@ class DeviceWorker:
                 )
             return True
 
+        if denied_path is not None:
+            with self._lock:
+                self._permission_denied = True
+                self._permission_path = denied_path
         self._emit_link(False, errors[0] if errors else "The mouse did not answer.")
         return False
 

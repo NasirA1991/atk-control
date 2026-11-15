@@ -83,6 +83,11 @@
     <color type="primary" scheme_preference="dark">#ff6b3d</color>
   </branding>
   <releases>
+    <release version="0.9.6" date="2026-11-15">
+      <description>
+        <p>Installer and permission hardening. The install script checks distro dependencies before copying, can install only the host udev rule, and refuses to overwrite package-owned files. The uninstaller mirrors every install mode. Discovery now distinguishes a permission block from a missing mouse, and the app offers a one-prompt fix on native installs or copyable commands in Flatpak.</p>
+      </description>
+    </release>
     <release version="0.9.5" date="2026-11-14">
       <description>
         <p>Moves the model support process into the model table. Each entry now declares a support level (recognised, experimental or verified) instead of an experimental boolean that meant read-only in code while the README used the same word for writable models; the app banner, atkctl status, support reports and README table all read that one field. Verified entries carry their evidence and a test enforces it. DPI writes are refused while a model's sensor is unidentified, because the sensor selects the DPI encoding and read-back cannot detect a wrong codec. The model table gains invariant tests for levels, sensor names and duplicate identities.</p>

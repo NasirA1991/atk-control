@@ -46,6 +46,7 @@ class AtkApplication(Adw.Application):
         self._low_battery_notified = False
         self._tray_fallback_shown = False
         self._last_error_notification = 0.0
+        self._permission_prompted = False
         GLib.set_application_name(config.APP_NAME)
         GLib.set_prgname("atk-control")
         self.connect("startup", self._on_startup)
@@ -238,10 +239,23 @@ class AtkApplication(Adw.Application):
         self._latest_link = (connected, error)
         if connected:
             self._latest_state = self.worker.state if self.worker else None
+            self._permission_prompted = False
         else:
             self._latest_state = None
         if self.window is not None:
             self.window.on_link(connected, error)
+        permission_blocked = bool(
+            not connected
+            and self.worker is not None
+            and getattr(self.worker, "permission_denied", False)
+        )
+        if permission_blocked:
+            window = self.window or self._ensure_window()
+            window.set_visible(True)
+            window.present()
+            if not self._permission_prompted:
+                self._permission_prompted = True
+                window.show_permission_dialog()
         if self.tray is not None:
             if connected:
                 if not self.tray.visible and not self._tray_fallback_shown:
