@@ -82,6 +82,29 @@ Missing your model or a broken setting? Send a [device support report](#device-r
 
 ## Install
 
+### One-line installer
+
+For Arch, Debian/Ubuntu, Fedora and openSUSE, `get.sh` picks the safest method
+for the host: the AUR on Arch, Flatpak where it is installed, otherwise the
+release tarball.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NasirA1991/atk-control/main/get.sh | bash
+```
+
+Read it first if you prefer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NasirA1991/atk-control/main/get.sh -o get.sh
+less get.sh
+bash get.sh
+```
+
+It refuses root, verifies every download against `SHA256SUMS`, and confirms the
+plan before changing anything. Useful options: `--user`, `--method
+aur|flatpak|tarball`, `--version X.Y.Z`, `--yes`, `--dry-run` and `--uninstall`.
+On non-Arch systems, use `--method tarball` if you do not want Flatpak.
+
 ### Arch-based distributions: recommended
 
 ```bash
