@@ -144,11 +144,12 @@ rejects, with the exact command and the error text.
 
 ### Known limits to expect
 
-- **ATK A9 Ultimate** — the PAW3950Ultra sensor comes from ATK HUB's model
-  table, not from an owner's confirmation yet, so DPI has not been checked
-  against the mouse itself. Its lift-off level (`6`) is not in the known
-  1 mm / 2 mm map. The Performance page warns about the unmapped level; writing
-  a verified value is allowed and verified by read-back.
+- **ATK A9 Ultimate** — its owner confirmed polling 8000 → 4000 → 8000 and
+  the PAW3950Ultra read path, but DPI writes and button remapping are still
+  untested. Its lift-off level (`6`) is not in the known 1 mm / 2 mm / 0.7 mm
+  map; a displayed 2.0 mm after a write is code `2`, not a confirmed mapping for
+  the vendor's code `6`. The Performance page warns about the unmapped level;
+  writing a verified value is allowed and verified by read-back.
 - **VXE R1 SE+** — added from a report in 0.9.2. Its owner confirmed polling
   and DPI writes on 0.9.2; button remapping, lighting and the remaining
   controls are still untested. Its 1K receiver caps polling at 1000 Hz and the

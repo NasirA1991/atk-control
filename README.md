@@ -62,7 +62,7 @@ behind each level are in [Testing a mouse](docs/TESTING.md#promotion-criteria).
 | Device | Link | Why not verified yet |
 | --- | --- | --- |
 | **ATK Dragonfly A9 Pro Max 2.0** | USB `373b:1264`, 8K dongle `373b:11dc` | owner confirmed settings and power-cycle persistence on both links; the control-by-control test is pending. No rotation or stage-count changes, and Bluetooth has no configuration channel |
-| **ATK A9 Ultimate** | USB `373b:11b6`, 8K dongle `373b:11d9` | CID/MID `1,3`, PAW3950Ultra over `0xFF02`; the lift-off level its firmware stores is still unmapped |
+| **ATK A9 Ultimate** | USB `373b:11b6`, 8K dongle `373b:11d9` | CID/MID `1,3`, PAW3950Ultra over `0xFF02`; owner confirmed polling 8000 → 4000 → 8000, but DPI and button writes are still untested; lift-off level `6` remains unmapped |
 | **VXE R1 NK (NearLink)** | 1K receiver `373b:1216`, cable `373b:124c` | CID/MID `2,8` over `0xFF05`, wired/1K only |
 | **VXE R1 SE+** | 1K receiver `373b:1085` | CID/MID `2,31` over `0xFF02`; polling and DPI writes confirmed by its owner on 0.9.2, remaining controls not yet tested |
 | MAD R, MAD R MAJOR, MAD R MAJOR+, VXE R1, R1 Pro Max, ATK X1 Pro Max, ATK A9 Plus NearLink, VXE R1 Ultra | varies | same firmware family as a verified model, but the exact variant has not been tested |
@@ -242,9 +242,9 @@ JSON output and exit codes. The GUI and CLI share a per-device lock; stop
   have no rotation control and no way to add or remove stages. Settings work
   over the dongle or USB cable; Bluetooth exposes no configuration interface.
 - The ATK A9 Ultimate is experimental: its `0xFF02` register layout matches the
-  rest of the family and the PAW3950Ultra sensor comes from ATK HUB's own model
-  table, but no owner has confirmed settings on hardware yet. Its lift-off level
-  (`6`) is not in the known 1 mm / 2 mm map.
+  rest of the family, and its owner confirmed polling 8000 → 4000 → 8000 and the
+  PAW3950Ultra read path. DPI and button writes are still untested. Its lift-off
+  level (`6`) is not in the known 1 mm / 2 mm / 0.7 mm map.
 - For `0xFF05` mice the lift-off byte is a vendor level, not millimetres. Levels
   1-3 map to 1 mm / 2 mm / 0.7 mm; an unmapped level is shown as
   `Lift-off: level N (unmapped)` instead of claiming a distance.
