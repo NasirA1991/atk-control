@@ -151,7 +151,14 @@ MODELS: tuple[Model, ...] = (
     # ultra encoding decodes 0x27/0x4f/0x9f/0x3f-0x44 as 400/800/1600/3200,
     # the usual factory ladder, while step-50 would read 2000-16000.
     Model(1, 3, "ATK A9 Ultimate", "ATK", "PAW3950Ultra", 8000,
-          button_remap=True, usb_ids=((0x373B, 0x11B6),)),
+          button_remap=True, usb_ids=((0x373B, 0x11B6),),
+          support=SUPPORT_VERIFIED,
+          evidence="ATK A9 Ultimate, firmware 3.03, wired 373b:11b6 and "
+                   "8K dongle 373b:11d9; polling 8000 -> 4000 -> 8000 written, "
+                   "read back and restored; 0.9.1 sensor/DPI and lift-off read "
+                   "path confirmed; owner reported settings persisted across "
+                   "reconnect on both links, 2026-11-16 (issue #11). "
+                   "Lift-off code 6 remains unmapped."),
     Model(2, 114, "VXE R1 Ultra", "VXE", "PAW3395", 8000),
 )
 

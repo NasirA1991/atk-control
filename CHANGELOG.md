@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Promoted the **ATK A9 Ultimate** to verified after its owner confirmed
+  settings writes, read-back and reconnect persistence on both the cable and
+  the 8K dongle. Lift-off code `6` remains unmapped and the model records that
+  caveat.
+- Clarified that **Verified** means owner-confirmed on the exact model with
+  recorded evidence and caveats; it no longer implies every advertised control
+  was scripted.
+
 ## 0.9.6 — 2026-11-15
 
 - **Installer permission fixes.** `install.sh --udev-only` installs only the

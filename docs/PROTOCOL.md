@@ -210,6 +210,17 @@ All of the 1K tests were repeated over this receiver, and additionally:
 The receiver reports the paired mouse online over command `0x03`; the mouse
 still has to be awake before its configuration channel answers.
 
+An **ATK A9 Ultimate** (CID/MID `1,3`, firmware `3.03`, PAW3950Ultra) was then
+confirmed by its owner on both links (`373b:11b6` cable and `373b:11d9` 8K
+dongle, issue #11):
+
+- 0.9.1 reads the four stages in the PAW3950Ultra encoding and reports the
+  `10–42000` DPI range;
+- polling `8000 → 4000 → 8000 Hz` was written, read back and restored;
+- the owner reported settings changes surviving a reconnect on both links;
+- lift-off code `6` is still unmapped; the displayed `2.0 mm` after a write is
+  code `2`, not a mapping for the vendor's code `6`.
+
 ## Safety
 
 Only model-table entries can be written. Writes use local read-modify-write for

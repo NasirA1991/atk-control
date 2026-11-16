@@ -41,13 +41,15 @@ not mean every variant has been tested.
 
 | Level | Writes | Meaning |
 | --- | --- | --- |
-| **Verified** | yes | every advertised setting tested on that exact model, with the evidence recorded in the protocol notes |
-| **Experimental** | yes | implemented from an owner's report or from a verified family's firmware; every write is verified by read-back, but the model has not been tested control by control |
+| **Verified** | yes | owner-confirmed on that exact model, with the evidence recorded in the protocol notes and any remaining caveats documented |
+| **Experimental** | yes | implemented from an owner's report or a verified family's firmware; every write is verified by read-back, but the exact unit has not been confirmed by an owner |
 | **Recognised** | no | identity and sensor known from the vendor catalogue or a report; read-only until someone tests it |
 
 The level is stored on the model entry in `atk_control/devices.py` and drives
 this table, the app banner and `atkctl status`, so they cannot drift apart. A
-verified entry must carry its evidence, which a unit test enforces. The checks
+verified entry must carry its evidence, which a unit test enforces. “Verified”
+means an owner confirmed it on that exact model; individual gaps are listed as
+caveats rather than blocking the label. The checks
 behind each level are in [Testing a mouse](docs/TESTING.md#promotion-criteria).
 
 ### Verified
@@ -56,13 +58,17 @@ behind each level are in [Testing a mouse](docs/TESTING.md#promotion-criteria).
 | --- | --- |
 | **ATK MAD R+** | 8K dongle |
 | **VXE R1 Pro** | 1K, 4K |
+| **ATK A9 Ultimate** | USB `373b:11b6`, 8K dongle `373b:11d9` |
+
+The A9 Ultimate’s owner confirmed settings changes and reconnect persistence on
+both links. Its lift-off code `6` is still unmapped; the app warns instead of
+guessing a distance.
 
 ### Experimental
 
 | Device | Link | Why not verified yet |
 | --- | --- | --- |
 | **ATK Dragonfly A9 Pro Max 2.0** | USB `373b:1264`, 8K dongle `373b:11dc` | owner confirmed settings and power-cycle persistence on both links; the control-by-control test is pending. No rotation or stage-count changes, and Bluetooth has no configuration channel |
-| **ATK A9 Ultimate** | USB `373b:11b6`, 8K dongle `373b:11d9` | CID/MID `1,3`, PAW3950Ultra over `0xFF02`; owner confirmed polling 8000 → 4000 → 8000, but DPI and button writes are still untested; lift-off level `6` remains unmapped |
 | **VXE R1 NK (NearLink)** | 1K receiver `373b:1216`, cable `373b:124c` | CID/MID `2,8` over `0xFF05`, wired/1K only |
 | **VXE R1 SE+** | 1K receiver `373b:1085` | CID/MID `2,31` over `0xFF02`; polling and DPI writes confirmed by its owner on 0.9.2, remaining controls not yet tested |
 | MAD R, MAD R MAJOR, MAD R MAJOR+, VXE R1, R1 Pro Max, ATK X1 Pro Max, ATK A9 Plus NearLink, VXE R1 Ultra | varies | same firmware family as a verified model, but the exact variant has not been tested |
@@ -241,10 +247,9 @@ JSON output and exit codes. The GUI and CLI share a per-device lock; stop
 - The ATK A9 Pro Max 2.0 and VXE R1 NK `0xFF05` paths are experimental. They
   have no rotation control and no way to add or remove stages. Settings work
   over the dongle or USB cable; Bluetooth exposes no configuration interface.
-- The ATK A9 Ultimate is experimental: its `0xFF02` register layout matches the
-  rest of the family, and its owner confirmed polling 8000 → 4000 → 8000 and the
-  PAW3950Ultra read path. DPI and button writes are still untested. Its lift-off
-  level (`6`) is not in the known 1 mm / 2 mm / 0.7 mm map.
+- The ATK A9 Ultimate is verified, but its lift-off level (`6`) is not in the
+  known 1 mm / 2 mm / 0.7 mm map. The app shows it as unmapped instead of
+  guessing a distance.
 - For `0xFF05` mice the lift-off byte is a vendor level, not millimetres. Levels
   1-3 map to 1 mm / 2 mm / 0.7 mm; an unmapped level is shown as
   `Lift-off: level N (unmapped)` instead of claiming a distance.

@@ -64,6 +64,8 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(model.sensor_profile.max_dpi, 42000)
         self.assertEqual(model.sensor_profile.family, "ultra")
         self.assertTrue(model.button_remap)
+        self.assertEqual(model.support, devices.SUPPORT_VERIFIED)
+        self.assertIn("issue #11", model.evidence)
         self.assertFalse(model.experimental)
         self.assertIs(devices.MODEL_BY_USB[(0x373B, 0x11B6)], model)
 

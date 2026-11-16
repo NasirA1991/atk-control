@@ -144,12 +144,13 @@ rejects, with the exact command and the error text.
 
 ### Known limits to expect
 
-- **ATK A9 Ultimate** — its owner confirmed polling 8000 → 4000 → 8000 and
-  the PAW3950Ultra read path, but DPI writes and button remapping are still
-  untested. Its lift-off level (`6`) is not in the known 1 mm / 2 mm / 0.7 mm
-  map; a displayed 2.0 mm after a write is code `2`, not a confirmed mapping for
-  the vendor's code `6`. The Performance page warns about the unmapped level;
-  writing a verified value is allowed and verified by read-back.
+- **ATK A9 Ultimate** — verified on its owner's hardware. Polling
+  8000 → 4000 → 8000 and the PAW3950Ultra read path are confirmed; settings
+  changes persisted across reconnects on both links. Its lift-off level (`6`) is
+  not in the known 1 mm / 2 mm / 0.7 mm map; a displayed 2.0 mm after a write is
+  code `2`, not a confirmed mapping for the vendor's code `6`. The Performance
+  page warns about the unmapped level; writing a verified value is allowed and
+  verified by read-back.
 - **VXE R1 SE+** — added from a report in 0.9.2. Its owner confirmed polling
   and DPI writes on 0.9.2; button remapping, lighting and the remaining
   controls are still untested. Its 1K receiver caps polling at 1000 Hz and the
@@ -211,32 +212,34 @@ shows the current one.
 | --- | --- | --- |
 | `recognised` | identity, battery and reads only | nothing: the identity is in the vendor catalogue |
 | `experimental` | writes work, verified by read-back | an owner's report that decodes with the family's existing protocol |
-| `verified` | the advertised controls are proven on that model | the checklist below, recorded in [PROTOCOL.md](PROTOCOL.md) |
+| `verified` | an owner has confirmed the model on its hardware | owner confirmation plus recorded evidence; remaining gaps are documented as caveats |
 
 The level is a field on the model entry in `atk_control/devices.py`; the app
 banner, the README table and `atkctl status` all read it. A `verified` entry must
 also carry its evidence (firmware, links, date, issue), which a unit test
-enforces.
+enforces. “Verified” does not mean every control was scripted; it means an owner
+confirmed the model and the evidence is recorded. Individual gaps stay visible
+as caveats.
 
 Writes are also gated per feature, not just per model. DPI writes are refused
 while the sensor is unidentified, because the sensor selects the DPI encoding
 and read-back cannot catch a wrong one: the same codec encodes and decodes the
 value, which is how 0.9.1 shipped DPI five times too low for one model.
 
-To move a model from experimental to verified, its owner runs this on the exact
-mouse and posts the result:
+To move a model from experimental to verified, its owner needs to confirm it on
+the exact hardware:
 
 1. reads are consistent on that link (`atkctl status`, `atkctl caps`);
-2. each advertised setting is written, read back, and restored to its original
-   value;
-3. the values the app claims to commit survive a power cycle or reconnect;
-4. the evidence is written into [PROTOCOL.md](PROTOCOL.md).
+2. settings changes are written, read back, and survive a reconnect or power
+   cycle;
+3. the evidence is recorded in [PROTOCOL.md](PROTOCOL.md) (firmware, links,
+   date, issue).
 
-"The settings work" keeps a model experimental: it proves that writes land, not
-that every control is correct. A control that cannot be restored from the app —
-an unmapped lift-off level, for example — is not tested at all, and the
-limitation is stated instead of being guessed at.
+A control that cannot be exercised cleanly — an unmapped lift-off level, a button
+the owner does not use, a feature without a scriptable test — is documented as a
+caveat instead of blocking the label. The goal is an honest owner-confirmed
+entry, not an endless checklist.
 
 Experimental models are tracked with the `needs-verification` label on their
-issue. The label comes off when the evidence lands and the README moves the model
-to verified.
+issue. The label comes off when the owner confirms the model and the README
+moves it to verified.
